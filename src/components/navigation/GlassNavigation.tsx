@@ -9,6 +9,7 @@ import { useThemeStore } from "@/stores/theme";
 import { useLocaleStore } from "@/stores/locale";
 import { useUIStore } from "@/stores/ui";
 import { UserMenu, type SessionUser } from "@/components/auth/UserMenu";
+import { NavigationDrawer } from "@/components/ui/navigation-drawer";
 
 interface Props {
   categories: Category[];
@@ -21,7 +22,9 @@ export function GlassNavigation({ categories, user }: Props) {
   const openSearch = useUIStore((s) => s.openSearch);
   const { mode, setMode } = useThemeStore();
   const [mounted, setMounted] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const isMobileMenuOpen = useUIStore((s) => s.isMobileMenuOpen);
+  const toggleMobileMenu = useUIStore((s) => s.toggleMobileMenu);
+  const closeMobileMenu = useUIStore((s) => s.closeMobileMenu);
 
   useEffect(() => setMounted(true), []);
 
@@ -106,39 +109,27 @@ export function GlassNavigation({ categories, user }: Props) {
 
             <button
               type="button"
-              onClick={() => setMenuOpen((v) => !v)}
+              onClick={toggleMobileMenu}
               className="rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10 lg:hidden"
-              aria-expanded={menuOpen}
+              aria-expanded={isMobileMenuOpen}
               aria-label="Menu"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                {menuOpen ? (
-                  <path d="M6 6l12 12M6 18L18 6" />
-                ) : (
-                  <path d="M4 7h16M4 12h16M4 17h16" />
-                )}
+                <path d="M4 7h16M4 12h16M4 17h16" />
               </svg>
             </button>
           </div>
         </div>
-
-        {menuOpen && (
-          <div className="border-t px-4 py-3 lg:hidden">
-            <div className="flex flex-col gap-1">
-              {categoryLinks.map((cat) => (
-                <Link
-                  key={cat.id}
-                  href={`/category/${cat.slug}`}
-                  className="rounded-lg px-3 py-2 text-sm font-medium hover:bg-black/5 dark:hover:bg-white/10"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  {locale === "bn" ? cat.name_bn : cat.name_en}
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
       </nav>
+
+      {/* Right-side drawer replaces the old inline dropdown panel. */}
+      <NavigationDrawer
+        open={isMobileMenuOpen}
+        onClose={closeMobileMenu}
+        categories={categories}
+        user={user}
+        onOpenSearch={openSearch}
+      />
     </header>
   );
 }

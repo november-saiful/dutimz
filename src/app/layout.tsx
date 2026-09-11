@@ -3,6 +3,7 @@ import { Providers } from "@/components/providers";
 import { GlassNavigation } from "@/components/navigation/GlassNavigation";
 import { Footer } from "@/components/navigation/Footer";
 import { MobileBottomDock } from "@/components/navigation/MobileBottomDock";
+import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { getActiveCategories } from "@/lib/data/queries";
 import { getAuthContext } from "@/lib/auth/server";
 import { SITE, DEFAULT_LOCALE } from "@/lib/constants/app";
@@ -75,6 +76,7 @@ export default async function RootLayout({
       </head>
       <body className="min-h-screen">
         <Providers>
+          <AntdRegistry>
           <a
             href="#main-content"
             className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-primary focus:px-4 focus:py-2 focus:text-white"
@@ -85,6 +87,7 @@ export default async function RootLayout({
           <main id="main-content" className="pb-24 tablet:pb-0">{children}</main>
           <Footer categories={categories} />
           <MobileBottomDock role={sessionUser?.role ?? null} />
+          </AntdRegistry>
         </Providers>
       </body>
     </html>
