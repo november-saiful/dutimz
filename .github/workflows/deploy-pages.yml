@@ -1,0 +1,45 @@
+name: Deploy Web (Cloudflare Pages)
+
+# Builds the Next.js app and deploys it to Cloudflare Pages on every push to
+# main (production) and every PR (preview). Requires the repository secrets
+# listed in DEPLOYMENT.md — the job skips itself until they exist.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Gate: set repo VARIABLE CLOUDFLARE_DEPLOY_ENABLED=true to activate.
+    if: vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy .next --project-name=${{ vars.CF_PAGES_PROJECT || 'dutimz-news' }} --branch=${{ github.head_ref || 'main' }}

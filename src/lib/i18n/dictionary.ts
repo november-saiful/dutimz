@@ -1,0 +1,99 @@
+import { DEFAULT_LOCALE, type Locale } from "@/lib/constants/app";
+
+const dictionary = {
+  bn: {
+    "nav.home": "হোম",
+    "nav.news": "সংবাদ",
+    "nav.articles": "নিবন্ধ",
+    "nav.documentaries": "ডকুমেন্টারি",
+    "nav.search": "খুঁজুন",
+    "nav.login": "লগইন",
+    "nav.logout": "লগআউট",
+    "nav.profile": "প্রোফাইল",
+    "ticker.label": "ব্রেকিং",
+    "hero.featured": "প্রধান সংবাদ",
+    "section.latest": "সর্বশেষ সংবাদ",
+    "section.popular": "সর্বাধিক পঠিত এই সপ্তাহে",
+    "section.documentary": "ডকুমেন্টারি স্পটলাইট",
+    "section.newsletter": "নিউজলেটার",
+    "section.newsletterBody": "প্রতিদিনের সেরা খবর সরাসরি আপনার ইনবক্সে।",
+    "newsletter.emailPlaceholder": "আপনার ইমেইল ঠিকানা",
+    "newsletter.subscribe": "সাবস্ক্রাইব করুন",
+    "newsletter.success": "ধন্যবাদ! আপনি সাবস্ক্রাইব করেছেন।",
+    "newsletter.invalidEmail": "অনুগ্রহ করে সঠিক ইমেইল দিন।",
+    "content.readMore": "বিস্তারিত",
+    "content.minRead": "মিনিট পড়া",
+    "content.views": "বার পঠিত",
+    "content.watchNow": "দেখুন",
+    "footer.about": "সম্পর্কিত",
+    "footer.categories": "বিভাগসমূহ",
+    "footer.follow": "আমাদের অনুসরণ করুন",
+    "footer.rights": "সর্বস্বত্ব সংরক্ষিত।",
+    "theme.light": "লাইট থিম",
+    "theme.dark": "ডার্ক থিম",
+    "theme.system": "সিস্টেম থিম",
+    "lang.switchTo": "English-তে পড়ুন",
+    "auth.googleOnly": "Google দিয়ে লগইন করুন",
+    "auth.signingIn": "লগইন হচ্ছে…",
+    "profile.title": "প্রোফাইল",
+    "profile.edit": "প্রোফাইল সম্পাদনা",
+    "profile.save": "সংরক্ষণ",
+    "profile.saved": "সংরক্ষিত হয়েছে।",
+    "profile.signOut": "লগআউট",
+  },
+  en: {
+    "nav.home": "Home",
+    "nav.news": "News",
+    "nav.articles": "Articles",
+    "nav.documentaries": "Documentaries",
+    "nav.search": "Search",
+    "nav.login": "Log in",
+    "nav.logout": "Log out",
+    "nav.profile": "Profile",
+    "ticker.label": "BREAKING",
+    "hero.featured": "Featured",
+    "section.latest": "Latest News",
+    "section.popular": "Most Read This Week",
+    "section.documentary": "Documentary Spotlight",
+    "section.newsletter": "Newsletter",
+    "section.newsletterBody": "The best stories, straight to your inbox every day.",
+    "newsletter.emailPlaceholder": "Your email address",
+    "newsletter.subscribe": "Subscribe",
+    "newsletter.success": "Thanks! You are subscribed.",
+    "newsletter.invalidEmail": "Please enter a valid email.",
+    "content.readMore": "Read more",
+    "content.minRead": "min read",
+    "content.views": "views",
+    "content.watchNow": "Watch now",
+    "footer.about": "About",
+    "footer.categories": "Categories",
+    "footer.follow": "Follow us",
+    "footer.rights": "All rights reserved.",
+    "theme.light": "Light theme",
+    "theme.dark": "Dark theme",
+    "theme.system": "System theme",
+    "lang.switchTo": "বাংলায় পড়ুন",
+    "auth.googleOnly": "Sign in with Google",
+    "auth.signingIn": "Signing in…",
+    "profile.title": "Profile",
+    "profile.edit": "Edit profile",
+    "profile.save": "Save",
+    "profile.saved": "Saved.",
+    "profile.signOut": "Log out",
+  },
+} as const;
+
+export type TranslationKey = keyof (typeof dictionary)["bn"];
+
+export function translate(
+  locale: Locale,
+  key: TranslationKey,
+): string {
+  return dictionary[locale][key] ?? dictionary[DEFAULT_LOCALE][key];
+}
+
+export type Translator = (key: TranslationKey) => string;
+
+export function createTranslator(locale: Locale): Translator {
+  return (key) => translate(locale, key);
+}

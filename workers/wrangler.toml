@@ -1,0 +1,12 @@
+name = "dutimz-api"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+
+[vars]
+# SUPABASE_URL and SUPABASE_ANON_KEY are set via `wrangler secret put` or
+# the Cloudflare dashboard — never committed.
+
+# Production routes (enable after first deploy):
+# [routes]
+# route = "api.dutimz.com/*"
+# zone_name = "dutimz.com"

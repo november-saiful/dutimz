@@ -1,0 +1,37 @@
+{
+  "name": "ঢাকা ইউনিভার্সিটি টাইম্‌জ — DUTIMZ",
+  "short_name": "DUTIMZ",
+  "description": "ঢাকা ইউনিভার্সিটি টাইম্‌জ — দ্বিভাষিক সংবাদ পোর্টাল: খবর, নিবন্ধ, ডকুমেন্টারি।",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#eef3fb",
+  "theme_color": "#1a73e8",
+  "lang": "bn",
+  "dir": "ltr",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "সর্বশেষ সংবাদ / Latest News",
+      "url": "/?section=latest",
+      "description": "The latest stories"
+    },
+    {
+      "name": "খুঁজুন / Search",
+      "url": "/search",
+      "description": "Search all content"
+    }
+  ]
+}
