@@ -18,12 +18,15 @@
     "@supabase/supabase-js": "^2.49.0",
     "@tanstack/react-query": "^5.51.0",
     "antd": "^6.6.3",
+    "clsx": "^2.1.1",
     "lucide-react": "^1.45.0",
+    "motion": "^13.2.0",
     "next": "14.2.35",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "sanitize-html": "^2.17.7",
     "slugify": "^1.6.6",
+    "tailwind-merge": "^3.6.0",
     "zustand": "^5.0.3"
   },
   "devDependencies": {

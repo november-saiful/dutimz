@@ -1,4 +1,4 @@
-import { HeroSection } from "@/components/content/HeroSection";
+import { HeroHaloReel } from "@/components/content/HeroHaloReel";
 import { ContentGrid } from "@/components/content/ContentGrid";
 import { SectionHeading } from "@/components/content/SectionHeading";
 import { DocumentarySpotlight } from "@/components/content/DocumentarySpotlight";
@@ -43,7 +43,7 @@ export async function HomeSections() {
 
   return (
     <>
-      <HeroSection items={heroItems} />
+      <HeroHaloReel items={heroItems} />
 
       <section className="container mt-10">
         <SectionHeading title={t("section.latest")} />
