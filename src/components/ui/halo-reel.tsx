@@ -84,6 +84,8 @@ export interface HaloReelProps
   showCenterLabel?: boolean;
   /** Fires with the index of the card that moved to the front. */
   onActiveChange?: (index: number) => void;
+  /** Maximum blur (px) applied to cards away from the front. @default 6 */
+  maxBlur?: number;
 }
 
 const TAU = Math.PI * 2;
@@ -110,6 +112,7 @@ export function HaloReel({
   centerLabel,
   showCenterLabel = true,
   onActiveChange,
+  maxBlur = 6,
   className,
   style,
   ...props
@@ -350,6 +353,7 @@ export function HaloReel({
           radiusY={radiusY}
           centerXRatio={centerXRatio}
           minScale={minScale}
+          maxBlur={maxBlur}
           width={cardW}
           height={cardH}
           onHoverChange={(hovered) => {
@@ -372,6 +376,7 @@ function WheelCard({
   radiusY,
   centerXRatio,
   minScale,
+  maxBlur,
   width,
   height,
   decorative,
@@ -385,6 +390,7 @@ function WheelCard({
   radiusY: number;
   centerXRatio: number;
   minScale: number;
+  maxBlur: number;
   width: number;
   height: number;
   decorative: boolean;
@@ -400,6 +406,12 @@ function WheelCard({
     (c) => minScale + (1 - minScale) * ((c + 1) / 2),
   );
   const zIndex = useTransform(scale, (s) => Math.round(s * 1000));
+  // Blur ramps from 0 at the front (cos=1) to maxBlur at the back (cos=-1).
+  const blur = useTransform(
+    cos,
+    (c) => maxBlur * ((1 - c) / 2),
+  );
+  const filterBlur = useTransform(blur, (b) => `blur(${b}px)`);
 
   return (
     <motion.div
@@ -413,6 +425,7 @@ function WheelCard({
         y,
         scale,
         zIndex,
+        filter: filterBlur,
         width,
         height,
         left: `${centerXRatio * 100}%`,
@@ -420,7 +433,7 @@ function WheelCard({
         marginLeft: -width / 2,
         marginTop: -height / 2,
       }}
-      className="absolute overflow-hidden rounded-xl shadow-xl backdrop-blur-sm"
+      className="absolute overflow-hidden rounded-xl shadow-xl"
     >
       {item.src ? (
         // Cards transform continuously (scale/x/y via motion values), so
