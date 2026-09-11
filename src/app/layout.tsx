@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Providers } from "@/components/providers";
 import { GlassNavigation } from "@/components/navigation/GlassNavigation";
 import { Footer } from "@/components/navigation/Footer";
+import { MobileBottomDock } from "@/components/navigation/MobileBottomDock";
 import { getActiveCategories } from "@/lib/data/queries";
 import { getAuthContext } from "@/lib/auth/server";
 import { SITE, DEFAULT_LOCALE } from "@/lib/constants/app";
@@ -81,8 +82,9 @@ export default async function RootLayout({
             মূল কন্টেন্টে যান / Skip to content
           </a>
           <GlassNavigation categories={categories} user={sessionUser} />
-          <main id="main-content">{children}</main>
+          <main id="main-content" className="pb-24 tablet:pb-0">{children}</main>
           <Footer categories={categories} />
+          <MobileBottomDock role={sessionUser?.role ?? null} />
         </Providers>
       </body>
     </html>

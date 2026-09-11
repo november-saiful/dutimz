@@ -10,7 +10,7 @@ export function Footer({ categories }: { categories: Category[] }) {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="no-print mt-16 border-t border-white/20 bg-white/40 backdrop-blur-glass dark:bg-black/40">
+    <footer className="no-print mb-20 mt-16 border-t border-white/20 bg-white/40 backdrop-blur-glass tablet:mb-0 dark:bg-black/40">
       <div className="container grid gap-8 py-10 md:grid-cols-4">
         <div className="md:col-span-2">
           <p className="text-lg font-bold">{SITE_NAME_BN}</p>
