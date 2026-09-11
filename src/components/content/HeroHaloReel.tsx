@@ -77,7 +77,10 @@ export function HeroHaloReel({ items }: { items: ContentWithRelations[] }) {
         onActiveChange={onActiveChange}
         className="h-[420px] w-full rounded-glass border border-white/30 bg-white/30 backdrop-blur-glass dark:bg-black/20 md:h-[480px]"
         centerLabel={
-          <div className="flex flex-col gap-3 max-w-xs md:max-w-sm">
+          <a
+            href={hrefFor(active)}
+            className="flex flex-col gap-3 max-w-xs md:max-w-sm group/link focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl -m-2 p-2 transition-opacity hover:opacity-90"
+          >
             {/* Category + type badge */}
             <div className="flex items-center gap-2">
               <p
@@ -98,7 +101,7 @@ export function HeroHaloReel({ items }: { items: ContentWithRelations[] }) {
               </span>
             </div>
             {/* Headline */}
-            <h2 className="text-xl font-bold leading-snug md:text-3xl">
+            <h2 className="text-xl font-bold leading-snug md:text-3xl group-hover/link:underline decoration-1 underline-offset-4">
               {activeTitle}
             </h2>
             {/* Excerpt */}
@@ -107,15 +110,7 @@ export function HeroHaloReel({ items }: { items: ContentWithRelations[] }) {
                 {activeExcerpt}
               </p>
             ) : null}
-            {/* CTA */}
-            <a
-              href={hrefFor(active)}
-              className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold opacity-80 hover:opacity-100 transition-opacity"
-            >
-              {isBn ? "বিস্তারিত পড়ুন" : "Read more"}
-              <span aria-hidden="true">→</span>
-            </a>
-          </div>
+          </a>
         }
       />
     </section>
