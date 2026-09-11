@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Noto_Serif_Bengali } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { GlassNavigation } from "@/components/navigation/GlassNavigation";
 import { Footer } from "@/components/navigation/Footer";
@@ -28,6 +29,20 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
   manifest: "/manifest.json",
 };
+
+/**
+ * Bangla webfont (spec Appendix A). Self-hosted by next/font: downloaded at
+ * build time, subset to bengali+latin, served as woff2 from our own origin
+ * with font-display: swap. The generated CSS variable feeds the global font
+ * stack (see --font-stack-bangla in globals.css and tailwind.config.ts).
+ */
+const notoSerifBengali = Noto_Serif_Bengali({
+  subsets: ["bengali", "latin"],
+  weight: "variable",
+  display: "swap",
+  variable: "--font-noto-bengali",
+  preload: true,
+});
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -70,7 +85,7 @@ export default async function RootLayout({
     : null;
 
   return (
-    <html lang={lang} suppressHydrationWarning>
+    <html lang={lang} suppressHydrationWarning className={notoSerifBengali.variable}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>

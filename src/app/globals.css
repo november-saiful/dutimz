@@ -56,38 +56,39 @@
   --page-bg: linear-gradient(135deg, #0f1218 0%, #101613 50%, #17130c 100%);
 }
 
-/* ===== SolaimanLipi (Bangla) ===== */
-@font-face {
-  font-family: 'SolaimanLipi';
-  src: url('/fonts/SolaimanLipi.woff2') format('woff2');
-  font-weight: 400;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'SolaimanLipi';
-  src: url('/fonts/SolaimanLipi-Bold.woff2') format('woff2');
-  font-weight: 700;
-  font-display: swap;
-}
-
 /* ===== Times New Roman (English) ===== */
 @font-face {
   font-family: 'Times New Roman';
   src: local('Times New Roman'), local('TimesNewRoman'), local('Liberation Serif');
 }
 
+/*
+ * Bangla webfont: Noto Serif Bengali, self-hosted via next/font in
+ * src/app/layout.tsx and exposed as the CSS variable --font-noto-bengali.
+ * It is the primary family everywhere (body font stack below), covering
+ * Bengali + Latin; 'Times New Roman' remains as the Latin-first fallback
+ * for systems where the variable font has not loaded yet (font-display:
+ * swap prevents invisible text).
+ *
+ * NOTE: the old SolaimanLipi @font-face pointed at /fonts/*.woff2 files
+ * that were never committed — it silently 404'd and Bangla rendered in
+ * fallback system fonts. Removed.
+ */
+
 /* ===== Typography Scale ===== */
 :root {
-  --font-headline-large: 700 2.5rem/1.2 'SolaimanLipi', 'Times New Roman', serif;
-  --font-headline-medium: 700 2rem/1.25 'SolaimanLipi', 'Times New Roman', serif;
-  --font-headline-small: 700 1.5rem/1.3 'SolaimanLipi', 'Times New Roman', serif;
-  --font-body-large: 400 1.125rem/1.7 'SolaimanLipi', 'Times New Roman', serif;
-  --font-body-medium: 400 1rem/1.7 'SolaimanLipi', 'Times New Roman', serif;
-  --font-body-small: 400 0.875rem/1.6 'SolaimanLipi', 'Times New Roman', serif;
-  --font-label-large: 500 0.875rem/1.5 'SolaimanLipi', 'Times New Roman', serif;
-  --font-label-medium: 500 0.75rem/1.5 'SolaimanLipi', 'Times New Roman', serif;
-  --font-ticker: 700 1rem/1.4 'SolaimanLipi', 'Times New Roman', serif;
+  /* var(--font-noto-bengali) is injected by next/font in layout.tsx. */
+  --font-stack-bangla: var(--font-noto-bengali), 'Noto Serif Bengali', 'Times New Roman', serif;
+
+  --font-headline-large: 700 2.5rem/1.2 var(--font-stack-bangla);
+  --font-headline-medium: 700 2rem/1.25 var(--font-stack-bangla);
+  --font-headline-small: 700 1.5rem/1.3 var(--font-stack-bangla);
+  --font-body-large: 400 1.125rem/1.7 var(--font-stack-bangla);
+  --font-body-medium: 400 1rem/1.7 var(--font-stack-bangla);
+  --font-body-small: 400 0.875rem/1.6 var(--font-stack-bangla);
+  --font-label-large: 500 0.875rem/1.5 var(--font-stack-bangla);
+  --font-label-medium: 500 0.75rem/1.5 var(--font-stack-bangla);
+  --font-ticker: 700 1rem/1.4 var(--font-stack-bangla);
 }
 
 @layer base {
@@ -99,7 +100,7 @@
     background: var(--page-bg);
     background-attachment: fixed;
     color: var(--md-sys-color-on-surface);
-    font-family: 'SolaimanLipi', 'Times New Roman', serif;
+    font-family: var(--font-stack-bangla);
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
   }

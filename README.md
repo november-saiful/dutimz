@@ -7,7 +7,7 @@ text news, video news, articles and documentaries.
 - **Edge API**: Cloudflare Workers (`workers/`)
 - **Database/Auth/Storage**: Supabase (PostgreSQL + Auth + Storage + Realtime)
 - **Design**: Material 3 + Google Neural Expressive + Glass Morphism
-- **Typography**: SolaimanLipi (Bangla) · Times New Roman (English)
+- **Typography**: Noto Serif Bengali (Bangla, self-hosted via `next/font`) · Times New Roman (English)
 
 ## Quick start
 

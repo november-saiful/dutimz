@@ -34,7 +34,13 @@ const config: Config = {
         },
       },
       fontFamily: {
-        bangla: ["SolaimanLipi", "Times New Roman", "serif"],
+        // var(--font-noto-bengali) is injected by next/font (layout.tsx).
+        bangla: [
+          "var(--font-noto-bengali)",
+          "Noto Serif Bengali",
+          "Times New Roman",
+          "serif",
+        ],
         english: ["Times New Roman", "serif"],
       },
       screens: {
