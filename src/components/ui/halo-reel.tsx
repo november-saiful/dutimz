@@ -82,6 +82,8 @@ export interface HaloReelProps
   centerLabel?: React.ReactNode;
   /** @default true */
   showCenterLabel?: boolean;
+  /** Fires with the index of the card that moved to the front. */
+  onActiveChange?: (index: number) => void;
 }
 
 const TAU = Math.PI * 2;
@@ -107,6 +109,7 @@ export function HaloReel({
   dragSensitivity = 1,
   centerLabel,
   showCenterLabel = true,
+  onActiveChange,
   className,
   style,
   ...props
@@ -256,6 +259,24 @@ export function HaloReel({
     animate(rotation, snapped, { duration: 0.5, ease: [0.16, 1, 0.3, 1] });
   };
 
+  // Track which card is nearest the front and notify the parent.
+  const lastActiveRef = React.useRef(-1);
+  React.useEffect(() => {
+    if (!onActiveChange || !count || !step) return;
+    const unsub = rotation.on("change", (r) => {
+      const idx = ((Math.round(-r / step) % count) + count) % count;
+      if (idx !== lastActiveRef.current) {
+        lastActiveRef.current = idx;
+        onActiveChange(idx);
+      }
+    });
+    // Fire once for the initial state.
+    const init = ((Math.round(-rotation.get() / step) % count) + count) % count;
+    lastActiveRef.current = init;
+    onActiveChange(init);
+    return unsub;
+  }, [count, onActiveChange, rotation, step]);
+
   const spinBy = (direction: number) => {
     const target = Math.round(rotation.get() / step) * step - direction * step;
     if (reduceMotion) {
@@ -399,7 +420,7 @@ function WheelCard({
         marginLeft: -width / 2,
         marginTop: -height / 2,
       }}
-      className="absolute overflow-hidden rounded-xl shadow-xl"
+      className="absolute overflow-hidden rounded-xl shadow-xl backdrop-blur-sm"
     >
       {item.src ? (
         // Cards transform continuously (scale/x/y via motion values), so
@@ -414,21 +435,7 @@ function WheelCard({
           loading="lazy"
           className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover rounded-xl"
         />
-        {/* Text overlay at the bottom of image cards */}
-        {(item.title || item.description) && !decorative ? (
-          <div className="absolute inset-x-0 bottom-0 z-[1] rounded-b-xl bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 pt-6">
-            {item.title ? (
-              <p className="line-clamp-2 text-[0.55rem] font-bold leading-tight text-white drop-shadow-lg">
-                {item.title}
-              </p>
-            ) : null}
-            {item.description ? (
-              <p className="mt-0.5 line-clamp-1 text-[0.45rem] leading-snug text-white/80">
-                {item.description}
-              </p>
-            ) : null}
-          </div>
-        ) : null}
+
         </>
       ) : (
         <div

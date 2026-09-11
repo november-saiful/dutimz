@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { HaloReel, type HaloReelItem } from "@/components/ui/halo-reel";
 import type { ContentWithRelations } from "@/types";
 import { useLocaleStore } from "@/stores/locale";
@@ -24,6 +24,9 @@ function hrefFor(item: ContentWithRelations): string {
 export function HeroHaloReel({ items }: { items: ContentWithRelations[] }) {
   const locale = useLocaleStore((s) => s.locale);
   const isBn = locale === "bn";
+  const [activeIdx, setActiveIdx] = useState(0);
+
+  const onActiveChange = useCallback((idx: number) => setActiveIdx(idx), []);
 
   const reelItems = useMemo<HaloReelItem[]>(
     () =>
@@ -49,6 +52,15 @@ export function HeroHaloReel({ items }: { items: ContentWithRelations[] }) {
   if (items.length === 0) return null;
 
   const heading = translate(locale, "hero.featured");
+  const active = items[activeIdx] ?? items[0]!;
+  const activeTitle = isBn ? active.title_bn : (active.title_en ?? active.title_bn);
+  const activeExcerpt = isBn
+    ? (active.excerpt_bn ?? undefined)
+    : (active.excerpt_en ?? active.excerpt_bn ?? undefined);
+  const activeCategory = isBn
+    ? (active.category?.name_bn ?? undefined)
+    : (active.category?.name_en ?? undefined);
+  const activeType = active.content_type;
 
   return (
     <section aria-label={heading} className="container mt-6">
@@ -62,28 +74,47 @@ export function HeroHaloReel({ items }: { items: ContentWithRelations[] }) {
         radiusYRatio={0.34}
         holdDuration={2200}
         stepDuration={800}
+        onActiveChange={onActiveChange}
         className="h-[420px] w-full rounded-glass border border-white/30 bg-white/30 backdrop-blur-glass dark:bg-black/20 md:h-[480px]"
         centerLabel={
-          <div className="max-w-xs md:max-w-sm">
-            <p
-              className="mb-3 inline-block rounded-full px-3 py-1 text-xs font-bold"
-              style={{
-                background: "var(--md-sys-color-primary)",
-                color: "var(--md-sys-color-on-primary)",
-              }}
+          <div className="flex flex-col gap-3 max-w-xs md:max-w-sm">
+            {/* Category + type badge */}
+            <div className="flex items-center gap-2">
+              <p
+                className="inline-block rounded-full px-3 py-1 text-xs font-bold"
+                style={{
+                  background: "var(--md-sys-color-primary)",
+                  color: "var(--md-sys-color-on-primary)",
+                }}
+              >
+                {activeCategory ?? heading}
+              </p>
+              <span className="text-xs uppercase tracking-widest opacity-50">
+                {activeType === "news"
+                  ? (isBn ? "সংবাদ" : "News")
+                  : activeType === "article"
+                    ? (isBn ? "নিবন্ধ" : "Article")
+                    : (isBn ? "প্রামাণ্যচিত্র" : "Documentary")}
+              </span>
+            </div>
+            {/* Headline */}
+            <h2 className="text-xl font-bold leading-snug md:text-3xl">
+              {activeTitle}
+            </h2>
+            {/* Excerpt */}
+            {activeExcerpt ? (
+              <p className="text-sm leading-relaxed opacity-70 line-clamp-3 hidden sm:block">
+                {activeExcerpt}
+              </p>
+            ) : null}
+            {/* CTA */}
+            <a
+              href={hrefFor(active)}
+              className="mt-1 inline-flex items-center gap-1.5 text-sm font-semibold opacity-80 hover:opacity-100 transition-opacity"
             >
-              {heading}
-            </p>
-            <p className="text-2xl font-bold leading-snug md:text-4xl">
-              {isBn ? "সংবাদ, বিশ্লেষণ," : "News. Analysis."}
-              <br />
-              {isBn ? "প্রতিদিন।" : "Every day."}
-            </p>
-            <p className="mt-3 hidden text-sm opacity-70 md:block">
-              {isBn
-                ? "গল্পগুলো ঘুরিয়ে দেখুন — টেনে ঘোরানো যায়, কার্ডে ক্লিক করলে খুলবে।"
-                : "Spin the ring — drag it, or tap a card to open the story."}
-            </p>
+              {isBn ? "বিস্তারিত পড়ুন" : "Read more"}
+              <span aria-hidden="true">→</span>
+            </a>
           </div>
         }
       />
