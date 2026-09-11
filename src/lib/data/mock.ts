@@ -43,7 +43,7 @@ function buildContent(input: MockInput): ContentWithRelations {
     subtitle_en: null,
     excerpt_en: input.excerptEn,
     body_en: `<p>${input.excerptEn}</p>`,
-    thumbnail_url: `https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=60`,
+    thumbnail_url: THUMBNAILS[input.id] ?? `https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=1200&q=60`,
     thumbnail_alt: input.titleEn,
     featured_image_url: null,
     video_url: input.videoUrl ?? null,
@@ -80,6 +80,20 @@ function buildContent(input: MockInput): ContentWithRelations {
     },
   };
 }
+
+// Unique Unsplash thumbnails per story (topic-matched, 1200w webp)
+const THUMBNAILS: Record<string, string> = {
+  "1": "https://images.unsplash.com/photo-1504868584819-f8e8b4b6d7e3?auto=format&fit=crop&w=1200&q=60",
+  "2": "https://images.unsplash.com/photo-1474487548417-781cb71495f3?auto=format&fit=crop&w=1200&q=60",
+  "3": "https://images.unsplash.com/photo-1531415074968-036ba1b575da?auto=format&fit=crop&w=1200&q=60",
+  "4": "https://images.unsplash.com/photo-1677442136019-21780ecad995?auto=format&fit=crop&w=1200&q=60",
+  "5": "https://images.unsplash.com/photo-1513415564515-763d91423bdd?auto=format&fit=crop&w=1200&q=60",
+  "6": "https://images.unsplash.com/photo-1534274988757-a28bf1a57c17?auto=format&fit=crop&w=1200&q=60",
+  "7": "https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?auto=format&fit=crop&w=1200&q=60",
+  "8": "https://images.unsplash.com/photo-1559136555-9303baea8ebd?auto=format&fit=crop&w=1200&q=60",
+  "9": "https://images.unsplash.com/photo-1504701954957-2010ec3bcec1?auto=format&fit=crop&w=1200&q=60",
+  "10": "https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&w=1200&q=60",
+};
 
 const inputs: MockInput[] = [
   { id: "1", slug: "dutimz-launches-bilingual-news-portal-2026", contentType: "news", titleBn: "দুতিমজ চালু করল দ্বিভাষিক সংবাদ পোর্টাল", titleEn: "Dutimz launches bilingual news portal", excerptBn: "নতুন প্ল্যাটফর্মে টেক্সট, ভিডিও ও ডকুমেন্টারি — একসাথে বাংলা ও ইংরেজিতে।", excerptEn: "The new platform ships text, video and documentary formats in Bangla and English.", categorySlug: "technology", featured: true, views: 1240, daysAgo: 0 },

@@ -39,6 +39,9 @@ export function HeroHaloReel({ items }: { items: ContentWithRelations[] }) {
           locale === "bn"
             ? (content.category?.name_bn ?? undefined)
             : (content.category?.name_en ?? undefined),
+        description: isBn
+          ? (content.excerpt_bn ?? undefined)
+          : (content.excerpt_en ?? content.excerpt_bn ?? undefined),
       })),
     [items, isBn, locale],
   );

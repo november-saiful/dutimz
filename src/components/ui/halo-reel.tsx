@@ -37,6 +37,8 @@ export type HaloReelItem = {
   textColor?: string;
   title?: string;
   subtitle?: string;
+  /** Short description shown as an overlay on image cards. */
+  description?: string;
   /** DUTIMZ extension: route the card links to (e.g. /news/slug). */
   href?: string;
 };
@@ -397,20 +399,37 @@ function WheelCard({
         marginLeft: -width / 2,
         marginTop: -height / 2,
       }}
-      className="absolute overflow-hidden shadow-xl"
+      className="absolute overflow-hidden rounded-xl shadow-xl"
     >
       {item.src ? (
         // Cards transform continuously (scale/x/y via motion values), so
         // per-frame next/image optimization is not applicable; thumbnails
         // may also be data-URLs in mock mode, which next/image cannot size.
         // eslint-disable-next-line @next/next/no-img-element
+        <>
         <img
           src={item.src}
           alt={decorative ? "" : (item.alt ?? "")}
           draggable={false}
           loading="lazy"
-          className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover"
+          className="pointer-events-none absolute inset-0 h-full w-full select-none object-cover rounded-xl"
         />
+        {/* Text overlay at the bottom of image cards */}
+        {(item.title || item.description) && !decorative ? (
+          <div className="absolute inset-x-0 bottom-0 z-[1] rounded-b-xl bg-gradient-to-t from-black/80 via-black/40 to-transparent p-2 pt-6">
+            {item.title ? (
+              <p className="line-clamp-2 text-[0.55rem] font-bold leading-tight text-white drop-shadow-lg">
+                {item.title}
+              </p>
+            ) : null}
+            {item.description ? (
+              <p className="mt-0.5 line-clamp-1 text-[0.45rem] leading-snug text-white/80">
+                {item.description}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        </>
       ) : (
         <div
           className="flex h-full w-full flex-col items-center justify-center gap-1 p-3 text-center"
