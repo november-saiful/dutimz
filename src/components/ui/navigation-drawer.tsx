@@ -212,8 +212,7 @@ export function NavigationDrawer({
           inlineIndent={14}
         />
         <Divider style={{ margin: "12px 0", borderColor: "var(--glass-border)" }} />
-        <p className="px-2 text-xs opacity-50">
-          {isBn ? "ঢাকা ইউনিভার্সিটি টাইম্‌জ" : "Dhaka University Times"}
+        <p className="px-2 text-xs opacity-50">           DUTIMZ
         </p>
       </Drawer>
     </ConfigProvider>
