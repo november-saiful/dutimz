@@ -25,7 +25,6 @@ export const metadata: Metadata = {
     title: `${SITE_NAME_BN} | ${SITE.name}`,
     description: SITE.description,
     locale: "bn_BD",
-    alternateLocale: "en_US",
   },
   icons: {
     icon: "/favicon.svg",

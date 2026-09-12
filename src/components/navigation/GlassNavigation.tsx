@@ -53,7 +53,7 @@ export function GlassNavigation({ categories, user }: Props) {
                 className="h-8 w-auto md:h-9"
               />
               <span className="text-lg font-bold leading-tight md:text-xl">
-                {locale === "bn" ? SITE_NAME_BN : "DUTIMZ"}
+                DUTIMZ
               </span>
             </Link>
             <div className="hidden items-center gap-1 lg:flex">
@@ -101,14 +101,7 @@ export function GlassNavigation({ categories, user }: Props) {
               )}
             </button>
 
-            <button
-              type="button"
-              onClick={() => useLocaleStore.getState().setLocale(locale === "bn" ? "en" : "bn")}
-              className="rounded-full px-2.5 py-1 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10"
-              aria-label={t("lang.switchTo")}
-            >
-              {locale === "bn" ? "EN" : "বাং"}
-            </button>
+
 
             {user ? (
               <UserMenu user={user} />

@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import { House, Search, Bookmark, Newspaper, UserRound } from "lucide-react";
 import { LimelightNav, type NavItem } from "@/components/ui/limelight-nav";
-import { useLocaleStore } from "@/stores/locale";
 import { useUIStore } from "@/stores/ui";
 import { useThemeStore } from "@/stores/theme";
 
@@ -14,25 +13,15 @@ import { useThemeStore } from "@/stores/theme";
  */
 
 const COPY = {
-  bn: {
-    home: "হোম",
-    search: "খুঁজুন",
-    bookmarks: "বুকমার্ক",
-    desk: "ডেস্ক",
-    profile: "প্রোফাইল",
-  },
-  en: {
-    home: "Home",
-    search: "Search",
-    bookmarks: "Bookmarks",
-    desk: "Desk",
-    profile: "Profile",
-  },
+  home: "হোম",
+  search: "খুঁজুন",
+  bookmarks: "বুকমার্ক",
+  desk: "ডেস্ক",
+  profile: "প্রোফাইল",
 } as const;
 
 export function MobileBottomDock({ role }: { role?: string | null }) {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const t = COPY;
   const openSearch = useUIStore((s) => s.openSearch);
   const setMode = useThemeStore((s) => s.setMode);
 
