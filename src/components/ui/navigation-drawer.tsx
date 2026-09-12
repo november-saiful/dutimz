@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
+import Image from "next/image";
 import { Drawer, ConfigProvider, Divider } from "antd";
 import type { MenuProps } from "antd";
 import {
@@ -208,6 +209,18 @@ export function NavigationDrawer({
           },
         }}
       >
+        <div className="flex items-center gap-2 px-1 pb-3">
+          <Image
+            src="/dutimz-logo.svg"
+            alt="DUTIMZ logo"
+            width={32}
+            height={32}
+            className="h-8 w-auto"
+          />
+          <span className="text-sm font-bold">
+            {isBn ? "ঢাকা ইউনিভার্সিটি টাইম্‌জ" : "DUTIMZ"}
+          </span>
+        </div>
         <DUTIMZMenu
           mode="inline"
           items={items}

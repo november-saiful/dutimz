@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import type { Category } from "@/types";
 import { translate } from "@/lib/i18n/dictionary";
@@ -41,8 +42,18 @@ export function GlassNavigation({ categories, user }: Props) {
       <nav className="glass-nav" aria-label="Main">
         <div className="container flex h-16 items-center justify-between gap-4">
           <div className="flex min-w-0 items-center gap-4">
-            <Link href="/" className="shrink-0 text-lg font-bold leading-tight md:text-xl">
-              {locale === "bn" ? SITE_NAME_BN : "DUTIMZ"}
+            <Link href="/" className="shrink-0 flex items-center gap-2">
+              <Image
+                src="/dutimz-logo.svg"
+                alt="DUTIMZ logo"
+                width={36}
+                height={36}
+                priority
+                className="h-8 w-auto md:h-9"
+              />
+              <span className="text-lg font-bold leading-tight md:text-xl">
+                {locale === "bn" ? SITE_NAME_BN : "DUTIMZ"}
+              </span>
             </Link>
             <div className="hidden items-center gap-1 lg:flex">
               <Link href="/" className={navLinkClass}>

@@ -26,6 +26,10 @@ export const metadata: Metadata = {
     locale: "bn_BD",
     alternateLocale: "en_US",
   },
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
   robots: { index: true, follow: true },
   manifest: "/manifest.json",
 };

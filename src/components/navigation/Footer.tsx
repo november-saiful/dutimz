@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Category } from "@/types";
 import { translate } from "@/lib/i18n/dictionary";
 import { SITE_NAME_BN } from "@/lib/constants/brand";
@@ -13,7 +14,16 @@ export function Footer({ categories }: { categories: Category[] }) {
     <footer className="no-print mb-20 mt-16 border-t border-white/20 bg-white/40 backdrop-blur-glass tablet:mb-0 dark:bg-black/40">
       <div className="container grid gap-8 py-10 md:grid-cols-4">
         <div className="md:col-span-2">
-          <p className="text-lg font-bold">{SITE_NAME_BN}</p>
+          <div className="flex items-center gap-2">
+            <Image
+              src="/dutimz-logo.svg"
+              alt="DUTIMZ logo"
+              width={40}
+              height={40}
+              className="h-10 w-auto"
+            />
+            <p className="text-lg font-bold">{SITE_NAME_BN}</p>
+          </div>
           <p className="mt-2 max-w-md text-sm opacity-70">{SITE.description}</p>
         </div>
 
