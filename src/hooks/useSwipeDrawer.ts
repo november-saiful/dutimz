@@ -24,6 +24,7 @@ export function useSwipeDrawer(onSwipe: () => void) {
 
     const onStart = (e: TouchEvent) => {
       const t = e.touches[0];
+      if (!t) return;
       if (t.clientX <= EDGE_THRESHOLD) {
         tracking.current = true;
         startX.current = t.clientX;
@@ -35,6 +36,7 @@ export function useSwipeDrawer(onSwipe: () => void) {
       if (!tracking.current) return;
       tracking.current = false;
       const t = e.changedTouches[0];
+      if (!t) return;
       const dx = t.clientX - startX.current;
       const dy = Math.abs(t.clientY - startY.current);
       if (dx >= MIN_SWIPE && dy < MAX_VERTICAL) {
@@ -45,9 +47,10 @@ export function useSwipeDrawer(onSwipe: () => void) {
     const onMove = (e: TouchEvent) => {
       if (!tracking.current) return;
       const t = e.touches[0];
+      if (!t) return;
       const dy = Math.abs(t.clientY - startY.current);
       if (dy > MAX_VERTICAL) {
-        tracking.current = false; // cancelled — user is scrolling
+        tracking.current = false;
       }
     };
 
