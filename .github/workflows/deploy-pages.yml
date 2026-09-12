@@ -31,14 +31,12 @@ jobs:
 
       - run: npm ci --legacy-peer-deps
 
-      - name: Build
-        run: npm run build
+      - name: Build for Cloudflare Pages
+        run: npx --yes @cloudflare/next-on-pages
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-
-      - name: Clean build cache (Cloudflare 25 MiB limit)
-        run: rm -rf .next/cache
+          NPM_CONFIG_LEGACY_PEER_DEPS: true
 
       - name: Create Cloudflare Pages project (if needed)
         uses: cloudflare/wrangler-action@v3
@@ -53,4 +51,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy .next --project-name=${{ vars.CF_PAGES_PROJECT || 'dutimz-news' }} --branch=${{ github.head_ref || 'main' }} --commit-dirty=true
+          command: pages deploy .vercel/output/static --project-name=${{ vars.CF_PAGES_PROJECT || 'dutimz-news' }} --branch=${{ github.head_ref || 'main' }} --commit-dirty=true
