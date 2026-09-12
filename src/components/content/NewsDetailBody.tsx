@@ -7,6 +7,8 @@ import { NewsletterCTA } from "@/components/content/NewsletterCTA";
 import { CommentSection } from "@/components/content/CommentSection";
 import { ShareButtons } from "@/components/content/ShareButtons";
 import { BookmarkButton } from "@/components/content/BookmarkButton";
+import { TextToSpeech } from "@/components/content/TextToSpeech";
+import { ReadTracker } from "@/components/content/ReadTracker";
 import { formatDate, formatCount, estimateReadTime } from "@/lib/utils/format";
 import { sanitizeArticleHtml } from "@/lib/content/sanitize";
 import { translate } from "@/lib/i18n/dictionary";
@@ -32,6 +34,7 @@ export function NewsDetailBody({ content, related, locale, showVideoEmbed = fals
 
   return (
     <article className="container mt-6 max-w-4xl page-transition">
+      <ReadTracker content={content} />
       <nav aria-label="Breadcrumb" className="mb-4 text-xs opacity-60">
         <ol className="flex items-center gap-1.5">
           <li>
@@ -111,9 +114,20 @@ export function NewsDetailBody({ content, related, locale, showVideoEmbed = fals
 
       {excerpt && <p className="mt-6 border-l-4 pl-4 text-lg opacity-80" style={{ borderColor: "var(--md-sys-color-primary)" }}>{excerpt}</p>}
 
+      {/* Listen to article */}
+      {rawBody && (
+        <div className="mt-6 max-w-[720px]">
+          <TextToSpeech
+            bodyHtml={rawBody}
+            title={title}
+            language={content.language_primary}
+          />
+        </div>
+      )}
+
       <div
         className="prose-bn mt-6 max-w-[720px] space-y-4 text-[1.075rem] leading-[1.8]"
-        // Editor-produced HTML, sanitized above with DOMPurify (Phase 3).
+        // Editor-produced HTML, sanitized above with sanitize-html (Phase 3).
         dangerouslySetInnerHTML={{ __html: body }}
       />
 

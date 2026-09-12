@@ -5,6 +5,7 @@ import { GlassNavigation } from "@/components/navigation/GlassNavigation";
 import { Footer } from "@/components/navigation/Footer";
 import { MobileBottomDock } from "@/components/navigation/MobileBottomDock";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
+import { ServiceWorkerRegistrar } from "@/components/providers/ServiceWorkerRegistrar";
 import { getActiveCategories } from "@/lib/data/queries";
 import { getAuthContext } from "@/lib/auth/server";
 import { SITE, DEFAULT_LOCALE } from "@/lib/constants/app";
@@ -106,6 +107,7 @@ export default async function RootLayout({
           <main id="main-content" className="pb-24 tablet:pb-0">{children}</main>
           <Footer categories={categories} />
           <MobileBottomDock role={sessionUser?.role ?? null} />
+          <ServiceWorkerRegistrar />
           </AntdRegistry>
         </Providers>
       </body>

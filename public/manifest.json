@@ -8,24 +8,50 @@
   "theme_color": "#1a73e8",
   "lang": "bn",
   "dir": "ltr",
+  "scope": "/",
+  "categories": ["news", "education"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/dutimz-logo.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
+    },
+    {
+      "src": "/dutimz-logo.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/dutimz-logo.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
     {
-      "name": "সর্বশেষ সংবাদ / Latest News",
-      "url": "/?section=latest",
-      "description": "The latest stories"
+      "name": "সর্বশেষ সংবাদ",
+      "short_name": "সংবাদ",
+      "url": "/",
+      "description": "Latest news",
+      "icons": [{ "src": "/dutimz-logo.svg", "sizes": "any" }]
     },
     {
-      "name": "খুঁজুন / Search",
+      "name": "খুঁজুন",
+      "short_name": "খুঁজুন",
       "url": "/search",
-      "description": "Search all content"
+      "description": "Search all content",
+      "icons": [{ "src": "/dutimz-logo.svg", "sizes": "any" }]
+    },
+    {
+      "name": "সংরক্ষিত",
+      "short_name": "সংরক্ষিত",
+      "url": "/bookmarks",
+      "description": "Saved articles",
+      "icons": [{ "src": "/dutimz-logo.svg", "sizes": "any" }]
     }
   ]
 }

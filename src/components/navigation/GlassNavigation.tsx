@@ -11,6 +11,7 @@ import { useLocaleStore } from "@/stores/locale";
 import { useUIStore } from "@/stores/ui";
 import { UserMenu, type SessionUser } from "@/components/auth/UserMenu";
 import { NavigationDrawer } from "@/components/ui/navigation-drawer";
+import { NotificationBell } from "@/components/content/NotificationBell";
 
 interface Props {
   categories: Category[];
@@ -68,6 +69,8 @@ export function GlassNavigation({ categories, user }: Props) {
           </div>
 
           <div className="flex items-center gap-1.5">
+            <NotificationBell />
+
             <button
               type="button"
               onClick={openSearch}

@@ -4,6 +4,7 @@ import { SectionHeading } from "@/components/content/SectionHeading";
 import { DocumentarySpotlight } from "@/components/content/DocumentarySpotlight";
 import { PopularList } from "@/components/content/PopularList";
 import { NewsletterCTA } from "@/components/content/NewsletterCTA";
+import { PollSection } from "@/components/content/PollSection";
 import { translate } from "@/lib/i18n/dictionary";
 import { getLocaleServer } from "@/lib/i18n/server";
 import {
@@ -73,6 +74,8 @@ export async function HomeSections() {
         </div>
         <PopularList items={popular} locale={locale} />
       </section>
+
+      <PollSection />
 
       <NewsletterCTA locale={locale} />
     </>
