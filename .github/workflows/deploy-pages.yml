@@ -37,9 +37,17 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
+      - name: Create Cloudflare Pages project (if needed)
+        uses: cloudflare/wrangler-action@v3
+        continue-on-error: true
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages project create ${{ vars.CF_PAGES_PROJECT || 'dutimz-news' }} --production-branch=main
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy .next --project-name=${{ vars.CF_PAGES_PROJECT || 'dutimz-news' }} --branch=${{ github.head_ref || 'main' }}
+          command: pages deploy .next --project-name=${{ vars.CF_PAGES_PROJECT || 'dutimz-news' }} --branch=${{ github.head_ref || 'main' }} --commit-dirty=true
