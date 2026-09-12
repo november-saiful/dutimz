@@ -6,6 +6,7 @@ import { Footer } from "@/components/navigation/Footer";
 import { MobileBottomDock } from "@/components/navigation/MobileBottomDock";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { ServiceWorkerRegistrar } from "@/components/providers/ServiceWorkerRegistrar";
+import { SwipeDrawerListener } from "@/components/providers/SwipeDrawerListener";
 import { getActiveCategories } from "@/lib/data/queries";
 import { getAuthContext } from "@/lib/auth/server";
 import { SITE, DEFAULT_LOCALE } from "@/lib/constants/app";
@@ -107,6 +108,7 @@ export default async function RootLayout({
           <Footer categories={categories} />
           <MobileBottomDock role={sessionUser?.role ?? null} />
           <ServiceWorkerRegistrar />
+          <SwipeDrawerListener />
           </AntdRegistry>
         </Providers>
       </body>

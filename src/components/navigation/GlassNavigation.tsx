@@ -74,7 +74,7 @@ export function GlassNavigation({ categories, user }: Props) {
             <button
               type="button"
               onClick={openSearch}
-              className="rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10"
+              className="rounded-full p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10"
               aria-label={t("nav.search")}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
@@ -86,7 +86,7 @@ export function GlassNavigation({ categories, user }: Props) {
             <button
               type="button"
               onClick={() => setMode(nextMode)}
-              className="rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10"
+              className="rounded-full p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10"
               aria-label={t("theme.light")}
             >
               {mounted && mode === "dark" ? (
@@ -117,7 +117,7 @@ export function GlassNavigation({ categories, user }: Props) {
             <button
               type="button"
               onClick={toggleMobileMenu}
-              className="rounded-full p-2 hover:bg-black/5 dark:hover:bg-white/10 lg:hidden"
+              className="rounded-full p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/10 lg:hidden"
               aria-expanded={isMobileMenuOpen}
               aria-label="Menu"
             >

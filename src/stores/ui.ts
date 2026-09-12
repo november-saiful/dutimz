@@ -14,6 +14,7 @@ interface UIStore {
   toastQueue: Toast[];
   openSearch: () => void;
   closeSearch: () => void;
+  openMobileMenu: () => void;
   toggleMobileMenu: () => void;
   closeMobileMenu: () => void;
   addToast: (toast: Omit<Toast, "id">) => void;
@@ -26,6 +27,7 @@ export const useUIStore = create<UIStore>((set) => ({
   toastQueue: [],
   openSearch: () => set({ isSearchOpen: true }),
   closeSearch: () => set({ isSearchOpen: false }),
+  openMobileMenu: () => set({ isMobileMenuOpen: true }),
   toggleMobileMenu: () =>
     set((state) => ({ isMobileMenuOpen: !state.isMobileMenuOpen })),
   closeMobileMenu: () => set({ isMobileMenuOpen: false }),

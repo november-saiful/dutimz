@@ -205,6 +205,31 @@
     background: var(--color-breaking, #ea4335);
     color: #ffffff;
   }
+
+  /* Navigation drawer inherits Bengali font */
+  .dutimz-nav-drawer .ant-drawer-body,
+  .dutimz-nav-drawer .ant-drawer-header {
+    font-family: var(--font-stack-bangla);
+  }
+
+  /* Swipe-to-open indicator (pulsing bar on left edge) */
+  .swipe-indicator {
+    position: fixed;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 48px;
+    border-radius: 0 4px 4px 0;
+    background: var(--md-sys-color-primary);
+    opacity: 0.3;
+    z-index: 30;
+    animation: swipe-pulse 2s ease-in-out infinite;
+  }
+  @keyframes swipe-pulse {
+    0%, 100% { opacity: 0.15; }
+    50% { opacity: 0.45; }
+  }
 }
 
 @keyframes fadeSlideUp {

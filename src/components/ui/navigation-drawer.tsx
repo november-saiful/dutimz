@@ -15,7 +15,6 @@ import {
 } from "@ant-design/icons";
 import type { Category } from "@/types";
 import { DUTIMZMenu, type MenuItem } from "@/components/ui/menu";
-import { useLocaleStore } from "@/stores/locale";
 import type { SessionUser } from "@/components/auth/UserMenu";
 
 /**
@@ -25,30 +24,16 @@ import type { SessionUser } from "@/components/auth/UserMenu";
  */
 
 const COPY = {
-  bn: {
-    title: "মেনু",
-    sections: "বিভাগসমূহ",
-    account: "অ্যাকাউন্ট",
-    myDesk: "আমার ডেস্ক",
-    reporterDesk: "প্রতিবেদক ডেস্ক",
-    reviewQueue: "পর্যালোচনা কিউ",
-    adminPanel: "অ্যাডমিন প্যানেল",
-    login: "লগইন",
-    logout: "লগআউট",
-    searchHint: "খুঁজুন…",
-  },
-  en: {
-    title: "Menu",
-    sections: "Sections",
-    account: "Account",
-    myDesk: "My desk",
-    reporterDesk: "Reporter desk",
-    reviewQueue: "Review queue",
-    adminPanel: "Admin panel",
-    login: "Log in",
-    logout: "Log out",
-    searchHint: "Search…",
-  },
+  title: "DUTIMZ",
+  sections: "বিভাগসমূহ",
+  account: "অ্যাকাউন্ট",
+  myDesk: "আমার ডেস্ক",
+  reporterDesk: "প্রতিবেদক ডেস্ক",
+  reviewQueue: "পর্যালোচনা কিউ",
+  adminPanel: "অ্যাডমিন প্যানেল",
+  login: "লগইন",
+  logout: "লগআউট",
+  searchHint: "খুঁজুন…",
 } as const;
 
 export interface NavigationDrawerProps {
@@ -67,16 +52,14 @@ export function NavigationDrawer({
   user,
   onOpenSearch,
 }: NavigationDrawerProps) {
-  const locale = useLocaleStore((s) => s.locale);
-  const isBn = locale === "bn";
-  const t = COPY[isBn ? "bn" : "en"];
+  const t = COPY;
 
   const items = useMemo<MenuItem[]>(() => {
     const list: MenuItem[] = [
       {
         key: "home",
         icon: <HomeOutlined />,
-        label: isBn ? "হোম" : "Home",
+        label: "হোম",
       },
       {
         key: "search",
@@ -92,14 +75,14 @@ export function NavigationDrawer({
         label: t.sections,
         children: categories.map((cat) => ({
           key: `cat-${cat.slug}`,
-          label: isBn ? cat.name_bn : cat.name_en,
+          label: cat.name_bn,
         })),
       });
     }
 
     const accountChildren: MenuItem[] = user
       ? [
-          { key: "profile", icon: <UserOutlined />, label: isBn ? "প্রোফাইল" : "Profile" },
+          { key: "profile", icon: <UserOutlined />, label: "প্রোফাইল" },
           { key: "logout", icon: <LogoutOutlined />, label: t.logout, danger: true },
         ]
       : [{ key: "login", icon: <UserOutlined />, label: t.login }];
@@ -201,11 +184,13 @@ export function NavigationDrawer({
             background: "var(--glass-bg)",
             borderBottom: "1px solid var(--glass-border)",
             backdropFilter: "blur(20px) saturate(180%)",
+            fontFamily: "var(--font-stack-bangla)",
           },
           body: {
             background: "var(--glass-bg)",
             backdropFilter: "blur(20px) saturate(180%)",
             paddingTop: 8,
+            fontFamily: "var(--font-stack-bangla)",
           },
         }}
       >
@@ -217,9 +202,7 @@ export function NavigationDrawer({
             height={32}
             className="h-8 w-auto"
           />
-          <span className="text-sm font-bold">
-            {isBn ? "ঢাকা ইউনিভার্সিটি টাইম্‌জ" : "DUTIMZ"}
-          </span>
+          <span className="text-sm font-bold">DUTIMZ</span>
         </div>
         <DUTIMZMenu
           mode="inline"
