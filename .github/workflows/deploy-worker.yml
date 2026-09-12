@@ -31,13 +31,12 @@ jobs:
           cache: npm
 
       - name: Install worker dependencies
-        run: npm install
-        working-directory: workers
+        run: cd workers && npm install
 
       - name: Deploy worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          working-directory: workers
+          workingDirectory: workers
           command: deploy src/index.ts
