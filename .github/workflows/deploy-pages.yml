@@ -31,14 +31,11 @@ jobs:
 
       - run: npm ci
 
-      - name: Build
-        run: npm run build
+      - name: Build for Cloudflare Pages
+        run: npx @cloudflare/next-on-pages
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-
-      - name: Clean build cache (Cloudflare Pages 25 MiB limit)
-        run: rm -rf .next/cache
 
       - name: Create Cloudflare Pages project (if needed)
         uses: cloudflare/wrangler-action@v3
@@ -53,4 +50,4 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy .next --project-name=${{ vars.CF_PAGES_PROJECT || 'dutimz-news' }} --branch=${{ github.head_ref || 'main' }} --commit-dirty=true
+          command: pages deploy .vercel/output/static --project-name=${{ vars.CF_PAGES_PROJECT || 'dutimz-news' }} --branch=${{ github.head_ref || 'main' }} --commit-dirty=true
