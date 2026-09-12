@@ -107,12 +107,16 @@ ALTER TABLE bookmarks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE newsletter_subscribers ENABLE ROW LEVEL SECURITY;
 
 -- Comments: public read approved, authenticated create
+DROP POLICY IF EXISTS "Public can read approved comments" ON comments;
 CREATE POLICY "Public can read approved comments"
   ON comments FOR SELECT USING (status = 'approved');
+DROP POLICY IF EXISTS "Authenticated users can insert comments" ON comments;
 CREATE POLICY "Authenticated users can insert comments"
   ON comments FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+DROP POLICY IF EXISTS "Users can update own comments" ON comments;
 CREATE POLICY "Users can update own comments"
   ON comments FOR UPDATE USING (auth.uid() = author_id);
+DROP POLICY IF EXISTS "Moderators can update any comment" ON comments;
 CREATE POLICY "Moderators can update any comment"
   ON comments FOR UPDATE
   USING (
@@ -122,23 +126,31 @@ CREATE POLICY "Moderators can update any comment"
   );
 
 -- Comment reactions
+DROP POLICY IF EXISTS "Authenticated users can react" ON comment_reactions;
 CREATE POLICY "Authenticated users can react"
   ON comment_reactions FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can delete own reaction" ON comment_reactions;
 CREATE POLICY "Users can delete own reaction"
   ON comment_reactions FOR DELETE USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Public can read reactions" ON comment_reactions;
 CREATE POLICY "Public can read reactions"
   ON comment_reactions FOR SELECT USING (true);
 
 -- Bookmarks: private per user
+DROP POLICY IF EXISTS "Users can read own bookmarks" ON bookmarks;
 CREATE POLICY "Users can read own bookmarks"
   ON bookmarks FOR SELECT USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can insert own bookmarks" ON bookmarks;
 CREATE POLICY "Users can insert own bookmarks"
   ON bookmarks FOR INSERT WITH CHECK (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can delete own bookmarks" ON bookmarks;
 CREATE POLICY "Users can delete own bookmarks"
   ON bookmarks FOR DELETE USING (auth.uid() = user_id);
 
 -- Newsletter subscribers
+DROP POLICY IF EXISTS "Anyone can subscribe" ON newsletter_subscribers;
 CREATE POLICY "Anyone can subscribe"
   ON newsletter_subscribers FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Subscribers can unsubscribe" ON newsletter_subscribers;
 CREATE POLICY "Subscribers can unsubscribe"
   ON newsletter_subscribers FOR UPDATE USING (email = current_setting('request.jwt.claims', true)::json->>'email');
