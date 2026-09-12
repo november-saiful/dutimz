@@ -37,6 +37,9 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
+      - name: Clean build cache (Cloudflare Pages 25 MiB limit)
+        run: rm -rf .next/cache
+
       - name: Create Cloudflare Pages project (if needed)
         uses: cloudflare/wrangler-action@v3
         continue-on-error: true
