@@ -30,7 +30,7 @@ export async function getLatestContents(
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase
     .from("contents")
-    .select("*, category:categories(*), author:profiles(id, username, display_name, avatar_url, is_verified)")
+    .select("*, category:categories(*), author:profiles!contents_author_id_fkey(id, username, display_name, avatar_url, is_verified)")
     .eq("status", "published")
     .lte("published_at", new Date().toISOString())
     .order("published_at", { ascending: false })
@@ -51,7 +51,7 @@ export async function getFeaturedContents(
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase
     .from("contents")
-    .select("*, category:categories(*), author:profiles(id, username, display_name, avatar_url, is_verified)")
+    .select("*, category:categories(*), author:profiles!contents_author_id_fkey(id, username, display_name, avatar_url, is_verified)")
     .eq("status", "published")
     .eq("is_featured", true)
     .order("published_at", { ascending: false })
@@ -91,7 +91,7 @@ export async function getPopularContents(
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase
     .from("contents")
-    .select("*, category:categories(*), author:profiles(id, username, display_name, avatar_url, is_verified)")
+    .select("*, category:categories(*), author:profiles!contents_author_id_fkey(id, username, display_name, avatar_url, is_verified)")
     .eq("status", "published")
     .order("view_count", { ascending: false })
     .limit(limit);
@@ -111,7 +111,7 @@ export async function getDocumentarySpotlight(): Promise<
   const supabase = createSupabaseServerClient();
   const { data } = await supabase
     .from("contents")
-    .select("*, category:categories(*), author:profiles(id, username, display_name, avatar_url, is_verified)")
+    .select("*, category:categories(*), author:profiles!contents_author_id_fkey(id, username, display_name, avatar_url, is_verified)")
     .eq("status", "published")
     .eq("content_type", "documentary")
     .order("view_count", { ascending: false })
@@ -161,7 +161,7 @@ export async function getContentsByCategory(
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase
     .from("contents")
-    .select("*, category:categories(*), author:profiles(id, username, display_name, avatar_url, is_verified)")
+    .select("*, category:categories(*), author:profiles!contents_author_id_fkey(id, username, display_name, avatar_url, is_verified)")
     .eq("status", "published")
     .eq("category_id", category.id)
     .order("published_at", { ascending: false })
@@ -181,7 +181,7 @@ export async function getContentBySlug(
   const supabase = createSupabaseServerClient();
   const { data } = await supabase
     .from("contents")
-    .select("*, category:categories(*), author:profiles(id, username, display_name, avatar_url, is_verified)")
+    .select("*, category:categories(*), author:profiles!contents_author_id_fkey(id, username, display_name, avatar_url, is_verified)")
     .eq("slug", slug)
     .eq("status", "published")
     .maybeSingle();
