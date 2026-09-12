@@ -125,10 +125,12 @@ export interface Comment {
   parent_id: string | null;
   author_id: string | null;
   author_name: string | null;
+  author_avatar: string | null;
   body: string;
   status: "approved" | "pending" | "rejected" | "spam";
   likes: number;
   dislikes: number;
+  depth: number;
   created_at: string;
   updated_at: string;
 }

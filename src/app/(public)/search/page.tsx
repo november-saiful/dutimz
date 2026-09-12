@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { SearchForm } from "@/components/content/SearchForm";
+import { SearchResultList } from "@/components/content/SearchResultList";
+import { searchContents } from "@/lib/content/search";
 import { getLocaleServer } from "@/lib/i18n/server";
 
 export const metadata: Metadata = {
@@ -13,18 +15,29 @@ export default async function SearchPage({
   searchParams: { q?: string };
 }) {
   const locale = await getLocaleServer();
+  const query = searchParams.q ?? "";
+
+  let results = null;
+  if (query) {
+    results = await searchContents(query);
+  }
+
   return (
-    <div className="container mt-10 max-w-2xl">
+    <div className="container mt-10 max-w-3xl">
       <h1 className="mb-6 text-2xl font-bold">
         {locale === "bn" ? "খুঁজুন" : "Search"}
       </h1>
-      <SearchForm initialQuery={searchParams.q ?? ""} locale={locale} />
-      {searchParams.q && (
-        <p className="mt-6 text-sm opacity-60">
-          {locale === "bn"
-            ? `ফুল-টেক্সট সার্চ ইঞ্জিন Phase 4-এ যুক্ত হবে — এখনকার ফলাফল শূন্য।`
-            : `Full-text search arrives in Phase 4 — no results yet.`}
-        </p>
+      <SearchForm initialQuery={query} locale={locale} />
+
+      {query && results && (
+        <div className="mt-8">
+          <p className="mb-4 text-sm opacity-60">
+            {locale === "bn"
+              ? `"${query}" — ${results.total} টি ফলাফল পাওয়া গেছে`
+              : `"${query}" — ${results.total} result${results.total !== 1 ? "s" : ""} found`}
+          </p>
+          <SearchResultList items={results.items} locale={locale} />
+        </div>
       )}
     </div>
   );

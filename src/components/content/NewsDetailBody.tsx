@@ -4,9 +4,13 @@ import Image from "next/image";
 import { ContentGrid } from "@/components/content/ContentGrid";
 import { SectionHeading } from "@/components/content/SectionHeading";
 import { NewsletterCTA } from "@/components/content/NewsletterCTA";
+import { CommentSection } from "@/components/content/CommentSection";
+import { ShareButtons } from "@/components/content/ShareButtons";
+import { BookmarkButton } from "@/components/content/BookmarkButton";
 import { formatDate, formatCount, estimateReadTime } from "@/lib/utils/format";
 import { sanitizeArticleHtml } from "@/lib/content/sanitize";
 import { translate } from "@/lib/i18n/dictionary";
+import { SITE } from "@/lib/constants/app";
 import type { Locale } from "@/lib/constants/app";
 
 interface Props {
@@ -131,6 +135,20 @@ export function NewsDetailBody({ content, related, locale, showVideoEmbed = fals
             ))}
           </ul>
         </section>
+      )}
+
+      {/* Share & Bookmark bar */}
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-xl p-4" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
+        <ShareButtons
+          title={title}
+          url={`${SITE.url}/news/${content.slug}`}
+        />
+        <BookmarkButton contentId={content.id} />
+      </div>
+
+      {/* Comments */}
+      {content.is_commentable && (
+        <CommentSection contentId={content.id} />
       )}
 
       <section className="mt-10">

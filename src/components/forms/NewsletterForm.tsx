@@ -17,9 +17,21 @@ export function NewsletterForm() {
       setStatus("error");
       return;
     }
-    // Phase 4 will POST to /api/newsletter/subscribe.
-    setStatus("success");
-    setEmail("");
+    try {
+      const res = await fetch("/api/newsletter/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim().toLowerCase(), locale }),
+      });
+      if (res.ok) {
+        setStatus("success");
+        setEmail("");
+      } else {
+        setStatus("error");
+      }
+    } catch {
+      setStatus("error");
+    }
   }
 
   return (
