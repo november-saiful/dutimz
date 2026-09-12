@@ -82,6 +82,16 @@ export function HeroHaloReel({ items }: { items: ContentWithRelations[] }) {
             className="flex flex-col gap-3 max-w-xs md:max-w-sm group/link focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl -m-2 p-2 transition-opacity hover:opacity-90 pointer-events-auto"
             onPointerDown={(e) => e.stopPropagation()}
           >
+            {/* Active thumbnail — larger than the ring cards */}
+            {active.thumbnail_url && (
+              <div className="overflow-hidden rounded-xl w-40 h-28 md:w-56 md:h-36 shadow-lg">
+                <img
+                  src={active.thumbnail_url}
+                  alt={active.thumbnail_alt ?? activeTitle}
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover/link:scale-105"
+                />
+              </div>
+            )}
             {/* Category + type badge */}
             <div className="flex items-center gap-2">
               <p

@@ -30,7 +30,13 @@ export async function HomeSections() {
     getActiveCategories(),
   ]);
 
-  const heroItems = featured.length > 0 ? featured : latest.slice(0, 3);
+  // Pick 1 latest article per category for the hero reel
+  const heroItems = categories
+    .map((cat) => {
+      const catLatest = latest.find((c) => c.category?.id === cat.id);
+      return catLatest ?? null;
+    })
+    .filter(Boolean) as ContentWithRelations[];
   const gridItems: ContentWithRelations[] = latest.filter(
     (c) => !heroItems.some((h) => h.id === c.id),
   );
