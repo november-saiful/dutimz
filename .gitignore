@@ -41,3 +41,4 @@ supabase/.temp/
 
 # freebuff local workspace
 .freebuff/
+workers/node_modules/
