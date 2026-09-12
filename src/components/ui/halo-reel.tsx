@@ -216,6 +216,7 @@ export function HaloReel({
   /* ── drag ──────────────────────────────────────────────────── */
 
   const dragRef = React.useRef({ left: 0, top: 0, angle: 0 });
+  const pointerDownPos = React.useRef({ x: 0, y: 0 });
 
   const pointerAngle = (e: React.PointerEvent) => {
     const { left, top } = dragRef.current;
@@ -229,6 +230,7 @@ export function HaloReel({
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!draggable || (e.pointerType === "mouse" && e.button !== 0)) return;
+    pointerDownPos.current = { x: e.clientX, y: e.clientY };
     const rect = e.currentTarget.getBoundingClientRect();
     dragRef.current = { left: rect.left, top: rect.top, angle: 0 };
     dragRef.current.angle = pointerAngle(e);
@@ -252,6 +254,18 @@ export function HaloReel({
     draggingRef.current = false;
     if (e.currentTarget.hasPointerCapture(e.pointerId)) {
       e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    // Detect tap vs drag: if pointer barely moved, find and activate the
+    // card underneath so its <a> link fires via a synthetic click.
+    const dx = e.clientX - pointerDownPos.current.x;
+    const dy = e.clientY - pointerDownPos.current.y;
+    const isTap = Math.abs(dx) < 5 && Math.abs(dy) < 5;
+    if (isTap) {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const cardLink = el?.closest<HTMLAnchorElement>("a[href]");
+      if (cardLink) {
+        cardLink.click();
+      }
     }
     // Settle onto the nearest card — the ring never rests between two.
     const snapped = Math.round(rotation.get() / step) * step;
@@ -326,9 +340,7 @@ export function HaloReel({
     >
       {showCenterLabel && centerLabel ? (
         <div
-          className="pointer-events-none absolute inset-y-0 z-0 flex items-center justify-center px-4 text-center"
-          // Parked in whatever space the ring leaves rather than at a fixed
-          // spot, so it can never end up underneath the cards at any width.
+          className="absolute inset-y-0 z-0 flex items-center justify-center px-4 text-center"
           style={{
             left: size.w * centerXRatio + radiusX + cardW / 2,
             right: 0,
@@ -474,7 +486,8 @@ function WheelCard({
         <a
           href={item.href}
           aria-label={item.alt ?? item.title ?? "Open story"}
-          className="absolute inset-0 z-10"
+          className="absolute inset-0 z-10 rounded-xl"
+          onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
         />
       ) : null}
