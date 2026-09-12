@@ -245,3 +245,8 @@ Or trigger manually from the Actions tab.
 - [x] **Phase 6 — Polish & launch**: SEO/perf/accessibility/security audits, content seeding, deployment guide
 
 See `dutimz-ai-agent-build-instructions.md` for the full specification.
+
+## Live
+
+- **Production**: https://dutimz-news.pages.dev
+- **Supabase Dashboard**: https://supabase.com/dashboard/project/bccikoroyovmlpzikinf
