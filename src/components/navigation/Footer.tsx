@@ -22,7 +22,7 @@ export function Footer({ categories }: { categories: Category[] }) {
               height={40}
               className="h-10 w-auto"
             />
-            <p className="text-lg font-bold">{SITE_NAME_BN}</p>
+            <p className="text-lg font-bold">DUTIMZ</p>
           </div>
           <p className="mt-2 max-w-md text-sm opacity-70">{SITE.description}</p>
         </div>
@@ -52,7 +52,7 @@ export function Footer({ categories }: { categories: Category[] }) {
       </div>
 
       <div className="border-t border-white/20 py-4 text-center text-xs opacity-60">
-        © {year} {SITE_NAME_BN} (DUTIMZ). {t("footer.rights")}
+        © {year} DUTIMZ. {t("footer.rights")}
       </div>
     </footer>
   );

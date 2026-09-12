@@ -115,7 +115,7 @@ export function NavigationDrawer({
     }
 
     return list;
-  }, [categories, user, isBn, t]);
+  }, [categories, user, t]);
 
   const handleClick: MenuProps["onClick"] = ({ key }) => {
     onClose();
