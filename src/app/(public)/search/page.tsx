@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import type { Metadata } from "next";
 import { SearchForm } from "@/components/content/SearchForm";
 import { SearchResultList } from "@/components/content/SearchResultList";

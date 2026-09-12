@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 /**
  * Phase 6 SEO — auto-generated sitemap.xml via Next.js route handler.
  * Includes all public pages, published articles, and category pages.

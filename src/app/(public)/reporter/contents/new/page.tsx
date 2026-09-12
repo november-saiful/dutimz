@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import type { Metadata } from "next";
 import { ContentEditor } from "@/components/reporter/ContentEditor";
 import { getActiveCategories } from "@/lib/data/queries";

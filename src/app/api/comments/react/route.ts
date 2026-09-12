@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import { NextResponse, type NextRequest } from "next/server";
 import { reactToComment } from "@/lib/data/publicMock";
 

@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import { NextRequest } from "next/server";
 import type { Content, ContentStatus } from "@/types";
 import {

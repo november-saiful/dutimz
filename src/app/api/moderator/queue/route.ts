@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import { NextRequest } from "next/server";
 import type { Content } from "@/types";
 import { hasSupabase, json, jsonError } from "@/lib/data/deskApi";

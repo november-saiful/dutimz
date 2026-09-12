@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import dynamic from "next/dynamic";
 import { BreakingNewsTicker } from "@/components/glass/BreakingNewsTicker";
 import { getBreakingContents } from "@/lib/data/queries";
