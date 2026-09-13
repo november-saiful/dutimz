@@ -2,19 +2,16 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ContentWithRelations } from "@/types";
 import { GlassCard } from "@/components/glass/GlassCard";
-import type { Locale } from "@/lib/constants/app";
 
 export function DocumentarySpotlight({
   content,
-  locale,
 }: {
   content: ContentWithRelations | null;
-  locale: Locale;
 }) {
   if (!content) return null;
 
-  const title = locale === "bn" ? content.title_bn : (content.title_en ?? content.title_bn);
-  const excerpt = locale === "bn" ? content.excerpt_bn : (content.excerpt_en ?? content.excerpt_bn);
+  const title = content.title_bn;
+  const excerpt = content.excerpt_bn;
   const minutes = content.video_duration ? Math.round(content.video_duration / 60) : null;
 
   return (
@@ -41,13 +38,13 @@ export function DocumentarySpotlight({
         </span>
         {minutes && (
           <span className="absolute bottom-3 right-3 rounded bg-black/70 px-2 py-0.5 text-xs font-bold text-white">
-            {minutes} min
+            {minutes} মিনিট
           </span>
         )}
       </Link>
       <div className="flex flex-col justify-center gap-3 p-6">
         <p className="text-xs font-bold uppercase tracking-wide opacity-60">
-          {locale === "bn" ? "প্রামাণ্যচিত্র" : "Documentary"}
+          প্রামাণ্যচিত্র
         </p>
         <h3 className="text-xl font-bold leading-snug md:text-2xl">
           <Link href={`/documentaries/${content.slug}`}>{title}</Link>

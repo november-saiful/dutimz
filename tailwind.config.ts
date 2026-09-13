@@ -11,6 +11,11 @@ const config: Config = {
     },
     extend: {
       colors: {
+        background: "var(--background)",
+        foreground: "var(--foreground)",
+        border: "var(--border)",
+        input: "var(--input)",
+        ring: "var(--ring)",
         primary: {
           DEFAULT: "#1a73e8",
           foreground: "#ffffff",

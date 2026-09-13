@@ -137,7 +137,7 @@ export function AnalyticsDashboard() {
           <h3 className="mb-4 text-sm font-bold">🔥 {t.trending}</h3>
           <div className="space-y-3">
             {trending.map((item, i) => {
-              const title = locale === "bn" ? item.title_bn : (item.title_en ?? item.title_bn);
+              const title = (locale === "bn" ? item.title_bn : null) ?? item.title_en ?? item.title_bn;
               return (
                 <div key={item.id} className="flex items-center gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ background: "var(--md-sys-color-primary)" }}>
@@ -164,7 +164,7 @@ export function AnalyticsDashboard() {
               return (
                 <div key={cat.id}>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs">{locale === "bn" ? cat.name_bn : cat.name_en}</span>
+                    <span className="text-xs">{(locale === "bn" ? cat.name_bn : null) ?? cat.name_en ?? cat.name_bn}</span>
                     <span className="text-[10px] opacity-50">{cat.views.toLocaleString()} {t.views}</span>
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--md-sys-color-surface-variant)" }}>
@@ -188,7 +188,7 @@ export function AnalyticsDashboard() {
         <h3 className="mb-4 text-sm font-bold">📋 {t.recentContent}</h3>
         <div className="space-y-2">
           {published.slice(0, 8).map((item) => {
-            const title = locale === "bn" ? item.title_bn : (item.title_en ?? item.title_bn);
+            const title = (locale === "bn" ? item.title_bn : null) ?? item.title_en ?? item.title_bn;
             return (
               <div key={item.id} className="flex items-center justify-between border-b py-2" style={{ borderColor: "var(--glass-border)" }}>
                 <div className="min-w-0 flex-1">

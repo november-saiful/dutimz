@@ -22,21 +22,13 @@ const COPY = {
 
 export function MobileBottomDock({ role }: { role?: string | null }) {
   const t = COPY;
-  const openSearch = useUIStore((s) => s.openSearch);
+
   const setMode = useThemeStore((s) => s.setMode);
 
   const items = useMemo<NavItem[]>(() => {
     const base: NavItem[] = [
       { id: "dock-home", icon: <House />, label: t.home, href: "/" },
-      {
-        id: "dock-search",
-        icon: <Search />,
-        label: t.search,
-        onClick: () => {
-          // The global search overlay is rendered by Providers.
-          openSearch();
-        },
-      },
+      { id: "dock-search", icon: <Search />, label: t.search, href: "/search" },
       { id: "dock-bookmarks", icon: <Bookmark />, label: t.bookmarks, href: "/bookmarks" },
     ];
     if (role === "reporter" || role === "moderator" || role === "admin") {
@@ -45,7 +37,7 @@ export function MobileBottomDock({ role }: { role?: string | null }) {
       base.push({ id: "dock-profile", icon: <UserRound />, label: t.profile, href: "/profile" });
     }
     return base;
-  }, [role, t, openSearch]);
+  }, [role, t]);
 
   return (
     <div

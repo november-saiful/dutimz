@@ -34,7 +34,6 @@ export default async function CategoryPage({
 }: {
   params: { slug: string };
 }) {
-  const locale = await getLocaleServer();
   const category = await getCategoryBySlug(params.slug);
   if (!category) notFound();
 
@@ -45,15 +44,15 @@ export default async function CategoryPage({
 
   return (
     <div className="container mt-6">
-      <SectionHeading title={locale === "bn" ? category.name_bn : category.name_en} />
+      <SectionHeading title={category.name_bn} />
       {items.length === 0 ? (
-        <p className="opacity-60">{locale === "bn" ? "এই বিভাগে এখনো কোনো খবর নেই।" : "No stories in this category yet."}</p>
+        <p className="opacity-60">এই বিভাগে এখনো কোনো খবর নেই।</p>
       ) : (
         <div className="grid gap-8 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <ContentGrid items={items} locale={locale} priorityCount={1} />
+            <ContentGrid items={items} priorityCount={1} />
           </div>
-          <PopularList items={popular} locale={locale} />
+          <PopularList items={popular} />
         </div>
       )}
     </div>

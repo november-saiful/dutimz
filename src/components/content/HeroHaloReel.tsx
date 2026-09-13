@@ -3,14 +3,12 @@
 import { useCallback, useMemo, useState } from "react";
 import { HaloReel, type HaloReelItem } from "@/components/ui/halo-reel";
 import type { ContentWithRelations } from "@/types";
-import { useLocaleStore } from "@/stores/locale";
-import { translate } from "@/lib/i18n/dictionary";
 
 /**
  * Hero news carousel (Halo Reel): featured stories orbit an ellipse pinned
  * to the left edge; the current story's headline sits in the space the ring
  * leaves on the right. Drag / arrow keys / autoplay all work; each card
- * links to its story.
+ * links to its story. Bengali-only.
  */
 
 function hrefFor(item: ContentWithRelations): string {
@@ -22,8 +20,6 @@ function hrefFor(item: ContentWithRelations): string {
 }
 
 export function HeroHaloReel({ items }: { items: ContentWithRelations[] }) {
-  const locale = useLocaleStore((s) => s.locale);
-  const isBn = locale === "bn";
   const [activeIdx, setActiveIdx] = useState(0);
 
   const onActiveChange = useCallback((idx: number) => setActiveIdx(idx), []);
@@ -32,41 +28,23 @@ export function HeroHaloReel({ items }: { items: ContentWithRelations[] }) {
     () =>
       items.map((content) => ({
         src: content.thumbnail_url ?? undefined,
-        alt:
-          content.thumbnail_alt ??
-          (isBn ? content.title_bn : (content.title_en ?? content.title_bn)),
+        alt: content.thumbnail_alt ?? content.title_bn,
         href: hrefFor(content),
-        // Stories without a thumbnail get a text face card instead.
-        title: isBn ? content.title_bn : (content.title_en ?? content.title_bn),
-        subtitle:
-          locale === "bn"
-            ? (content.category?.name_bn ?? undefined)
-            : (content.category?.name_en ?? undefined),
-        description: isBn
-          ? (content.excerpt_bn ?? undefined)
-          : (content.excerpt_en ?? content.excerpt_bn ?? undefined),
+        title: content.title_bn,
+        subtitle: content.category?.name_bn ?? undefined,
+        description: content.excerpt_bn ?? undefined,
       })),
-    [items, isBn, locale],
+    [items],
   );
 
   if (items.length === 0) return null;
 
-  const heading = translate(locale, "hero.featured");
   const active = items[activeIdx] ?? items[0]!;
-  const activeTitle = isBn ? active.title_bn : (active.title_en ?? active.title_bn);
-  const activeExcerpt = isBn
-    ? (active.excerpt_bn ?? undefined)
-    : (active.excerpt_en ?? active.excerpt_bn ?? undefined);
-  const activeCategory = isBn
-    ? (active.category?.name_bn ?? undefined)
-    : (active.category?.name_en ?? undefined);
-  const activeType = active.content_type;
-
   return (
-    <section aria-label={heading} className="container mt-6">
+    <section aria-label="বৈশিষ্ট্য সংবাদ" className="container mt-6">
       <HaloReel
         items={reelItems}
-        aria-label={heading}
+        aria-label="বৈশিষ্ট্য সংবাদ"
         cardWidth={150}
         cardHeight={210}
         minScale={0.35}
@@ -82,33 +60,14 @@ export function HeroHaloReel({ items }: { items: ContentWithRelations[] }) {
             className="flex flex-col gap-3 max-w-xs md:max-w-sm group/link focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl -m-2 p-2 transition-opacity hover:opacity-90 pointer-events-auto"
             onPointerDown={(e) => e.stopPropagation()}
           >
-            {/* Category + type badge */}
-            <div className="flex items-center gap-2">
-              <p
-                className="inline-block rounded-full px-3 py-1 text-xs font-bold"
-                style={{
-                  background: "var(--md-sys-color-primary)",
-                  color: "var(--md-sys-color-on-primary)",
-                }}
-              >
-                {activeCategory ?? heading}
-              </p>
-              <span className="text-xs uppercase tracking-widest opacity-50">
-                {activeType === "news"
-                  ? (isBn ? "সংবাদ" : "News")
-                  : activeType === "article"
-                    ? (isBn ? "নিবন্ধ" : "Article")
-                    : (isBn ? "প্রামাণ্যচিত্র" : "Documentary")}
-              </span>
-            </div>
-            {/* Headline */}
+            {/* শিরোনাম */}
             <h2 className="text-xl font-bold leading-snug md:text-3xl group-hover/link:underline decoration-1 underline-offset-4">
-              {activeTitle}
+              {active.title_bn}
             </h2>
-            {/* Excerpt */}
-            {activeExcerpt ? (
+            {/* সারসংক্ষেপ */}
+            {active.excerpt_bn ? (
               <p className="text-sm leading-relaxed opacity-70 line-clamp-3 hidden sm:block">
-                {activeExcerpt}
+                {active.excerpt_bn}
               </p>
             ) : null}
           </a>

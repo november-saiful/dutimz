@@ -79,8 +79,8 @@ export function BookmarkGrid() {
       <h1 className="mb-6 text-2xl font-bold">{t.title}</h1>
       <div className="space-y-4">
         {items.map((item) => {
-          const title = locale === "bn" ? item.title_bn : (item.title_en ?? item.title_bn);
-          const excerpt = locale === "bn" ? item.excerpt_bn : (item.excerpt_en ?? item.excerpt_bn);
+          const title = (locale === "bn" ? item.title_bn : null) ?? item.title_en ?? item.title_bn;
+          const excerpt = (locale === "bn" ? item.excerpt_bn : null) ?? item.excerpt_en ?? item.excerpt_bn;
           const route = TYPE_ROUTES[item.content_type] ?? "/news";
 
           return (

@@ -1,16 +1,12 @@
-/**
- * Phase 4 Search Result List — renders search results as glass cards
- * with highlighted title and excerpt. Bilingual.
- */
 import Link from "next/link";
 import Image from "next/image";
 import type { ContentWithRelations } from "@/types";
-import type { Locale } from "@/lib/constants/app";
 
-const TYPE_LABELS = {
-  bn: { news: "সংবাদ", article: "নিবন্ধ", documentary: "প্রামাণ্যচিত্র" },
-  en: { news: "News", article: "Article", documentary: "Documentary" },
-} as const;
+const TYPE_LABELS: Record<string, string> = {
+  news: "সংবাদ",
+  article: "নিবন্ধ",
+  documentary: "প্রামাণ্যচিত্র",
+};
 
 const TYPE_ROUTES: Record<string, string> = {
   news: "/news",
@@ -18,26 +14,12 @@ const TYPE_ROUTES: Record<string, string> = {
   documentary: "/documentaries",
 };
 
-export function SearchResultList({
-  items,
-  locale,
-}: {
-  items: ContentWithRelations[];
-  locale: Locale;
-}) {
+export function SearchResultList({ items }: { items: ContentWithRelations[] }) {
   if (items.length === 0) {
     return (
       <div className="glass-card p-8 text-center">
-        <p className="text-lg opacity-50">
-          {locale === "bn"
-            ? "কোনো ফলাফল পাওয়া যায়নি।"
-            : "No results found."}
-        </p>
-        <p className="mt-2 text-sm opacity-40">
-          {locale === "bn"
-            ? "ভিন্ন কীওয়ার্ড দিয়ে চেষ্টা করুন।"
-            : "Try different keywords."}
-        </p>
+        <p className="text-lg opacity-50">কোনো ফলাফল পাওয়া যায়নি।</p>
+        <p className="mt-2 text-sm opacity-40">ভিন্ন কীওয়ার্ড দিয়ে চেষ্টা করুন।</p>
       </div>
     );
   }
@@ -45,9 +27,9 @@ export function SearchResultList({
   return (
     <div className="space-y-4">
       {items.map((item) => {
-        const title = locale === "bn" ? item.title_bn : (item.title_en ?? item.title_bn);
-        const excerpt = locale === "bn" ? item.excerpt_bn : (item.excerpt_en ?? item.excerpt_bn);
-        const typeName = TYPE_LABELS[locale][item.content_type];
+        const title = item.title_bn;
+        const excerpt = item.excerpt_bn;
+        const typeName = TYPE_LABELS[item.content_type] ?? "সংবাদ";
         const route = TYPE_ROUTES[item.content_type] ?? "/news";
 
         return (
@@ -77,7 +59,7 @@ export function SearchResultList({
                 </span>
                 {item.category && (
                   <span className="text-xs opacity-50">
-                    {locale === "bn" ? item.category.name_bn : item.category.name_en}
+                    {item.category.name_bn}
                   </span>
                 )}
               </div>
@@ -90,7 +72,7 @@ export function SearchResultList({
                   <span>{item.author.display_name ?? item.author.username}</span>
                 )}
                 {item.view_count > 0 && (
-                  <span>{item.view_count.toLocaleString()} {locale === "bn" ? "বার পঠিত" : "views"}</span>
+                  <span>{item.view_count.toLocaleString()} বার পঠিত</span>
                 )}
               </div>
             </div>

@@ -1,3 +1,4 @@
+@import "tw-animate-css";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -28,8 +29,16 @@
   /* Glass Effect */
   --glass-bg: rgba(255, 255, 255, 0.65);
   --glass-border: rgba(255, 255, 255, 0.3);
+  --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  --glass-shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --glass-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.2);
 
-  /* Background gradient base (Neural Expressive organic feel) */
+  /* Nav icon button */
+  --nav-icon-bg: transparent;
+  --nav-icon-hover: rgba(0, 0, 0, 0.05);
+  --nav-icon-active: rgba(0, 0, 0, 0.08);
+
+  /* Background gradient */
   --page-bg: linear-gradient(135deg, #eef3fb 0%, #e8f0ea 50%, #fdf6e8 100%);
 }
 
@@ -50,8 +59,15 @@
   --md-sys-color-on-surface: #e3e3e3;
   --md-sys-color-on-surface-variant: #c4c7c5;
 
-  --glass-bg: rgba(30, 30, 30, 0.65);
-  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-bg: rgba(22, 27, 34, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  --glass-shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+  --glass-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  --nav-icon-bg: transparent;
+  --nav-icon-hover: rgba(255, 255, 255, 0.08);
+  --nav-icon-active: rgba(255, 255, 255, 0.12);
 
   --page-bg: linear-gradient(135deg, #0f1218 0%, #101613 50%, #17130c 100%);
 }
@@ -62,22 +78,8 @@
   src: local('Times New Roman'), local('TimesNewRoman'), local('Liberation Serif');
 }
 
-/*
- * Bangla webfont: Noto Serif Bengali, self-hosted via next/font in
- * src/app/layout.tsx and exposed as the CSS variable --font-noto-bengali.
- * It is the primary family everywhere (body font stack below), covering
- * Bengali + Latin; 'Times New Roman' remains as the Latin-first fallback
- * for systems where the variable font has not loaded yet (font-display:
- * swap prevents invisible text).
- *
- * NOTE: the old SolaimanLipi @font-face pointed at /fonts/*.woff2 files
- * that were never committed — it silently 404'd and Bangla rendered in
- * fallback system fonts. Removed.
- */
-
 /* ===== Typography Scale ===== */
 :root {
-  /* var(--font-noto-bengali) is injected by next/font in layout.tsx. */
   --font-stack-bangla: var(--font-noto-bengali), 'Noto Serif Bengali', 'Times New Roman', serif;
 
   --font-headline-large: 700 2.5rem/1.2 var(--font-stack-bangla);
@@ -94,6 +96,11 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    @apply font-sans;
+    color-scheme: light;
+  }
+  .dark html, html.dark {
+    color-scheme: dark;
   }
 
   body {
@@ -103,9 +110,10 @@
     font-family: var(--font-stack-bangla);
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
+    @apply bg-background text-foreground;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
-  /* Bangla typography best practices (Appendix A) */
   :lang(bn) {
     line-height: 1.8;
     word-spacing: 0.06em;
@@ -113,7 +121,7 @@
 
   :lang(bn) p,
   .prose-bn p {
-    text-align: start; /* avoid justify — creates gaps in Bangla */
+    text-align: start;
   }
 
   ::selection {
@@ -121,22 +129,89 @@
     color: var(--md-sys-color-on-primary-container);
   }
 
-  /* WCAG 2.1 AA — visible focus ring */
   :focus-visible {
     outline: 2px solid var(--md-sys-color-primary);
     outline-offset: 2px;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
+    *, *::before, *::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
       scroll-behavior: auto !important;
     }
   }
+}
+
+/* shadcn CSS variables */
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.11 0.005 260);
+  --foreground: oklch(0.93 0 0);
+  --card: oklch(0.14 0.005 260);
+  --card-foreground: oklch(0.93 0 0);
+  --popover: oklch(0.16 0.005 260);
+  --popover-foreground: oklch(0.93 0 0);
+  --primary: oklch(0.72 0.15 250);
+  --primary-foreground: oklch(0.13 0.02 250);
+  --secondary: oklch(0.22 0.01 160);
+  --secondary-foreground: oklch(0.93 0 0);
+  --muted: oklch(0.20 0.005 260);
+  --muted-foreground: oklch(0.65 0 0);
+  --accent: oklch(0.22 0.01 260);
+  --accent-foreground: oklch(0.93 0 0);
+  --destructive: oklch(0.65 0.2 25);
+  --border: oklch(0.25 0.005 260);
+  --input: oklch(0.22 0.005 260);
+  --ring: oklch(0.50 0.12 250);
+  --chart-1: oklch(0.72 0.15 250);
+  --chart-2: oklch(0.65 0.2 25);
+  --chart-3: oklch(0.70 0.15 160);
+  --chart-4: oklch(0.60 0.15 60);
+  --chart-5: oklch(0.55 0.15 300);
+  --sidebar: oklch(0.12 0.005 260);
+  --sidebar-foreground: oklch(0.93 0 0);
+  --sidebar-primary: oklch(0.72 0.15 250);
+  --sidebar-primary-foreground: oklch(0.93 0 0);
+  --sidebar-accent: oklch(0.18 0.005 260);
+  --sidebar-accent-foreground: oklch(0.93 0 0);
+  --sidebar-border: oklch(0.22 0.005 260);
+  --sidebar-ring: oklch(0.50 0.12 250);
 }
 
 @layer components {
@@ -148,9 +223,16 @@
     border: 1px solid var(--glass-border);
     border-radius: 16px;
     box-shadow:
-      0 4px 6px -1px rgba(0, 0, 0, 0.05),
-      0 2px 4px -1px rgba(0, 0, 0, 0.03),
-      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      var(--glass-shadow),
+      var(--glass-inset-highlight);
+    transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .dark .glass-card {
+    box-shadow:
+      var(--glass-shadow),
+      var(--glass-inset-highlight),
+      0 0 0 1px rgba(255, 255, 255, 0.03) inset;
   }
 
   /* Glass Navigation Bar */
@@ -159,29 +241,54 @@
     backdrop-filter: blur(24px) saturate(180%);
     -webkit-backdrop-filter: blur(24px) saturate(180%);
     border-bottom: 1px solid var(--glass-border);
+    transition: background 0.3s ease, border-color 0.3s ease;
   }
 
-  /* Neural Expressive: card hover fluid response */
+  .dark .glass-nav {
+    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset;
+  }
+
+  /* Nav icon button */
+  .nav-icon-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0.625rem;
+    border-radius: 9999px;
+    background: var(--nav-icon-bg);
+    color: inherit;
+    transition: background 0.2s ease, transform 0.15s ease;
+  }
+  .nav-icon-btn:hover {
+    background: var(--nav-icon-hover);
+  }
+  .nav-icon-btn:active {
+    background: var(--nav-icon-active);
+    transform: scale(0.95);
+  }
+
+  /* Card hover */
   .card-hover {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
   .card-hover:hover {
     transform: translateY(-4px) scale(1.01);
-    box-shadow:
-      0 20px 25px -5px rgba(0, 0, 0, 0.08),
-      0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--glass-shadow-lg);
   }
 
-  /* Skeleton loading shimmer */
+  /* Skeleton — adapts to dark mode via CSS variable */
   .skeleton {
     background: linear-gradient(
       90deg,
-      rgba(255, 255, 255, 0) 0%,
-      rgba(255, 255, 255, 0.4) 50%,
-      rgba(255, 255, 255, 0) 100%
+      var(--md-sys-color-surface-variant) 0%,
+      color-mix(in srgb, var(--md-sys-color-surface-variant) 60%, white) 50%,
+      var(--md-sys-color-surface-variant) 100%
     );
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
+    border-radius: 8px;
   }
 
   /* Page transition */
@@ -206,21 +313,124 @@
     color: #ffffff;
   }
 
-  /* Navigation drawer inherits Bengali font */
+  /* Navigation drawer */
   .dutimz-nav-drawer .ant-drawer-body,
   .dutimz-nav-drawer .ant-drawer-header {
     font-family: var(--font-stack-bangla);
   }
 
-  /* Swipe-to-open indicator (pulsing bar on left edge) */
+  /* Dark mode: solid deep-gray drawer (no glass blur) */
+  .dark .dutimz-nav-drawer .ant-drawer-content {
+    background: #1e1e1e !important;
+    color: #f0f0f0 !important;
+  }
+
+  .dark .dutimz-nav-drawer .ant-drawer-header {
+    background: #1e1e1e !important;
+    color: #f0f0f0 !important;
+    border-bottom-color: rgba(255, 255, 255, 0.08) !important;
+  }
+
+  .dark .dutimz-nav-drawer .ant-drawer-body {
+    background: #1e1e1e !important;
+    color: #f0f0f0 !important;
+  }
+
+  /* Menu text & icons white in dark mode */
+  .dark .dutimz-nav-drawer .ant-menu-item,
+  .dark .dutimz-nav-drawer .ant-menu-submenu-title,
+  .dark .dutimz-nav-drawer .ant-menu-sub .ant-menu-item {
+    color: #e0e0e0 !important;
+  }
+
+  .dark .dutimz-nav-drawer .ant-menu-item:hover,
+  .dark .dutimz-nav-drawer .ant-menu-submenu-title:hover,
+  .dark .dutimz-nav-drawer .ant-menu-item-selected {
+    color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.08) !important;
+  }
+
+  /* Menu item icons */
+  .dark .dutimz-nav-drawer .ant-menu-item .anticon,
+  .dark .dutimz-nav-drawer .ant-menu-submenu-title .anticon {
+    color: #e0e0e0 !important;
+  }
+
+  /* Arrow / expand icon */
+  .dark .dutimz-nav-drawer .ant-menu-submenu-arrow {
+    color: #999 !important;
+  }
+
+  /* Divider */
+  .dark .dutimz-nav-drawer .ant-divider {
+    border-color: rgba(255, 255, 255, 0.08) !important;
+  }
+
+  /* Close button */
+  .dark .dutimz-nav-drawer .ant-drawer-close {
+    color: #ccc !important;
+  }
+
+  .dark .dutimz-nav-drawer .ant-drawer-close:hover {
+    color: #fff !important;
+  }
+
+  /* Title */
+  .dark .dutimz-nav-drawer .ant-drawer-title {
+    color: #f0f0f0 !important;
+  }
+
+  /* Submenu popup (category flyout) */
+  .dark .dutimz-nav-drawer .ant-menu-submenu-popup {
+    background: #2a2a2a !important;
+  }
+
+  .dark .dutimz-nav-drawer .ant-menu-submenu-popup .ant-menu-item {
+    color: #e0e0e0 !important;
+  }
+
+  /* Smooth slide-in / slide-out for the drawer panel */
+  .dutimz-nav-drawer .ant-drawer-content-wrapper {
+    transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+
+  /* Smooth fade for the mask overlay */
+  .dutimz-nav-drawer .ant-drawer-mask {
+    transition: opacity 0.3s ease !important;
+  }
+
+  /* Staggered fade-in for menu items when drawer opens */
+  .dutimz-nav-drawer .ant-menu-item,
+  .dutimz-nav-drawer .ant-menu-submenu-title {
+    animation: drawerItemFadeIn 0.3s ease-out backwards;
+  }
+  .dutimz-nav-drawer .ant-menu-item:nth-child(1),
+  .dutimz-nav-drawer .ant-menu-submenu:nth-child(1) { animation-delay: 0.05s; }
+  .dutimz-nav-drawer .ant-menu-item:nth-child(2),
+  .dutimz-nav-drawer .ant-menu-submenu:nth-child(2) { animation-delay: 0.1s; }
+  .dutimz-nav-drawer .ant-menu-item:nth-child(3),
+  .dutimz-nav-drawer .ant-menu-submenu:nth-child(3) { animation-delay: 0.15s; }
+  .dutimz-nav-drawer .ant-menu-item:nth-child(4),
+  .dutimz-nav-drawer .ant-menu-submenu:nth-child(4) { animation-delay: 0.2s; }
+  .dutimz-nav-drawer .ant-menu-item:nth-child(5),
+  .dutimz-nav-drawer .ant-menu-submenu:nth-child(5) { animation-delay: 0.25s; }
+  .dutimz-nav-drawer .ant-menu-item:nth-child(6),
+  .dutimz-nav-drawer .ant-menu-submenu:nth-child(6) { animation-delay: 0.3s; }
+
+  @keyframes drawerItemFadeIn {
+    from { opacity: 0; transform: translateX(12px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* Swipe indicator */
   .swipe-indicator {
     position: fixed;
-    left: 0;
+    right: 0;
     top: 50%;
     transform: translateY(-50%);
     width: 4px;
     height: 48px;
-    border-radius: 0 4px 4px 0;
+    border-radius: 4px 0 0 4px;
     background: var(--md-sys-color-primary);
     opacity: 0.3;
     z-index: 30;
@@ -229,6 +439,12 @@
   @keyframes swipe-pulse {
     0%, 100% { opacity: 0.15; }
     50% { opacity: 0.45; }
+  }
+
+  /* Dark mode: notification panel */
+  .dark .notification-panel {
+    background: rgba(18, 22, 30, 0.95);
+    border-color: rgba(255, 255, 255, 0.08);
   }
 }
 
@@ -244,8 +460,7 @@
 
 /* ===== Print-friendly mode ===== */
 @media print {
-  .glass-nav,
-  .no-print {
+  .glass-nav, .no-print {
     display: none !important;
   }
   body {

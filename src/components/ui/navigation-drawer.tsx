@@ -2,6 +2,7 @@
 
 import React, { useMemo } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Drawer, ConfigProvider, Divider } from "antd";
 import type { MenuProps } from "antd";
 import {
@@ -12,10 +13,14 @@ import {
   TeamOutlined,
   SafetyCertificateOutlined,
   LogoutOutlined,
+  SunOutlined,
+  MoonOutlined,
+  DesktopOutlined,
 } from "@ant-design/icons";
 import type { Category } from "@/types";
 import { DUTIMZMenu, type MenuItem } from "@/components/ui/menu";
 import type { SessionUser } from "@/components/auth/UserMenu";
+import { useThemeStore, type ThemeMode } from "@/stores/theme";
 
 /**
  * Right-side navigation drawer (antd Drawer + Menu) that replaces the old
@@ -26,7 +31,6 @@ import type { SessionUser } from "@/components/auth/UserMenu";
 const COPY = {
   title: "DUTIMZ",
   sections: "বিভাগসমূহ",
-  account: "অ্যাকাউন্ট",
   myDesk: "আমার ডেস্ক",
   reporterDesk: "প্রতিবেদক ডেস্ক",
   reviewQueue: "পর্যালোচনা কিউ",
@@ -35,6 +39,18 @@ const COPY = {
   logout: "লগআউট",
   searchHint: "খুঁজুন…",
 } as const;
+
+const MODE_LABELS: Record<ThemeMode, string> = {
+  light: "হালকা",
+  dark: "অন্ধকার",
+  system: "সিস্টেম",
+};
+
+const MODE_CYCLE: Record<ThemeMode, ThemeMode> = {
+  light: "dark",
+  dark: "system",
+  system: "light",
+};
 
 export interface NavigationDrawerProps {
   open: boolean;
@@ -53,6 +69,14 @@ export function NavigationDrawer({
   onOpenSearch,
 }: NavigationDrawerProps) {
   const t = COPY;
+  const { mode, setMode } = useThemeStore();
+
+  const handleThemeToggle = () => {
+    const next = MODE_CYCLE[mode];
+    setMode(next);
+  };
+
+  const themeIcon = mode === "dark" ? <SunOutlined /> : mode === "light" ? <MoonOutlined /> : <DesktopOutlined />;
 
   const items = useMemo<MenuItem[]>(() => {
     const list: MenuItem[] = [
@@ -79,21 +103,6 @@ export function NavigationDrawer({
         })),
       });
     }
-
-    const accountChildren: MenuItem[] = user
-      ? [
-          { key: "profile", icon: <UserOutlined />, label: "প্রোফাইল" },
-          { key: "logout", icon: <LogoutOutlined />, label: t.logout, danger: true },
-        ]
-      : [{ key: "login", icon: <UserOutlined />, label: t.login }];
-
-    list.push({ type: "divider" });
-    list.push({
-      key: "account",
-      icon: <TeamOutlined />,
-      label: t.account,
-      children: accountChildren,
-    });
 
     // Role-based desk shortcuts (mirrors UserMenu + MobileBottomDock).
     const role = user?.role;
@@ -125,18 +134,10 @@ export function NavigationDrawer({
         window.location.href = "/";
         break;
       case "search":
-        onOpenSearch?.();
+        window.location.href = "/search";
         break;
       case "profile":
         window.location.href = "/profile";
-        break;
-      case "login":
-        window.location.href = "/auth/login";
-        break;
-      case "logout":
-        void fetch("/auth/signout", { method: "POST" }).then(() => {
-          window.location.href = "/";
-        });
         break;
       case "reporter":
         window.location.href = "/reporter";
@@ -154,20 +155,38 @@ export function NavigationDrawer({
     }
   };
 
+  const isDarkMode = mode === "dark" ||
+    (mode === "system" && typeof window !== "undefined" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+  const drawerHeaderStyle: React.CSSProperties = isDarkMode
+    ? { background: "#1e1e1e", color: "#f0f0f0", borderBottom: "1px solid rgba(255,255,255,0.08)", fontFamily: "var(--font-stack-bangla)" }
+    : { background: "var(--glass-bg)", borderBottom: "1px solid var(--glass-border)", backdropFilter: "blur(20px) saturate(180%)", fontFamily: "var(--font-stack-bangla)" };
+
+  const drawerBodyStyle: React.CSSProperties = isDarkMode
+    ? { background: "#1e1e1e", color: "#f0f0f0", paddingTop: 8, fontFamily: "var(--font-stack-bangla)" }
+    : { background: "var(--glass-bg)", backdropFilter: "blur(20px) saturate(180%)", paddingTop: 8, fontFamily: "var(--font-stack-bangla)" };
+
   return (
     <ConfigProvider
       theme={{
-        algorithm: undefined, // set below via cssVar-friendly tokens
+        algorithm: undefined,
         token: {
           colorPrimary: "#1a73e8",
-          colorBgElevated: "rgba(255, 255, 255, 0.92)",
-          colorText: "rgba(0, 0, 0, 0.88)",
+          colorBgElevated: isDarkMode ? "#1e1e1e" : "rgba(255, 255, 255, 0.92)",
+          colorText: isDarkMode ? "#f0f0f0" : "rgba(0, 0, 0, 0.88)",
+          colorTextSecondary: isDarkMode ? "#ccc" : undefined,
         },
         components: {
           Menu: {
             itemBg: "transparent",
             subMenuItemBg: "transparent",
-            popupBg: "rgba(255, 255, 255, 0.95)",
+            popupBg: isDarkMode ? "#2a2a2a" : "rgba(255, 255, 255, 0.95)",
+            itemColor: isDarkMode ? "#e0e0e0" : undefined,
+            itemHoverColor: isDarkMode ? "#ffffff" : undefined,
+            itemSelectedColor: isDarkMode ? "#ffffff" : undefined,
+            itemSelectedBg: isDarkMode ? "rgba(255,255,255,0.08)" : undefined,
+            itemHoverBg: isDarkMode ? "rgba(255,255,255,0.06)" : undefined,
           },
         },
       }}
@@ -180,18 +199,8 @@ export function NavigationDrawer({
         onClose={onClose}
         rootClassName="dutimz-nav-drawer"
         styles={{
-          header: {
-            background: "var(--glass-bg)",
-            borderBottom: "1px solid var(--glass-border)",
-            backdropFilter: "blur(20px) saturate(180%)",
-            fontFamily: "var(--font-stack-bangla)",
-          },
-          body: {
-            background: "var(--glass-bg)",
-            backdropFilter: "blur(20px) saturate(180%)",
-            paddingTop: 8,
-            fontFamily: "var(--font-stack-bangla)",
-          },
+          header: drawerHeaderStyle,
+          body: drawerBodyStyle,
         }}
       >
         <div className="flex items-center gap-2 px-1 pb-3">
@@ -204,6 +213,39 @@ export function NavigationDrawer({
           />
           <span className="text-sm font-bold">DUTIMZ</span>
         </div>
+
+        {/* Signed-in user profile header */}
+        {user && (
+          <Link
+            href="/profile"
+            onClick={onClose}
+            className="flex items-center gap-3 rounded-lg px-2 py-2 mb-1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+          >
+            {user.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={user.avatarUrl}
+                alt=""
+                width={40}
+                height={40}
+                referrerPolicy="no-referrer"
+                className="h-10 w-10 rounded-full object-cover border border-white/40"
+              />
+            ) : (
+              <span
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-base font-bold text-white"
+                style={{ background: "var(--md-sys-color-primary)" }}
+              >
+                {(user.displayName ?? user.email).charAt(0).toUpperCase()}
+              </span>
+            )}
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold">{user.displayName ?? user.email}</p>
+              <p className="truncate text-xs opacity-60" dir="ltr">{user.email}</p>
+            </div>
+          </Link>
+        )}
+
         <DUTIMZMenu
           mode="inline"
           items={items}
@@ -212,8 +254,54 @@ export function NavigationDrawer({
           inlineIndent={14}
         />
         <Divider style={{ margin: "12px 0", borderColor: "var(--glass-border)" }} />
-        <p className="px-2 text-xs opacity-50">           DUTIMZ
-        </p>
+
+        {/* Theme toggle */}
+        <button
+          type="button"
+          onClick={handleThemeToggle}
+          className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+        >
+          {themeIcon}
+          <span>{MODE_LABELS[mode]}</span>
+        </button>
+
+        {/* Profile / Login / Logout */}
+        {user ? (
+          <>
+            <Link
+              href="/profile"
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+              onClick={onClose}
+            >
+              <UserOutlined />
+              <span>প্রোফাইল</span>
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                void fetch("/auth/signout", { method: "POST" }).then(() => {
+                  window.location.href = "/";
+                });
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            >
+              <LogoutOutlined />
+              <span>{t.logout}</span>
+            </button>
+          </>
+        ) : (
+          <Link
+            href="/auth/login"
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+            onClick={onClose}
+          >
+            <UserOutlined />
+            <span>{t.login}</span>
+          </Link>
+        )}
+
+        <Divider style={{ margin: "12px 0", borderColor: "var(--glass-border)" }} />
+        <p className="px-2 text-xs opacity-50">DUTIMZ</p>
       </Drawer>
     </ConfigProvider>
   );

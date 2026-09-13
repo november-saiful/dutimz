@@ -4,16 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { ContentWithRelations } from "@/types";
-import { translate } from "@/lib/i18n/dictionary";
-import { useLocaleStore } from "@/stores/locale";
-import { formatDate } from "@/lib/utils/format";
 
 interface Props {
   items: ContentWithRelations[];
 }
 
 export function HeroSection({ items }: Props) {
-  const locale = useLocaleStore((s) => s.locale);
   const [index, setIndex] = useState(0);
   const count = items.length;
 
@@ -32,8 +28,8 @@ export function HeroSection({ items }: Props) {
 
   if (count === 0) return null;
   const active = items[Math.min(index, count - 1)]!;
-  const title = locale === "bn" ? active.title_bn : (active.title_en ?? active.title_bn);
-  const excerpt = locale === "bn" ? active.excerpt_bn : (active.excerpt_en ?? active.excerpt_bn);
+  const title = active.title_bn;
+  const excerpt = active.excerpt_bn;
   const href =
     active.content_type === "news"
       ? `/news/${active.slug}`
@@ -42,7 +38,7 @@ export function HeroSection({ items }: Props) {
         : `/documentaries/${active.slug}`;
 
   return (
-    <section aria-label={translate(locale, "hero.featured")} className="container mt-6">
+    <section aria-label="বৈশিষ্ট্য সংবাদ" className="container mt-6">
       <div className="relative aspect-[16/8] w-full overflow-hidden rounded-glass md:aspect-[16/7]">
         {active.thumbnail_url && (
           <Image
@@ -62,7 +58,7 @@ export function HeroSection({ items }: Props) {
               className="mb-3 inline-block rounded-full px-3 py-1 text-xs font-bold"
               style={{ background: "var(--md-sys-color-primary)", color: "#fff" }}
             >
-              {locale === "bn" ? active.category.name_bn : active.category.name_en}
+              {active.category.name_bn}
             </span>
           )}
           <h1 className="max-w-3xl text-2xl font-bold leading-tight text-white md:text-4xl">
@@ -74,7 +70,8 @@ export function HeroSection({ items }: Props) {
             </p>
           )}
           <p className="mt-2 text-xs text-white/70">
-            {active.published_at && formatDate(active.published_at, locale)}
+            {active.published_at &&
+              new Date(active.published_at).toLocaleDateString("bn-BD")}
           </p>
         </div>
 
@@ -84,7 +81,7 @@ export function HeroSection({ items }: Props) {
               type="button"
               onClick={() => go(-1)}
               className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white backdrop-blur hover:bg-black/60"
-              aria-label="Previous slide"
+              aria-label="আগের স্লাইড"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
             </button>
@@ -92,7 +89,7 @@ export function HeroSection({ items }: Props) {
               type="button"
               onClick={() => go(1)}
               className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-2 text-white backdrop-blur hover:bg-black/60"
-              aria-label="Next slide"
+              aria-label="পরের স্লাইড"
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
             </button>
@@ -102,7 +99,7 @@ export function HeroSection({ items }: Props) {
                   key={it.id}
                   type="button"
                   onClick={() => setIndex(i)}
-                  aria-label={`Go to slide ${i + 1}`}
+                  aria-label={`স্লাইড ${i + 1}`}
                   className={`h-1.5 rounded-full transition-all ${i === index ? "w-6 bg-white" : "w-1.5 bg-white/50"}`}
                 />
               ))}

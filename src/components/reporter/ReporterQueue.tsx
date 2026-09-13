@@ -181,7 +181,7 @@ export function ReporterQueue({ role, categories }: Props) {
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusBadge status={content.status} locale={locale} />
                       <span className="text-xs opacity-50">v{formatCount(content.version, locale)}</span>
-                      {category && <span className="text-xs opacity-50">· {locale === "bn" ? category.name_bn : category.name_en}</span>}
+                      {category && <span className="text-xs opacity-50">· {(locale === "bn" ? category.name_bn : null) ?? category.name_en ?? category.name_bn}</span>}
                     </div>
                     <h2 className="mt-1.5 truncate text-lg font-bold">
                       <Link href={`/reporter/contents/${content.id}`} className="hover:underline">

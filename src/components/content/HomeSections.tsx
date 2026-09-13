@@ -5,8 +5,6 @@ import { DocumentarySpotlight } from "@/components/content/DocumentarySpotlight"
 import { PopularList } from "@/components/content/PopularList";
 import { NewsletterCTA } from "@/components/content/NewsletterCTA";
 import { PollSection } from "@/components/content/PollSection";
-import { translate } from "@/lib/i18n/dictionary";
-import { getLocaleServer } from "@/lib/i18n/server";
 import {
   getFeaturedContents,
   getLatestContents,
@@ -19,9 +17,6 @@ import { HOME_SECTIONS } from "@/lib/constants/app";
 import type { ContentWithRelations } from "@/types";
 
 export async function HomeSections() {
-  const locale = await getLocaleServer();
-  const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
-
   const [featured, latest, popular, documentary, categories] = await Promise.all([
     getFeaturedContents(HOME_SECTIONS.heroCount),
     getLatestContents(24),
@@ -53,37 +48,37 @@ export async function HomeSections() {
       <HeroHaloReel items={heroItems} />
 
       <section className="container mt-10">
-        <SectionHeading title={t("section.latest")} />
-        <ContentGrid items={gridItems.slice(0, HOME_SECTIONS.latestCount)} locale={locale} priorityCount={1} />
+        <SectionHeading title="সর্বশেষ সংবাদ" />
+        <ContentGrid items={gridItems.slice(0, HOME_SECTIONS.latestCount)} priorityCount={1} />
       </section>
 
       {categorySections.map(({ category, items }) =>
         items.length === 0 ? null : (
           <section key={category.id} className="container mt-12">
             <SectionHeading
-              title={locale === "bn" ? category.name_bn : category.name_en}
+              title={category.name_bn}
               action={
                 <a href={`/category/${category.slug}`} className="text-sm font-medium opacity-70 hover:underline">
-                  {t("content.readMore")} →
+                  আরও পড়ুন →
                 </a>
               }
             />
-            <ContentGrid items={items} locale={locale} />
+            <ContentGrid items={items} />
           </section>
         ),
       )}
 
       <section className="container mt-12 grid gap-8 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <SectionHeading title={t("section.documentary")} />
-          <DocumentarySpotlight content={documentary} locale={locale} />
+          <SectionHeading title="প্রামাণ্যচিত্র" />
+          <DocumentarySpotlight content={documentary} />
         </div>
-        <PopularList items={popular} locale={locale} />
+        <PopularList items={popular} />
       </section>
 
       <PollSection />
 
-      <NewsletterCTA locale={locale} />
+      <NewsletterCTA />
     </>
   );
 }

@@ -43,7 +43,6 @@ export default async function NewsDetailPage({
 }: {
   params: { slug: string };
 }) {
-  const locale = await getLocaleServer();
   const content = await getContentBySlug(params.slug);
   if (!content || content.content_type !== "news") notFound();
 
@@ -52,8 +51,8 @@ export default async function NewsDetailPage({
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "NewsArticle",
-    headline: locale === "bn" ? content.title_bn : (content.title_en ?? content.title_bn),
-    description: content.excerpt_en ?? content.excerpt_bn ?? undefined,
+    headline: content.title_bn,
+    description: content.excerpt_bn ?? undefined,
     image: content.thumbnail_url ? [content.thumbnail_url] : undefined,
     datePublished: content.published_at ?? undefined,
     dateModified: content.updated_at,
@@ -73,7 +72,7 @@ export default async function NewsDetailPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <NewsDetailBody content={content} related={related} locale={locale} />
+      <NewsDetailBody content={content} related={related} />
     </>
   );
 }

@@ -41,14 +41,13 @@ export default async function DocumentaryDetailPage({
 }) {
   const content = await getContentBySlug(params.slug);
   if (!content || content.content_type !== "documentary") notFound();
-  const locale = await getLocaleServer();
   const related = await getRelatedContents(content, 6);
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "VideoObject",
-    name: locale === "bn" ? content.title_bn : (content.title_en ?? content.title_bn),
-    description: content.excerpt_en ?? content.excerpt_bn ?? undefined,
+    name: content.title_bn,
+    description: content.excerpt_bn ?? undefined,
     thumbnailUrl: content.thumbnail_url ? [content.thumbnail_url] : undefined,
     uploadDate: content.published_at ?? content.created_at,
     embedUrl: content.video_url ?? undefined,
@@ -61,7 +60,7 @@ export default async function DocumentaryDetailPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <NewsDetailBody content={content} related={related} locale={locale} showVideoEmbed />
+      <NewsDetailBody content={content} related={related} showVideoEmbed />
     </>
   );
 }

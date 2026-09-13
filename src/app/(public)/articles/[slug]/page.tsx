@@ -41,7 +41,6 @@ export default async function ArticleDetailPage({
 }) {
   const content = await getContentBySlug(params.slug);
   if (!content || content.content_type !== "article") notFound();
-  const locale = await getLocaleServer();
   const related = await getRelatedContents(content, 6);
-  return <NewsDetailBody content={content} related={related} locale={locale} />;
+  return <NewsDetailBody content={content} related={related} />;
 }

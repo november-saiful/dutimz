@@ -1,6 +1,6 @@
 /**
- * Detects a right-swipe gesture starting within 24 px of the left edge of the
- * viewport. When the gesture completes (finger lifts) the callback fires.
+ * Detects a left-swipe gesture starting within 24 px of the right edge of
+ * the viewport. When the gesture completes (finger lifts) the callback fires.
  *
  * Works on both touch and pointer devices; ignores horizontal scrolls that
  * move more than 50 px vertically (to avoid conflicts with page scrolling).
@@ -9,7 +9,7 @@
 
 import { useEffect, useRef } from "react";
 
-const EDGE_THRESHOLD = 24; // px from left edge to start gesture
+const EDGE_THRESHOLD = 24; // px from right edge to start gesture
 const MIN_SWIPE = 50; // minimum horizontal distance to count as swipe
 const MAX_VERTICAL = 50; // cancel if finger moves too far vertically
 
@@ -25,7 +25,7 @@ export function useSwipeDrawer(onSwipe: () => void) {
     const onStart = (e: TouchEvent) => {
       const t = e.touches[0];
       if (!t) return;
-      if (t.clientX <= EDGE_THRESHOLD) {
+      if (t.clientX >= window.innerWidth - EDGE_THRESHOLD) {
         tracking.current = true;
         startX.current = t.clientX;
         startY.current = t.clientY;
@@ -37,7 +37,7 @@ export function useSwipeDrawer(onSwipe: () => void) {
       tracking.current = false;
       const t = e.changedTouches[0];
       if (!t) return;
-      const dx = t.clientX - startX.current;
+      const dx = startX.current - t.clientX; // positive = swipe left
       const dy = Math.abs(t.clientY - startY.current);
       if (dx >= MIN_SWIPE && dy < MAX_VERTICAL) {
         onSwipe();

@@ -2,18 +2,14 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ContentWithRelations } from "@/types";
 import { GlassCard } from "@/components/glass/GlassCard";
-import { formatDate, formatCount } from "@/lib/utils/format";
-import { translate, type TranslationKey } from "@/lib/i18n/dictionary";
-import type { Locale } from "@/lib/constants/app";
+import { formatCount } from "@/lib/utils/format";
 
 interface Props {
   content: ContentWithRelations;
-  locale: Locale;
   priority?: boolean;
 }
 
-export function GlassCard2({ content, locale, priority = false }: Props) {
-  const t = (key: TranslationKey) => translate(locale, key);
+export function GlassCard2({ content, priority = false }: Props) {
   const href =
     content.content_type === "news"
       ? `/news/${content.slug}`
@@ -21,13 +17,9 @@ export function GlassCard2({ content, locale, priority = false }: Props) {
         ? `/articles/${content.slug}`
         : `/documentaries/${content.slug}`;
 
-  const title = locale === "bn" ? content.title_bn : (content.title_en ?? content.title_bn);
-  const excerpt = locale === "bn" ? content.excerpt_bn : (content.excerpt_en ?? content.excerpt_bn);
-  const categoryName = content.category
-    ? locale === "bn"
-      ? content.category.name_bn
-      : content.category.name_en
-    : null;
+  const title = content.title_bn;
+  const excerpt = content.excerpt_bn;
+  const categoryName = content.category?.name_bn ?? null;
 
   return (
     <GlassCard className="flex h-full flex-col">
@@ -44,7 +36,7 @@ export function GlassCard2({ content, locale, priority = false }: Props) {
         )}
         {content.is_breaking && (
           <span className="breaking-chip absolute left-3 top-3 rounded px-2 py-0.5 text-xs font-bold">
-            {t("ticker.label")}
+            ব্রেকিং
           </span>
         )}
         {content.content_format === "video" && (
@@ -52,7 +44,7 @@ export function GlassCard2({ content, locale, priority = false }: Props) {
             className="absolute right-3 top-3 rounded px-2 py-0.5 text-xs font-bold"
             style={{ background: "var(--md-sys-color-tertiary)", color: "#000" }}
           >
-            ▶ {t("content.watchNow")}
+            ▶ এখনই দেখুন
           </span>
         )}
       </Link>
@@ -70,15 +62,17 @@ export function GlassCard2({ content, locale, priority = false }: Props) {
         </h3>
         {excerpt && <p className="line-clamp-2 text-sm opacity-70">{excerpt}</p>}
         <div className="mt-auto flex items-center gap-3 pt-2 text-xs opacity-60">
-          {content.published_at && <span>{formatDate(content.published_at, locale)}</span>}
+          {content.published_at && (
+            <span>{new Date(content.published_at).toLocaleDateString("bn-BD")}</span>
+          )}
           {content.read_time != null && (
             <span>
-              {formatCount(content.read_time, locale)} {t("content.minRead")}
+              {formatCount(content.read_time, "bn")} মিনিট পড়ুন
             </span>
           )}
           {content.view_count > 0 && (
             <span>
-              {formatCount(content.view_count, locale)} {t("content.views")}
+              {formatCount(content.view_count, "bn")} বার পঠিত
             </span>
           )}
         </div>

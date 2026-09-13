@@ -9,25 +9,21 @@ import { ShareButtons } from "@/components/content/ShareButtons";
 import { BookmarkButton } from "@/components/content/BookmarkButton";
 import { TextToSpeech } from "@/components/content/TextToSpeech";
 import { ReadTracker } from "@/components/content/ReadTracker";
-import { formatDate, formatCount, estimateReadTime } from "@/lib/utils/format";
+import { formatCount, estimateReadTime } from "@/lib/utils/format";
 import { sanitizeArticleHtml } from "@/lib/content/sanitize";
-import { translate } from "@/lib/i18n/dictionary";
 import { SITE } from "@/lib/constants/app";
-import type { Locale } from "@/lib/constants/app";
 
 interface Props {
   content: ContentWithRelations;
   related: ContentWithRelations[];
-  locale: Locale;
   showVideoEmbed?: boolean;
 }
 
-export function NewsDetailBody({ content, related, locale, showVideoEmbed = false }: Props) {
-  const t = (key: Parameters<typeof translate>[1]) => translate(locale, key);
-  const title = locale === "bn" ? content.title_bn : (content.title_en ?? content.title_bn);
-  const subtitle = locale === "bn" ? content.subtitle_bn : (content.subtitle_en ?? content.subtitle_bn);
-  const excerpt = locale === "bn" ? content.excerpt_bn : (content.excerpt_en ?? content.excerpt_bn);
-  const rawBody = locale === "bn" ? content.body_bn : (content.body_en ?? content.body_bn);
+export function NewsDetailBody({ content, related, showVideoEmbed = false }: Props) {
+  const title = content.title_bn;
+  const subtitle = content.subtitle_bn;
+  const excerpt = content.excerpt_bn;
+  const rawBody = content.body_bn;
   // Phase 3: server-side sanitization of editor-produced HTML.
   const body = sanitizeArticleHtml(rawBody);
   const readTime = content.read_time ?? estimateReadTime(body);
@@ -35,19 +31,15 @@ export function NewsDetailBody({ content, related, locale, showVideoEmbed = fals
   return (
     <article className="container mt-6 max-w-4xl page-transition">
       <ReadTracker content={content} />
-      <nav aria-label="Breadcrumb" className="mb-4 text-xs opacity-60">
+      <nav aria-label="ব্রেডক্রাম্ব" className="mb-4 text-xs opacity-60">
         <ol className="flex items-center gap-1.5">
           <li>
-            <Link href="/">{locale === "bn" ? "হোম" : "Home"}</Link>
+            <Link href="/">হোম</Link>
           </li>
           <li aria-hidden="true">/</li>
           <li>
             <Link href={`/category/${content.category?.slug ?? ""}`}>
-              {content.category
-                ? locale === "bn"
-                  ? content.category.name_bn
-                  : content.category.name_en
-                : "—"}
+              {content.category?.name_bn ?? "—"}
             </Link>
           </li>
         </ol>
@@ -58,7 +50,7 @@ export function NewsDetailBody({ content, related, locale, showVideoEmbed = fals
           className="mb-3 inline-block rounded-full px-3 py-1 text-xs font-bold"
           style={{ background: "var(--md-sys-color-primary)", color: "#fff" }}
         >
-          {locale === "bn" ? content.category.name_bn : content.category.name_en}
+          {content.category.name_bn}
         </span>
       )}
 
@@ -73,13 +65,15 @@ export function NewsDetailBody({ content, related, locale, showVideoEmbed = fals
           </span>
         )}
         {content.published_at && (
-          <time dateTime={content.published_at}>{formatDate(content.published_at, locale)}</time>
+          <time dateTime={content.published_at}>
+            {new Date(content.published_at).toLocaleDateString("bn-BD")}
+          </time>
         )}
         <span>
-          {formatCount(readTime, locale)} {t("content.minRead")}
+          {formatCount(readTime, "bn")} মিনিট পড়ুন
         </span>
         <span>
-          {formatCount(content.view_count, locale)} {t("content.views")}
+          {formatCount(content.view_count, "bn")} বার পঠিত
         </span>
       </div>
 
@@ -114,7 +108,7 @@ export function NewsDetailBody({ content, related, locale, showVideoEmbed = fals
 
       {excerpt && <p className="mt-6 border-l-4 pl-4 text-lg opacity-80" style={{ borderColor: "var(--md-sys-color-primary)" }}>{excerpt}</p>}
 
-      {/* Listen to article */}
+      {/* নিবন্ধ শুনুন */}
       {rawBody && (
         <div className="mt-6 max-w-[720px]">
           <TextToSpeech
@@ -127,13 +121,12 @@ export function NewsDetailBody({ content, related, locale, showVideoEmbed = fals
 
       <div
         className="prose-bn mt-6 max-w-[720px] space-y-4 text-[1.075rem] leading-[1.8]"
-        // Editor-produced HTML, sanitized above with sanitize-html (Phase 3).
         dangerouslySetInnerHTML={{ __html: body }}
       />
 
       {content.attachments.length > 0 && (
         <section className="mt-8">
-          <h2 className="mb-3 text-lg font-bold">{locale === "bn" ? "সংযুক্তি" : "Attachments"}</h2>
+          <h2 className="mb-3 text-lg font-bold">সংযুক্তি</h2>
           <ul className="space-y-2">
             {content.attachments.map((att, i) => (
               <li key={`${att.url}-${i}`}>
@@ -151,7 +144,7 @@ export function NewsDetailBody({ content, related, locale, showVideoEmbed = fals
         </section>
       )}
 
-      {/* Share & Bookmark bar */}
+      {/* শেয়ার ও বুকমার্ক */}
       <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-xl p-4" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
         <ShareButtons
           title={title}
@@ -160,17 +153,17 @@ export function NewsDetailBody({ content, related, locale, showVideoEmbed = fals
         <BookmarkButton contentId={content.id} />
       </div>
 
-      {/* Comments */}
+      {/* মন্তব্য */}
       {content.is_commentable && (
         <CommentSection contentId={content.id} />
       )}
 
       <section className="mt-10">
-        <SectionHeading title={locale === "bn" ? "সম্পর্কিত খবর" : "Related Stories"} />
-        <ContentGrid items={related} locale={locale} />
+        <SectionHeading title="সম্পর্কিত খবর" />
+        <ContentGrid items={related} />
       </section>
 
-      <NewsletterCTA locale={locale} />
+      <NewsletterCTA />
     </article>
   );
 }

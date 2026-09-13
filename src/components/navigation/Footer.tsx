@@ -33,7 +33,7 @@ export function Footer({ categories }: { categories: Category[] }) {
             {categories.slice(0, 6).map((cat) => (
               <li key={cat.id}>
                 <Link href={`/category/${cat.slug}`} className="hover:underline">
-                  {locale === "bn" ? cat.name_bn : cat.name_en}
+                  {(locale === "bn" ? cat.name_bn : null) ?? cat.name_en ?? cat.name_bn}
                 </Link>
               </li>
             ))}

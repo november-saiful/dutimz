@@ -5,7 +5,7 @@ import { useSwipeDrawer } from "@/hooks/useSwipeDrawer";
 import { useUIStore } from "@/stores/ui";
 
 /**
- * Attaches a swipe-from-left-edge gesture to the main content area so mobile
+ * Attaches a swipe-from-right-edge gesture to the main content area so mobile
  * users can pull open the navigation drawer without reaching for the hamburger
  * button. Rendered once near the root layout.
  */
