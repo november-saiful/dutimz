@@ -17,16 +17,16 @@ const config: Config = {
         input: "var(--input)",
         ring: "var(--ring)",
         primary: {
-          DEFAULT: "#1a73e8",
+          DEFAULT: "#5f2367",
           foreground: "#ffffff",
-          container: "#d3e3fd",
-          onContainer: "#041e49",
+          container: "#f5dff7",
+          onContainer: "#23003a",
         },
-        secondary: { DEFAULT: "#34a853", foreground: "#ffffff" },
-        tertiary: { DEFAULT: "#fbbc04", foreground: "#000000" },
+        secondary: { DEFAULT: "#a370a0", foreground: "#ffffff" },
+        tertiary: { DEFAULT: "#a370a0", foreground: "#ffffff" },
         breaking: { DEFAULT: "#ea4335", container: "#fce8e6" },
         success: "#34a853",
-        warning: "#fbbc04",
+        warning: "#a370a0",
         error: "#ea4335",
         surface: {
           light: "rgba(255, 255, 255, 0.72)",
@@ -39,11 +39,12 @@ const config: Config = {
         },
       },
       fontFamily: {
+        sans: ["Times New Roman", "serif"],
         // var(--font-noto-bengali) is injected by next/font (layout.tsx).
         bangla: [
+          "Times New Roman",
           "var(--font-noto-bengali)",
           "Noto Serif Bengali",
-          "Times New Roman",
           "serif",
         ],
         english: ["Times New Roman", "serif"],

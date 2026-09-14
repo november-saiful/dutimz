@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useMemo } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { Drawer, ConfigProvider, Divider } from "antd";
 import type { MenuProps } from "antd";
@@ -153,7 +152,7 @@ export function NavigationDrawer({
       theme={{
         algorithm: undefined,
         token: {
-          colorPrimary: "#1a73e8",
+          colorPrimary: "#5f2367",
           colorBgElevated: isDarkMode ? "#1e1e1e" : "rgba(255, 255, 255, 0.92)",
           colorText: isDarkMode ? "#f0f0f0" : "rgba(0, 0, 0, 0.88)",
           colorTextSecondary: isDarkMode ? "#ccc" : undefined,
@@ -225,16 +224,7 @@ export function NavigationDrawer({
           </Link>
         )}
 
-        <div className="flex items-center gap-2 px-1 pb-3">
-          <Image
-            src="/dutimz-logo.svg"
-            alt="DUTIMZ logo"
-            width={32}
-            height={32}
-            className="h-8 w-auto"
-          />
-          <span className="text-sm font-bold">DUTIMZ</span>
-        </div>
+        <Divider style={{ margin: "8px 0 12px", borderColor: "var(--glass-border)" }} />
 
         <DUTIMZMenu
           mode="inline"

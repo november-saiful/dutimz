@@ -26,9 +26,9 @@ const TYPE_ICONS: Record<string, typeof RocketIcon> = {
 
 const TYPE_COLORS: Record<string, string> = {
   breaking: "bg-red-500/10 text-red-600 dark:text-red-500",
-  new_article: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-500",
-  comment: "bg-blue-500/10 text-blue-600 dark:text-blue-500",
-  trending: "bg-orange-500/10 text-orange-600 dark:text-orange-500",
+  new_article: "bg-[#5f2367]/10 text-[#5f2367] dark:text-[#dbbce0]",
+  comment: "bg-[#a370a0]/10 text-[#a370a0] dark:text-[#dbbce0]",
+  trending: "bg-[#a370a0]/10 text-[#a370a0] dark:text-[#dbbce0]",
 };
 
 const TYPE_ROUTES: Record<string, string> = {
@@ -90,10 +90,33 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const portalRef = useRef<HTMLDivElement>(null);
+  const [panelPos, setPanelPos] = useState<{ top: number; right: number }>({ top: 72, right: 12 });
 
   useEffect(() => {
     setNotifications(generateMockNotifications());
   }, []);
+
+  // Recalculate panel position when opening, and on scroll/resize
+  const updatePosition = useCallback(() => {
+    const trigger = panelRef.current;
+    if (!trigger) return;
+    const rect = trigger.getBoundingClientRect();
+    setPanelPos({
+      top: rect.bottom + 8,
+      right: window.innerWidth - rect.right,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [open, updatePosition]);
 
   // Close on outside click (check both the trigger and the portaled panel)
   useEffect(() => {
@@ -158,7 +181,7 @@ export function NotificationBell() {
         <div
           ref={portalRef}
           className="notification-panel fixed z-50 w-[calc(100vw-1.5rem)] max-w-80 overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-lg transition-all dark:border-neutral-800/50 dark:bg-neutral-950/95 dark:backdrop-blur-xl"
-          style={{ top: "4.5rem", right: "0.75rem" }}
+          style={{ top: panelPos.top, right: panelPos.right }}
         >
           <div className="flex flex-col">
             {/* Header */}
@@ -168,7 +191,7 @@ export function NotificationBell() {
                   বিজ্ঞপ্তি
                 </span>
                 {unreadCount > 0 && (
-                  <div className="rounded-full border border-orange-500/20 bg-orange-500/10 px-1.5 py-0.5 text-[9px] leading-none font-bold text-orange-600 dark:bg-orange-500/20 dark:text-orange-500">
+                  <div className="rounded-full border border-[#a370a0]/20 bg-[#a370a0]/10 px-1.5 py-0.5 text-[9px] leading-none font-bold text-[#5f2367] dark:bg-[#a370a0]/20 dark:text-[#dbbce0]">
                     {unreadCount} নতুন
                   </div>
                 )}
@@ -177,7 +200,7 @@ export function NotificationBell() {
                 <button
                   type="button"
                   onClick={markAllRead}
-                  className="flex size-7 items-center justify-center rounded-lg p-0 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-emerald-500 dark:hover:bg-neutral-800"
+                  className="flex size-7 items-center justify-center rounded-lg p-0 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-[#5f2367] dark:hover:bg-neutral-800"
                   title="সব পঠিত করুন"
                 >
                   <CheckCheckIcon className="size-3.5" />
@@ -248,7 +271,7 @@ export function NotificationBell() {
               <Link
                 href="/news"
                 onClick={() => setOpen(false)}
-                className="flex w-full items-center justify-center rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-neutral-500 shadow-none transition-all hover:text-orange-500 active:scale-95 dark:border-neutral-800 dark:bg-neutral-950"
+                className="flex w-full items-center justify-center rounded-xl border border-neutral-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-neutral-500 shadow-none transition-all hover:text-[#5f2367] active:scale-95 dark:border-neutral-800 dark:bg-neutral-950"
               >
                 সব দেখুন
               </Link>

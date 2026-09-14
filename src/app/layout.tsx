@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Noto_Serif_Bengali, Inter } from "next/font/google";
+import { Noto_Serif_Bengali } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { GlassNavigation } from "@/components/navigation/GlassNavigation";
 import { Footer } from "@/components/navigation/Footer";
@@ -12,9 +12,8 @@ import { getAuthContext } from "@/lib/auth/server";
 import { SITE, DEFAULT_LOCALE } from "@/lib/constants/app";
 import { SITE_NAME_BN } from "@/lib/constants/brand";
 import "./globals.css";
-import { cn } from "@/lib/utils";
 
-const inter = Inter({subsets:['latin'],variable:'--font-sans'});
+
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
@@ -93,7 +92,7 @@ export default async function RootLayout({
     : null;
 
   return (
-    <html lang={lang} suppressHydrationWarning className={cn("font-sans", inter.variable)}>
+    <html lang={lang} suppressHydrationWarning className="font-sans">
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>

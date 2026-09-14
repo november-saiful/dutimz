@@ -26,7 +26,7 @@ const notifications = [
     icon: RocketIcon,
     message: 'Production deployment #842 successful',
     category: 'System',
-    color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-500',
+    color: 'bg-[#5f2367]/10 text-[#5f2367] dark:text-[#dbbce0]',
     time: '12 min',
   },
   {
@@ -42,7 +42,7 @@ const notifications = [
     icon: CloudCheckIcon,
     message: 'Architecture backup completed successfully',
     category: 'Backup',
-    color: 'bg-blue-500/10 text-blue-600 dark:text-blue-500',
+    color: 'bg-[#a370a0]/10 text-[#a370a0] dark:text-[#dbbce0]',
     time: '2 hours',
   },
 ];
@@ -60,7 +60,7 @@ const Popover11 = () => {
               <span className="text-sm font-semibold tracking-tight text-neutral-900 dark:text-neutral-100">
                 Alerts
               </span>
-              <div className="rounded-full border border-orange-500/20 bg-orange-500/10 px-1.5 py-0.5 text-[9px] leading-none font-bold text-orange-600 dark:bg-orange-500/20 dark:text-orange-500">
+              <div className="rounded-full border border-[#a370a0]/20 bg-[#a370a0]/10 px-1.5 py-0.5 text-[9px] leading-none font-bold text-[#5f2367] dark:bg-[#a370a0]/20 dark:text-[#dbbce0]">
                 {
                   notifications.filter((i) => !readMessages.includes(i.id))
                     .length
@@ -71,7 +71,7 @@ const Popover11 = () => {
             <div className="flex items-center gap-0.5">
               <Button
                 variant="ghost"
-                className="size-7 rounded-lg p-0 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-emerald-500 dark:hover:bg-neutral-800"
+                className="size-7 rounded-lg p-0 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-[#5f2367] dark:hover:bg-neutral-800"
                 onClick={() =>
                   setReadMessages(notifications.map((item) => item.id))
                 }
@@ -132,7 +132,7 @@ const Popover11 = () => {
           <div className="border-t border-neutral-100 p-3 dark:border-neutral-800">
             <Button
               variant="outline"
-              className="w-full rounded-xl border-neutral-200 bg-white text-[11px] font-semibold text-neutral-500 shadow-none transition-all hover:text-orange-500 active:scale-95 dark:border-neutral-800 dark:bg-neutral-950"
+              className="w-full rounded-xl border-neutral-200 bg-white text-[11px] font-semibold text-neutral-500 shadow-none transition-all hover:text-[#5f2367] active:scale-95 dark:border-neutral-800 dark:bg-neutral-950"
             >
               View all alerts
             </Button>

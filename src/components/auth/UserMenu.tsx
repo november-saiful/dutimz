@@ -151,7 +151,7 @@ export function UserMenu({ user }: { user: SessionUser }) {
           </span>
         )}
         {/* Online indicator dot */}
-        <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-[#1a1f2e] bg-green-500" />
+        <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-[#1a1f2e] bg-[#5f2367]" />
       </button>
 
       {/* ── Dropdown popover ── */}
