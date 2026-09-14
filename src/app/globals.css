@@ -80,7 +80,7 @@
 
 /* ===== Typography Scale ===== */
 :root {
-  --font-stack-bangla: 'Times New Roman', var(--font-noto-bengali), 'Noto Serif Bengali', serif;
+  --font-stack-bangla: var(--font-noto-bengali), 'Noto Serif Bengali', 'Times New Roman', serif;
 
   --font-headline-large: 700 2.5rem/1.2 var(--font-stack-bangla);
   --font-headline-medium: 700 2rem/1.25 var(--font-stack-bangla);
