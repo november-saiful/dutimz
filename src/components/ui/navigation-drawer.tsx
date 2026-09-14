@@ -167,6 +167,7 @@ export function NavigationDrawer({
             itemSelectedColor: isDarkMode ? "#ffffff" : undefined,
             itemSelectedBg: isDarkMode ? "rgba(255,255,255,0.08)" : undefined,
             itemHoverBg: isDarkMode ? "rgba(255,255,255,0.06)" : undefined,
+            fontFamily: "var(--font-stack-bangla)",
           },
         },
       }}
