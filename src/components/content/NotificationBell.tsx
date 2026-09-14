@@ -90,7 +90,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const portalRef = useRef<HTMLDivElement>(null);
-  const [panelPos, setPanelPos] = useState<{ top: number; right: number }>({ top: 72, right: 12 });
+  const [panelPos, setPanelPos] = useState<{ top: number; right: number; left: number | "auto" }>({ top: 72, right: 12, left: "auto" });
 
   useEffect(() => {
     setNotifications(generateMockNotifications());
@@ -101,10 +101,14 @@ export function NotificationBell() {
     const trigger = panelRef.current;
     if (!trigger) return;
     const rect = trigger.getBoundingClientRect();
-    setPanelPos({
-      top: rect.bottom + 8,
-      right: window.innerWidth - rect.right,
-    });
+    const isMobile = window.innerWidth < 640;
+    if (isMobile) {
+      // Mobile: pin with equal margins, ignore bell position
+      setPanelPos({ top: rect.bottom + 8, right: 12, left: 12 });
+    } else {
+      // Desktop: align panel right edge to bell right edge
+      setPanelPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right, left: "auto" });
+    }
   }, []);
 
   useEffect(() => {
@@ -180,8 +184,8 @@ export function NotificationBell() {
       {open && mounted && createPortal(
         <div
           ref={portalRef}
-          className="notification-panel fixed z-50 w-[calc(100vw-1.5rem)] max-w-80 overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-lg transition-all dark:border-neutral-800/50 dark:bg-neutral-950/95 dark:backdrop-blur-xl"
-          style={{ top: panelPos.top, right: panelPos.right }}
+          className="notification-panel fixed z-50 sm:w-80 max-w-80 overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-lg transition-all dark:border-neutral-800/50 dark:bg-neutral-950/95 dark:backdrop-blur-xl"
+          style={{ top: panelPos.top, right: panelPos.right, left: panelPos.left }}
         >
           <div className="flex flex-col">
             {/* Header */}
