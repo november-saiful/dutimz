@@ -6,9 +6,7 @@ import Link from "next/link";
 import { Drawer, ConfigProvider, Divider } from "antd";
 import type { MenuProps } from "antd";
 import {
-  HomeOutlined,
   AppstoreOutlined,
-  SearchOutlined,
   UserOutlined,
   TeamOutlined,
   SafetyCertificateOutlined,
@@ -79,18 +77,7 @@ export function NavigationDrawer({
   const themeIcon = mode === "dark" ? <SunOutlined /> : mode === "light" ? <MoonOutlined /> : <DesktopOutlined />;
 
   const items = useMemo<MenuItem[]>(() => {
-    const list: MenuItem[] = [
-      {
-        key: "home",
-        icon: <HomeOutlined />,
-        label: "হোম",
-      },
-      {
-        key: "search",
-        icon: <SearchOutlined />,
-        label: t.searchHint.replace("…", ""),
-      },
-    ];
+    const list: MenuItem[] = [];
 
     if (categories.length > 0) {
       list.push({
@@ -130,12 +117,6 @@ export function NavigationDrawer({
     onClose();
 
     switch (key) {
-      case "home":
-        window.location.href = "/";
-        break;
-      case "search":
-        window.location.href = "/search";
-        break;
       case "profile":
         window.location.href = "/profile";
         break;
@@ -203,23 +184,12 @@ export function NavigationDrawer({
           body: drawerBodyStyle,
         }}
       >
-        <div className="flex items-center gap-2 px-1 pb-3">
-          <Image
-            src="/dutimz-logo.svg"
-            alt="DUTIMZ logo"
-            width={32}
-            height={32}
-            className="h-8 w-auto"
-          />
-          <span className="text-sm font-bold">DUTIMZ</span>
-        </div>
-
-        {/* Signed-in user profile header */}
-        {user && (
+        {/* Login / Account at the top */}
+        {user ? (
           <Link
             href="/profile"
             onClick={onClose}
-            className="flex items-center gap-3 rounded-lg px-2 py-2 mb-1 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+            className="flex items-center gap-3 rounded-lg px-2 py-2 mb-2 hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
           >
             {user.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -244,7 +214,27 @@ export function NavigationDrawer({
               <p className="truncate text-xs opacity-60" dir="ltr">{user.email}</p>
             </div>
           </Link>
+        ) : (
+          <Link
+            href="/auth/login"
+            onClick={onClose}
+            className="flex items-center gap-2 rounded-lg px-2 py-2 mb-2 text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
+          >
+            <UserOutlined />
+            <span>{t.login}</span>
+          </Link>
         )}
+
+        <div className="flex items-center gap-2 px-1 pb-3">
+          <Image
+            src="/dutimz-logo.svg"
+            alt="DUTIMZ logo"
+            width={32}
+            height={32}
+            className="h-8 w-auto"
+          />
+          <span className="text-sm font-bold">DUTIMZ</span>
+        </div>
 
         <DUTIMZMenu
           mode="inline"
@@ -265,39 +255,20 @@ export function NavigationDrawer({
           <span>{MODE_LABELS[mode]}</span>
         </button>
 
-        {/* Profile / Login / Logout */}
-        {user ? (
-          <>
-            <Link
-              href="/profile"
-              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-              onClick={onClose}
-            >
-              <UserOutlined />
-              <span>প্রোফাইল</span>
-            </Link>
-            <button
-              type="button"
-              onClick={() => {
-                void fetch("/auth/signout", { method: "POST" }).then(() => {
-                  window.location.href = "/";
-                });
-              }}
-              className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-            >
-              <LogoutOutlined />
-              <span>{t.logout}</span>
-            </button>
-          </>
-        ) : (
-          <Link
-            href="/auth/login"
-            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
-            onClick={onClose}
+        {/* Logout (only when signed in) */}
+        {user && (
+          <button
+            type="button"
+            onClick={() => {
+              void fetch("/auth/signout", { method: "POST" }).then(() => {
+                window.location.href = "/";
+              });
+            }}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
           >
-            <UserOutlined />
-            <span>{t.login}</span>
-          </Link>
+            <LogoutOutlined />
+            <span>{t.logout}</span>
+          </button>
         )}
 
         <Divider style={{ margin: "12px 0", borderColor: "var(--glass-border)" }} />

@@ -5,6 +5,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
   BellIcon,
@@ -88,16 +89,20 @@ export function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+  const portalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setNotifications(generateMockNotifications());
   }, []);
 
-  // Close on outside click
+  // Close on outside click (check both the trigger and the portaled panel)
   useEffect(() => {
     if (!open) return;
     function handleClick(e: MouseEvent) {
-      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      const clickedTrigger = panelRef.current?.contains(target);
+      const clickedPanel = portalRef.current?.contains(target);
+      if (!clickedTrigger && !clickedPanel) {
         setOpen(false);
       }
     }
@@ -127,6 +132,9 @@ export function NotificationBell() {
     return `${Math.floor(hrs / 24)}দি`;
   };
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   return (
     <div className="relative" ref={panelRef}>
       <button
@@ -146,9 +154,11 @@ export function NotificationBell() {
         )}
       </button>
 
-      {open && (
+      {open && mounted && createPortal(
         <div
-          className="notification-panel absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-lg transition-all dark:border-neutral-800/50 dark:bg-neutral-950/95 dark:backdrop-blur-xl"
+          ref={portalRef}
+          className="notification-panel fixed z-50 w-[calc(100vw-1.5rem)] max-w-80 overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-lg transition-all dark:border-neutral-800/50 dark:bg-neutral-950/95 dark:backdrop-blur-xl"
+          style={{ top: "4.5rem", right: "0.75rem" }}
         >
           <div className="flex flex-col">
             {/* Header */}
@@ -244,7 +254,8 @@ export function NotificationBell() {
               </Link>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
