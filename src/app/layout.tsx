@@ -92,7 +92,7 @@ export default async function RootLayout({
     : null;
 
   return (
-    <html lang={lang} suppressHydrationWarning className="font-sans">
+    <html lang={lang} suppressHydrationWarning className={notoSerifBengali.variable + " font-sans"}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
