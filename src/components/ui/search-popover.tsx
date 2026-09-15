@@ -1,0 +1,263 @@
+'use client';
+
+import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import {
+  SearchIcon,
+  Loader2Icon,
+  XIcon,
+  NewspaperIcon,
+  FilmIcon,
+  BookOpenIcon,
+  EyeIcon,
+} from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from 'cn';
+import type { ContentWithRelations } from '@/types';
+
+const TYPE_ICONS: Record<string, typeof NewspaperIcon> = {
+  news: NewspaperIcon,
+  article: BookOpenIcon,
+  documentary: FilmIcon,
+};
+
+const TYPE_COLORS: Record<string, string> = {
+  news: 'text-[#5f2367] bg-[#5f2367]/10 dark:text-[#dbbce0] dark:bg-[#5f2367]/20',
+  article: 'text-[#a370a0] bg-[#a370a0]/10 dark:text-[#dbbce0] dark:bg-[#a370a0]/20',
+  documentary: 'text-[#5f2367] bg-[#5f2367]/10 dark:text-[#dbbce0] dark:bg-[#5f2367]/20',
+};
+
+const useDebounce = (value: string, delay: number = 300) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+};
+
+const SearchPopover = () => {
+  const [inputValue, setInputValue] = useState('');
+  const [results, setResults] = useState<ContentWithRelations[]>([]);
+  const [total, setTotal] = useState(0);
+  const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const debouncedSearch = useDebounce(inputValue);
+
+  const performSearch = useCallback(async (query: string) => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults([]);
+      setTotal(0);
+      setHasSearched(false);
+      return;
+    }
+
+    setIsSearching(true);
+    setHasSearched(true);
+
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=8`);
+      if (res.ok) {
+        const data = await res.json();
+        setResults(data.items ?? []);
+        setTotal(data.total ?? 0);
+      } else {
+        setResults([]);
+        setTotal(0);
+      }
+    } catch {
+      setResults([]);
+      setTotal(0);
+    } finally {
+      setIsSearching(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    performSearch(debouncedSearch);
+  }, [debouncedSearch, performSearch]);
+
+  const handleClear = () => {
+    setInputValue('');
+    setResults([]);
+    setTotal(0);
+    setHasSearched(false);
+    inputRef.current?.focus();
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon"
+            className="nav-icon-btn"
+          />
+        }
+      >
+        <SearchIcon className="size-5" />
+        <span className="sr-only">খুঁজুন</span>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        sideOffset={8}
+        className="w-80 overflow-hidden rounded-3xl border-neutral-100 bg-white p-5 shadow-lg dark:border-neutral-800 dark:bg-neutral-950"
+      >
+        <div className="flex flex-col gap-5">
+          {/* Search input */}
+          <div className="relative">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center justify-center pl-3.5 text-neutral-400">
+              <SearchIcon className="size-3.5" />
+            </div>
+            <Input
+              ref={inputRef}
+              type="text"
+              placeholder="সংবাদ খুঁজুন..."
+              value={inputValue}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                setInputValue(e.target.value);
+              }}
+              className="h-11 rounded-2xl border-neutral-100 bg-neutral-100/50 px-10 text-xs font-medium transition-all outline-none placeholder:text-neutral-500 focus-visible:border-neutral-200 focus-visible:ring-0 focus-visible:ring-offset-0 dark:border-neutral-800 dark:bg-neutral-900/50 dark:focus-visible:border-neutral-700"
+            />
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+              {isSearching ? (
+                <Loader2Icon className="size-4 animate-spin text-[#5f2367]" />
+              ) : (
+                inputValue && (
+                  <button
+                    onClick={handleClear}
+                    className="group rounded-lg p-1.5 transition-colors hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  >
+                    <XIcon className="size-3.5 text-neutral-400 group-hover:text-neutral-600 dark:group-hover:text-neutral-200" />
+                  </button>
+                )
+              )}
+            </div>
+          </div>
+
+          {/* Results header */}
+          {inputValue && (
+            <div className="flex items-center justify-between px-1">
+              <span className="text-xs tracking-tight text-neutral-400">
+                অনুসন্ধান ফলাফল
+              </span>
+              {hasSearched && !isSearching && (
+                <span className="text-[10px] font-bold text-neutral-400/60">
+                  {total} টি
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Results list */}
+          <ul className="flex flex-col gap-1">
+            {results.length > 0 ? (
+              results.map((item) => {
+                const TypeIcon = TYPE_ICONS[item.content_type] ?? NewspaperIcon;
+                const typeColor = TYPE_COLORS[item.content_type] ?? TYPE_COLORS.news;
+                const href = item.content_type === 'documentary'
+                  ? `/documentaries/${item.slug}`
+                  : item.content_type === 'article'
+                    ? `/articles/${item.slug}`
+                    : `/news/${item.slug}`;
+
+                return (
+                  <li key={item.id}>
+                    <Link
+                      href={href}
+                      className="group flex items-start gap-3 rounded-2xl p-2.5 transition-all hover:bg-neutral-50 dark:hover:bg-neutral-900"
+                    >
+                      {item.thumbnail_url ? (
+                        <img
+                          src={item.thumbnail_url}
+                          alt={item.thumbnail_alt ?? item.title_bn}
+                          className="size-9 shrink-0 rounded-xl object-cover"
+                        />
+                      ) : (
+                        <div
+                          className={cn(
+                            'flex size-9 shrink-0 items-center justify-center rounded-xl border border-transparent transition-all group-hover:scale-105',
+                            typeColor,
+                          )}
+                        >
+                          <TypeIcon className="size-4" />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="line-clamp-1 text-[13px] font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+                          {item.title_bn}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-2">
+                          {item.category && (
+                            <span className="text-[10px] font-medium text-[#a370a0]">
+                              {item.category.name_bn}
+                            </span>
+                          )}
+                          <span className="flex items-center gap-0.5 text-[10px] text-neutral-400">
+                            <EyeIcon className="size-2.5" />
+                            {item.view_count.toLocaleString('bn-BD')}
+                          </span>
+                        </div>
+                      </div>
+                      {item.is_breaking && (
+                        <span className="shrink-0 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[9px] font-bold text-red-600 dark:text-red-500">
+                          ব্রেকিং
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })
+            ) : (
+              hasSearched &&
+              !isSearching && (
+                <li className="py-10 text-center">
+                  <div className="mx-auto mb-2 flex size-10 items-center justify-center rounded-3xl border border-neutral-100 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900">
+                    <SearchIcon className="size-5 text-neutral-300 dark:text-neutral-700" />
+                  </div>
+                  <p className="text-sm font-bold text-neutral-400">
+                    কোনো ফলাফল পাওয়া যায়নি
+                  </p>
+                  <p className="text-xs font-medium tracking-tight text-neutral-500">
+                    অন্য কীওয়ার্ড দিয়ে চেষ্টা করুন
+                  </p>
+                </li>
+              )
+            )}
+          </ul>
+
+          {/* View full search link */}
+          {hasSearched && results.length > 0 && (
+            <div className="border-t border-neutral-100 pt-3 dark:border-neutral-800">
+              <Link
+                href={`/search?q=${encodeURIComponent(inputValue)}`}
+                className="block text-center text-xs font-semibold text-[#5f2367] transition-colors hover:text-[#a370a0] dark:text-[#dbbce0]"
+              >
+                সব ফলাফল দেখুন →
+              </Link>
+            </div>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+export default SearchPopover;

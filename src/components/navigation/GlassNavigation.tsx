@@ -9,6 +9,7 @@ import { useUIStore } from "@/stores/ui";
 import { UserMenu, type SessionUser } from "@/components/auth/UserMenu";
 import { NavigationDrawer } from "@/components/ui/navigation-drawer";
 import { NotificationBell } from "@/components/content/NotificationBell";
+import SearchPopover from "@/components/ui/search-popover";
 
 interface Props {
   categories: Category[];
@@ -121,16 +122,7 @@ export function GlassNavigation({ categories, user }: Props) {
           <div className="flex items-center gap-1.5">
             <NotificationBell />
 
-            <Link
-              href="/search"
-              className="nav-icon-btn"
-              aria-label="খুঁজুন"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <circle cx="11" cy="11" r="7" />
-                <path d="m20 20-3.5-3.5" />
-              </svg>
-            </Link>
+            <SearchPopover />
 
             <button
               type="button"
