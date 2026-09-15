@@ -175,7 +175,7 @@ export function NavigationDrawer({
       <Drawer
         title={t.title}
         placement="right"
-        width={300}
+        size={300}
         open={open}
         onClose={onClose}
         rootClassName="dutimz-nav-drawer"
