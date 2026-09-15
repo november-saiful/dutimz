@@ -18,6 +18,10 @@ export async function GET(request: NextRequest) {
     20,
   );
 
+  // Optional filters
+  const contentType = url.searchParams.get("type")?.trim() || null;
+  const categoryId = url.searchParams.get("category")?.trim() || null;
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -30,10 +34,21 @@ export async function GET(request: NextRequest) {
 
   // Query Supabase directly with public anon key (no cookies needed)
   const pattern = `%${q}%`;
-  const select = "*,category:categories(*),author:profiles!contents_author_id_fkey(id,username,display_name,avatar_url,is_verified)";
+  const select =
+    "*,category:categories(*),author:profiles!contents_author_id_fkey(id,username,display_name,avatar_url,is_verified)";
+
+  // Build filters
+  const filters: string[] = ["status=eq.published"];
+  if (contentType) {
+    filters.push(`content_type=eq.${contentType}`);
+  }
+  if (categoryId) {
+    filters.push(`category_id=eq.${categoryId}`);
+  }
+
   const rest =
     `${supabaseUrl}/rest/v1/contents?select=${encodeURIComponent(select)}` +
-    `&status=eq.published` +
+    `&${filters.join("&")}` +
     `&or=(title_bn.ilike.${encodeURIComponent(pattern)},title_en.ilike.${encodeURIComponent(pattern)},excerpt_bn.ilike.${encodeURIComponent(pattern)},excerpt_en.ilike.${encodeURIComponent(pattern)})` +
     `&order=published_at.desc&limit=${limit}`;
 
