@@ -37,7 +37,7 @@ export function SearchFilter({ categories, filters, onFiltersChange }: SearchFil
     setLocalCategory(filters.categoryId);
   }, [filters.contentType, filters.categoryId]);
 
-  const hasActive = localType !== null || localCategory !== null;
+  const activeCount = (localType !== null ? 1 : 0) + (localCategory !== null ? 1 : 0);
 
   const handleApply = () => {
     onFiltersChange({ contentType: localType, categoryId: localCategory });
@@ -66,7 +66,7 @@ export function SearchFilter({ categories, filters, onFiltersChange }: SearchFil
             size="icon"
             className={cn(
               'nav-icon-btn',
-              hasActive && 'bg-[var(--md-sys-color-primary)]/10 text-[var(--md-sys-color-primary)]',
+              activeCount > 0 && 'bg-[var(--md-sys-color-primary)]/10 text-[var(--md-sys-color-primary)]',
             )}
           />
         }
@@ -75,8 +75,10 @@ export function SearchFilter({ categories, filters, onFiltersChange }: SearchFil
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
         </svg>
-        {hasActive && (
-          <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-[var(--md-sys-color-primary)]" />
+        {activeCount > 0 && (
+          <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-[var(--md-sys-color-primary)] text-[9px] font-bold text-white">
+            {activeCount}
+          </span>
         )}
         <span className="sr-only">ফিল্টার</span>
       </PopoverTrigger>
@@ -96,7 +98,7 @@ export function SearchFilter({ categories, filters, onFiltersChange }: SearchFil
                 ধরন ও বিভাগ অনুযায়ী ফিল্টার করুন
               </p>
             </div>
-            {hasActive && (
+            {activeCount > 0 && (
               <button
                 onClick={handleReset}
                 className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-neutral-400 transition-colors hover:text-red-500"
