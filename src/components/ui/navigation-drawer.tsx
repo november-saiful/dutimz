@@ -2,6 +2,7 @@
 
 import React, { useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Drawer, ConfigProvider, Divider } from "antd";
 import type { MenuProps } from "antd";
 import {
@@ -68,6 +69,8 @@ export function NavigationDrawer({
   const t = COPY;
   const { mode, setMode } = useThemeStore();
 
+  const router = useRouter();
+
   const handleThemeToggle = () => {
     const next = MODE_CYCLE[mode];
     setMode(next);
@@ -117,20 +120,20 @@ export function NavigationDrawer({
 
     switch (key) {
       case "profile":
-        window.location.href = "/profile";
+        router.push("/profile");
         break;
       case "reporter":
-        window.location.href = "/reporter";
+        router.push("/reporter");
         break;
       case "moderator":
-        window.location.href = "/moderator";
+        router.push("/moderator");
         break;
       case "admin":
-        window.location.href = "/admin";
+        router.push("/admin");
         break;
       default:
         if (key.startsWith("cat-")) {
-          window.location.href = `/category/${key.slice(4)}`;
+          router.push(`/category/${key.slice(4)}`);
         }
     }
   };

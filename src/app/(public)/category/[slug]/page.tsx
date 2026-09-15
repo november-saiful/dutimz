@@ -38,7 +38,7 @@ export default async function CategoryPage({
   if (!category) notFound();
 
   const [items, popular] = await Promise.all([
-    getContentsByCategory(params.slug, 24),
+    getContentsByCategory(params.slug, 24, category.id),
     getPopularContents(5),
   ]);
 

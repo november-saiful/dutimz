@@ -149,21 +149,23 @@ export async function getActiveCategories(): Promise<Category[]> {
 export async function getContentsByCategory(
   categorySlug: string,
   limit: number,
+  /** Pass the category ID to skip the redundant getCategoryBySlug lookup. */
+  categoryId?: string,
 ): Promise<ContentWithRelations[]> {
   if (!hasSupabase()) {
     return mockContents
       .filter((c) => c.category?.slug === categorySlug)
       .slice(0, limit);
   }
-  const category = await getCategoryBySlug(categorySlug);
-  if (!category) return [];
+  const catId = categoryId ?? (await getCategoryBySlug(categorySlug))?.id;
+  if (!catId) return [];
   const { createSupabaseServerClient } = await import("@/lib/supabase/server");
   const supabase = createSupabaseServerClient();
   const { data, error } = await supabase
     .from("contents")
     .select("*, category:categories(*), author:profiles!contents_author_id_fkey(id, username, display_name, avatar_url, is_verified)")
     .eq("status", "published")
-    .eq("category_id", category.id)
+    .eq("category_id", catId)
     .order("published_at", { ascending: false })
     .limit(limit);
   if (error || !data) return [];
