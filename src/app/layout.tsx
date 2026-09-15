@@ -7,6 +7,7 @@ import { MobileBottomDock } from "@/components/navigation/MobileBottomDock";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import { ServiceWorkerRegistrar } from "@/components/providers/ServiceWorkerRegistrar";
 import { SwipeDrawerListener } from "@/components/providers/SwipeDrawerListener";
+import { PageTransition } from "@/components/providers/PageTransition";
 import { getActiveCategories } from "@/lib/data/queries";
 import { getAuthContext } from "@/lib/auth/server";
 import { SITE, DEFAULT_LOCALE } from "@/lib/constants/app";
@@ -106,7 +107,7 @@ export default async function RootLayout({
             মূল কন্টেন্টে যান / Skip to content
           </a>
           <GlassNavigation categories={categories} user={sessionUser} />
-          <main id="main-content" className="pb-24 tablet:pb-0">{children}</main>
+          <main id="main-content" className="pb-24 tablet:pb-0"><PageTransition>{children}</PageTransition></main>
           <Footer categories={categories} />
           <MobileBottomDock role={sessionUser?.role ?? null} />
           <ServiceWorkerRegistrar />
