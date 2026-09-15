@@ -23,6 +23,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from 'cn';
+import { Highlight } from '@/components/ui/highlight';
 import type { ContentWithRelations } from '@/types';
 
 /* ── constants ────────────────────────────────────────────────────── */
@@ -291,12 +292,12 @@ const SearchPopover = () => {
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="line-clamp-1 text-[13px] font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-                          {item.title_bn}
+                          <Highlight text={item.title_bn} query={inputValue} />
                         </div>
                         <div className="mt-0.5 flex items-center gap-2">
                           {item.category && (
                             <span className="text-[10px] font-medium text-[#a370a0]">
-                              {item.category.name_bn}
+                              <Highlight text={item.category.name_bn} query={inputValue} />
                             </span>
                           )}
                           <span className="flex items-center gap-0.5 text-[10px] text-neutral-400">

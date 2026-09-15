@@ -32,7 +32,7 @@ export default async function SearchPage({
           <p className="mb-4 text-sm opacity-60">
             &ldquo;{query}&rdquo; — {results.total} টি ফলাফল পাওয়া গেছে
           </p>
-          <SearchResultList items={results.items} />
+          <SearchResultList items={results.items} query={query} />
         </div>
       )}
     </div>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { Highlight } from "@/components/ui/highlight";
 import type { ContentWithRelations } from "@/types";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -14,7 +15,7 @@ const TYPE_ROUTES: Record<string, string> = {
   documentary: "/documentaries",
 };
 
-export function SearchResultList({ items }: { items: ContentWithRelations[] }) {
+export function SearchResultList({ items, query = "" }: { items: ContentWithRelations[]; query?: string }) {
   if (items.length === 0) {
     return (
       <div className="glass-card p-8 text-center">
@@ -63,9 +64,13 @@ export function SearchResultList({ items }: { items: ContentWithRelations[] }) {
                   </span>
                 )}
               </div>
-              <h3 className="font-bold text-sm leading-snug line-clamp-2">{title}</h3>
+              <h3 className="font-bold text-sm leading-snug line-clamp-2">
+                <Highlight text={title} query={query} />
+              </h3>
               {excerpt && (
-                <p className="mt-1 text-xs opacity-60 line-clamp-2">{excerpt}</p>
+                <p className="mt-1 text-xs opacity-60 line-clamp-2">
+                  <Highlight text={excerpt} query={query} />
+                </p>
               )}
               <div className="mt-2 flex items-center gap-3 text-[10px] opacity-40">
                 {item.author && (
