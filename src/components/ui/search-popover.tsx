@@ -188,7 +188,7 @@ const SearchPopover = () => {
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-80 overflow-hidden rounded-3xl border-neutral-100 bg-white p-5 shadow-lg dark:border-neutral-800 dark:bg-neutral-950"
+        className="w-80 overflow-hidden rounded-xl border border-neutral-100 bg-white p-5 shadow-lg dark:border-neutral-800 dark:bg-neutral-950"
       >
         <div className="flex flex-col gap-5">
           {/* Search input */}
@@ -204,7 +204,7 @@ const SearchPopover = () => {
                 setInputValue(e.target.value);
               }}
               onKeyDown={handleKeyDown}
-              className="h-11 rounded-2xl border-neutral-100 bg-neutral-100/50 px-10 text-xs font-medium transition-all outline-none placeholder:text-neutral-500 focus-visible:border-neutral-200 focus-visible:ring-0 focus-visible:ring-offset-0 dark:border-neutral-800 dark:bg-neutral-900/50 dark:focus-visible:border-neutral-700"
+              className="h-11 rounded-xl border border-neutral-200 bg-neutral-50 px-10 text-xs font-medium transition-all outline-none placeholder:text-neutral-400 focus-visible:border-[var(--md-sys-color-primary)] focus-visible:ring-0 focus-visible:ring-offset-0 dark:border-neutral-700 dark:bg-neutral-900 dark:focus-visible:border-[var(--md-sys-color-primary)]"
             />
             <div className="absolute inset-y-0 right-0 flex items-center pr-3">
               {isSearching ? (
@@ -294,7 +294,7 @@ const SearchPopover = () => {
                       ) : (
                         <div
                           className={cn(
-                            'flex size-9 shrink-0 items-center justify-center rounded-xl border border-transparent transition-all group-hover:scale-105',
+                            'flex size-9 shrink-0 items-center justify-center rounded-lg border border-transparent transition-all group-hover:scale-105',
                             typeColor,
                           )}
                         >

@@ -274,7 +274,7 @@ export function RichTextEditor({
               }}
               placeholder="https://example.com"
               dir="ltr"
-              className="flex-1 rounded-lg border border-white/40 bg-white/80 px-3 py-1.5 text-sm outline-none dark:bg-black/40"
+              className="flex-1 rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm outline-none dark:border-neutral-700 dark:bg-neutral-900"
               aria-label="Link URL"
             />
             <button

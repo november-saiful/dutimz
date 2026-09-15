@@ -372,7 +372,7 @@ export function ContentEditor({
   const status = content?.status ?? "draft";
   const isBangla = locale !== "en";
   const inputClass =
-    "w-full rounded-xl border border-white/40 bg-white/60 px-4 py-2.5 text-sm outline-none placeholder:opacity-50 focus:border-primary dark:bg-black/40";
+    "w-full rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none placeholder:text-neutral-400 focus:border-[var(--md-sys-color-primary)] dark:border-neutral-700 dark:bg-neutral-900";
 
   return (
     <div className="flex flex-col gap-6" data-testid="content-editor">

@@ -50,7 +50,7 @@ export function NewsletterForm() {
           setStatus("idle");
         }}
         placeholder={t("newsletter.emailPlaceholder")}
-        className="flex-1 rounded-full border border-white/40 bg-white/60 px-4 py-2.5 text-sm outline-none placeholder:opacity-50 focus:border-primary dark:bg-black/40"
+        className="flex-1 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none placeholder:text-neutral-400 focus:border-[var(--md-sys-color-primary)] dark:border-neutral-700 dark:bg-neutral-900"
       />
       <button
         type="submit"

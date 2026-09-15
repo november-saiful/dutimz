@@ -85,7 +85,7 @@ export function SearchFilter({ categories, filters, onFiltersChange }: SearchFil
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-80 overflow-hidden rounded-3xl border-neutral-100 bg-white p-5 shadow-lg dark:border-neutral-800 dark:bg-neutral-950"
+        className="w-80 overflow-hidden rounded-xl border border-neutral-100 bg-white p-5 shadow-lg dark:border-neutral-800 dark:bg-neutral-950"
       >
         <div className="flex flex-col gap-5">
           {/* Header */}
@@ -159,7 +159,7 @@ export function SearchFilter({ categories, filters, onFiltersChange }: SearchFil
           {/* Apply button */}
           <button
             onClick={handleApply}
-            className="w-full rounded-xl bg-[var(--md-sys-color-primary)] px-4 py-2.5 text-sm font-bold text-white transition-all hover:opacity-90 active:scale-[0.98]"
+            className="w-full rounded-full bg-[var(--md-sys-color-primary)] px-4 py-2.5 text-sm font-bold text-white transition-all hover:opacity-80 active:scale-[0.98]"
           >
             ফিল্টার প্রয়োগ করুন
           </button>

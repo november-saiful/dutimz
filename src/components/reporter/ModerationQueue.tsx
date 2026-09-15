@@ -165,7 +165,7 @@ export function ModerationQueue({ role }: Props) {
                     value={notes[content.id] ?? ""}
                     onChange={(e) => setNotes((n) => ({ ...n, [content.id]: e.target.value }))}
                     placeholder={t.notePh}
-                    className="mt-3 w-full rounded-xl border border-white/40 bg-white/60 px-4 py-2 text-sm outline-none placeholder:opacity-50 dark:bg-black/40"
+                    className="mt-3 w-full rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm outline-none placeholder:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-900"
                   />
 
                   <div className="mt-3">

@@ -184,7 +184,7 @@ export function NotificationBell() {
       {open && mounted && createPortal(
         <div
           ref={portalRef}
-          className="notification-panel fixed z-50 sm:w-80 max-w-80 overflow-hidden rounded-3xl border border-neutral-100 bg-white shadow-lg transition-all dark:border-neutral-800/50 dark:bg-neutral-950/95 dark:backdrop-blur-xl"
+          className="notification-panel fixed z-50 sm:w-80 max-w-80 overflow-hidden rounded-xl border border-neutral-100 bg-white shadow-lg transition-all dark:border-neutral-800 dark:bg-neutral-950 dark:backdrop-blur-xl"
           style={{ top: panelPos.top, right: panelPos.right, left: panelPos.left }}
         >
           <div className="flex flex-col">
@@ -230,7 +230,7 @@ export function NotificationBell() {
                           setOpen(false);
                         }}
                         className={cn(
-                          "group relative flex cursor-pointer items-start gap-3 rounded-2xl border px-3 py-2.5 transition-all",
+                          "group relative flex cursor-pointer items-start gap-3 rounded-lg px-3 py-2.5 transition-all hover:bg-neutral-50 dark:hover:bg-neutral-900",
                           !n.read
                             ? "border-neutral-100 bg-neutral-50/50 dark:border-neutral-800 dark:bg-white/5"
                             : "border-transparent bg-transparent hover:border-neutral-100 hover:bg-neutral-50 dark:hover:border-neutral-800 dark:hover:bg-white/5",

@@ -24,7 +24,7 @@ export function SearchForm({ initialQuery }: { initialQuery: string }) {
         value={q}
         onChange={(e) => setQ(e.target.value)}
         placeholder="কীওয়ার্ড লিখুন…"
-        className="flex-1 rounded-full border border-white/40 bg-white/60 px-5 py-3 text-sm outline-none focus:border-primary dark:bg-black/40"
+        className="flex-1 rounded-xl border border-neutral-200 bg-neutral-50 px-5 py-3 text-sm outline-none focus:border-[var(--md-sys-color-primary)] dark:border-neutral-700 dark:bg-neutral-900"
       />
       <button
         type="submit"

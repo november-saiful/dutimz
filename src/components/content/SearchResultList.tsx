@@ -37,7 +37,7 @@ export function SearchResultList({ items, query = "" }: { items: ContentWithRela
           <Link
             key={item.id}
             href={`${route}/${item.slug}`}
-            className="glass-card flex gap-4 p-4 transition-all hover:scale-[1.01] hover:shadow-lg"
+            className="glass-card flex gap-4 p-4 transition-all hover:bg-neutral-50 dark:hover:bg-neutral-900"
           >
             {item.thumbnail_url && (
               <div className="relative h-24 w-32 shrink-0 overflow-hidden rounded-lg">

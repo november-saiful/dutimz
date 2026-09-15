@@ -87,7 +87,7 @@ export function BookmarkGrid() {
             <Link
               key={item.id}
               href={`${route}/${item.slug}`}
-              className="glass-card flex gap-4 p-4 transition-all hover:scale-[1.01]"
+              className="glass-card flex gap-4 p-4 transition-all hover:bg-neutral-50 dark:hover:bg-neutral-900"
             >
               {item.thumbnail_url && (
                 <div className="relative h-20 w-28 shrink-0 overflow-hidden rounded-lg">

@@ -158,7 +158,7 @@ export function UserMenu({ user }: { user: SessionUser }) {
       {open && (
         <div
           role="menu"
-          className="absolute end-0 top-12 z-50 w-64 overflow-hidden rounded-2xl border border-neutral-100 bg-white p-0 text-start shadow-xl dark:border-neutral-800 dark:bg-neutral-950"
+          className="absolute end-0 top-12 z-50 w-64 overflow-hidden rounded-xl border border-neutral-100 bg-white p-0 text-start shadow-lg dark:border-neutral-800 dark:bg-neutral-950"
           style={{ animation: "dropdownFadeIn 0.2s ease-out" }}
         >
           {/* Header: avatar + name + email + role */}

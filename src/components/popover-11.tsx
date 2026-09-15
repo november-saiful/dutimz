@@ -52,8 +52,8 @@ const Popover11 = () => {
 
   return (
     <Popover>
-      <PopoverTrigger render={<Button variant="outline" size="icon" className="group rounded-xl border-neutral-200 transition-all hover:bg-neutral-50 active:scale-95 dark:border-neutral-800 dark:hover:bg-neutral-900" />}><BellIcon className="size-4 text-neutral-500 transition-transform group-hover:scale-110" /><span className="sr-only">Notifications</span></PopoverTrigger>
-      <PopoverContent className="w-80 overflow-hidden rounded-3xl border border-neutral-100 bg-white p-0 shadow-none transition-all dark:border-neutral-800 dark:bg-neutral-950">
+      <PopoverTrigger render={<Button variant="outline" size="icon" className="group border-neutral-200 transition-all hover:bg-neutral-50 dark:border-neutral-800 dark:hover:bg-neutral-900" />}><BellIcon className="size-4 text-neutral-500 transition-transform group-hover:scale-110" /><span className="sr-only">Notifications</span></PopoverTrigger>
+      <PopoverContent className="w-80 overflow-hidden rounded-xl border border-neutral-100 bg-white p-0 shadow-lg dark:border-neutral-800 dark:bg-neutral-950">
         <div className="flex flex-col">
           <div className="flex items-center justify-between gap-4 border-b border-neutral-50 bg-neutral-50/50 px-4 py-3 dark:border-neutral-800 dark:bg-neutral-950">
             <div className="flex items-center gap-2.5">

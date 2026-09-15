@@ -194,7 +194,7 @@ export function ThumbnailUploader({
           value={alt ?? ""}
           onChange={(e) => onAltChange(e.target.value)}
           disabled={disabled}
-          className="w-full rounded-xl border border-white/40 bg-white/60 px-4 py-2 text-sm outline-none placeholder:opacity-50 dark:bg-black/40"
+          className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-2 text-sm outline-none placeholder:text-neutral-400 dark:border-neutral-700 dark:bg-neutral-900"
         />
         {!url && <p className="text-xs opacity-40">{t.required}</p>}
       </div>

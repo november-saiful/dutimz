@@ -136,14 +136,14 @@ function CommentNode({
             value={replyName}
             onChange={(e) => setReplyName(e.target.value)}
             placeholder={t.namePlaceholder}
-            className="w-full rounded-lg border border-white/30 bg-white/50 px-3 py-2 text-sm outline-none focus:border-primary dark:bg-black/30"
+            className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm outline-none focus:border-[var(--md-sys-color-primary)] dark:border-neutral-700 dark:bg-neutral-900"
           />
           <textarea
             value={replyBody}
             onChange={(e) => setReplyBody(e.target.value)}
             placeholder={t.placeholder}
             rows={2}
-            className="w-full resize-none rounded-lg border border-white/30 bg-white/50 px-3 py-2 text-sm outline-none focus:border-primary dark:bg-black/30"
+            className="w-full resize-none rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm outline-none focus:border-[var(--md-sys-color-primary)] dark:border-neutral-700 dark:bg-neutral-900"
           />
           <div className="flex gap-2">
             <button
@@ -293,14 +293,14 @@ export function CommentThread({
               value={newCommentName}
               onChange={(e) => setNewCommentName(e.target.value)}
               placeholder={t.namePlaceholder}
-              className="w-full rounded-lg border border-white/30 bg-white/50 px-3 py-2.5 text-sm outline-none focus:border-primary dark:bg-black/30"
+              className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm outline-none focus:border-[var(--md-sys-color-primary)] dark:border-neutral-700 dark:bg-neutral-900"
             />
             <textarea
               value={newCommentBody}
               onChange={(e) => setNewCommentBody(e.target.value)}
               placeholder={t.placeholder}
               rows={3}
-              className="w-full resize-none rounded-lg border border-white/30 bg-white/50 px-3 py-2.5 text-sm outline-none focus:border-primary dark:bg-black/30"
+              className="w-full resize-none rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm outline-none focus:border-[var(--md-sys-color-primary)] dark:border-neutral-700 dark:bg-neutral-900"
             />
             <div className="flex gap-2 justify-end">
               <button
