@@ -10,6 +10,8 @@ import {
   FilmIcon,
   BookOpenIcon,
   EyeIcon,
+  ClockIcon,
+  Trash2Icon,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -21,6 +23,11 @@ import {
 } from '@/components/ui/popover';
 import { cn } from 'cn';
 import type { ContentWithRelations } from '@/types';
+
+/* ── constants ────────────────────────────────────────────────────── */
+
+const RECENT_KEY = 'dutimz_recent_searches';
+const MAX_RECENT = 6;
 
 const TYPE_ICONS: Record<string, typeof NewspaperIcon> = {
   news: NewspaperIcon,
@@ -34,21 +41,43 @@ const TYPE_COLORS: Record<string, string> = {
   documentary: 'text-[#5f2367] bg-[#5f2367]/10 dark:text-[#dbbce0] dark:bg-[#5f2367]/20',
 };
 
+/* ── recent-search helpers (localStorage) ─────────────────────────── */
+
+function loadRecent(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    return JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
+  } catch {
+    return [];
+  }
+}
+
+function saveRecent(query: string) {
+  const trimmed = query.trim();
+  if (!trimmed || trimmed.length < 2) return;
+  const prev = loadRecent().filter((q) => q !== trimmed);
+  prev.unshift(trimmed);
+  localStorage.setItem(RECENT_KEY, JSON.stringify(prev.slice(0, MAX_RECENT)));
+}
+
+function clearRecent() {
+  localStorage.removeItem(RECENT_KEY);
+}
+
+/* ── hooks ────────────────────────────────────────────────────────── */
+
 const useDebounce = (value: string, delay: number = 300) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(timer);
-    };
+    const timer = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(timer);
   }, [value, delay]);
 
   return debouncedValue;
 };
+
+/* ── component ────────────────────────────────────────────────────── */
 
 const SearchPopover = () => {
   const [inputValue, setInputValue] = useState('');
@@ -56,8 +85,14 @@ const SearchPopover = () => {
   const [total, setTotal] = useState(0);
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [recent, setRecent] = useState<string[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const debouncedSearch = useDebounce(inputValue);
+
+  // Load recent searches on mount
+  useEffect(() => {
+    setRecent(loadRecent());
+  }, []);
 
   const performSearch = useCallback(async (query: string) => {
     const q = query.trim();
@@ -77,6 +112,9 @@ const SearchPopover = () => {
         const data = await res.json();
         setResults(data.items ?? []);
         setTotal(data.total ?? 0);
+        // Save successful query to history
+        saveRecent(q);
+        setRecent(loadRecent());
       } else {
         setResults([]);
         setTotal(0);
@@ -100,6 +138,17 @@ const SearchPopover = () => {
     setHasSearched(false);
     inputRef.current?.focus();
   };
+
+  const handleClearHistory = () => {
+    clearRecent();
+    setRecent([]);
+  };
+
+  const handleRecentClick = (query: string) => {
+    setInputValue(query);
+  };
+
+  const showRecent = !inputValue && recent.length > 0;
 
   return (
     <Popover>
@@ -151,6 +200,37 @@ const SearchPopover = () => {
               )}
             </div>
           </div>
+
+          {/* Recent searches */}
+          {showRecent && (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs tracking-tight text-neutral-400">
+                  সাম্প্রতিক অনুসন্ধান
+                </span>
+                <button
+                  onClick={handleClearHistory}
+                  className="flex items-center gap-1 text-[10px] font-medium text-neutral-400 transition-colors hover:text-red-500"
+                >
+                  <Trash2Icon className="size-2.5" />
+                  মুছুন
+                </button>
+              </div>
+              <ul className="flex flex-wrap gap-1.5">
+                {recent.map((query) => (
+                  <li key={query}>
+                    <button
+                      onClick={() => handleRecentClick(query)}
+                      className="flex items-center gap-1.5 rounded-full border border-neutral-100 bg-neutral-50 px-3 py-1.5 text-[11px] font-medium text-neutral-600 transition-all hover:bg-neutral-100 hover:text-neutral-900 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:bg-neutral-800 dark:hover:text-neutral-200"
+                    >
+                      <ClockIcon className="size-2.5 shrink-0 text-neutral-400" />
+                      {query}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Results header */}
           {inputValue && (
