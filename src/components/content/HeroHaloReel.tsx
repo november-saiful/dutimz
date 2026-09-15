@@ -57,7 +57,7 @@ export function HeroHaloReel({ items }: { items: ContentWithRelations[] }) {
         centerLabel={
           <a
             href={hrefFor(active)}
-            className="flex flex-col gap-3 max-w-xs md:max-w-sm group/link focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl -m-2 p-2 transition-opacity hover:opacity-90 pointer-events-auto"
+            className="flex flex-col gap-3 max-w-xs md:max-w-sm group/link focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl -m-2 p-2 transition-opacity hover:opacity-80 pointer-events-auto"
             onPointerDown={(e) => e.stopPropagation()}
           >
             {/* শিরোনাম */}

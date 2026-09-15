@@ -54,7 +54,7 @@ export function NewsletterForm() {
       />
       <button
         type="submit"
-        className="rounded-full px-6 py-2.5 text-sm font-bold text-white transition-colors hover:opacity-90"
+        className="rounded-full px-6 py-2.5 text-sm font-bold text-white transition-colors hover:opacity-80"
         style={{ background: "var(--md-sys-color-primary)" }}
       >
         {t("newsletter.subscribe")}

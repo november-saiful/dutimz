@@ -54,7 +54,7 @@ export default async function ReporterPage() {
         </div>
         <Link
           href="/reporter/contents/new"
-          className="rounded-full px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-90"
+          className="rounded-full px-5 py-2.5 text-sm font-bold text-white transition hover:opacity-80"
           style={{ background: "var(--md-sys-color-primary)" }}
         >
           + নতুন লেখা / New story

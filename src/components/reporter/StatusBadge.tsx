@@ -94,7 +94,7 @@ export function WorkflowActions({
             type="button"
             disabled={disabled}
             onClick={() => onAction(action)}
-            className="rounded-full px-4 py-2 text-sm font-bold transition hover:opacity-90 disabled:opacity-50"
+            className="rounded-full px-4 py-2 text-sm font-bold transition hover:opacity-80 disabled:opacity-50"
             style={
               style
                 ? { background: style.bg, color: style.fg }

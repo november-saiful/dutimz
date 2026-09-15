@@ -166,7 +166,7 @@ export function ProfileForm({ profile }: Props) {
         <button
           type="submit"
           disabled={status === "saving" || !usernameValid}
-          className="rounded-full px-6 py-2.5 text-sm font-bold text-white transition hover:opacity-90 disabled:opacity-50"
+          className="rounded-full px-6 py-2.5 text-sm font-bold text-white transition hover:opacity-80 disabled:opacity-50"
           style={{ background: "var(--md-sys-color-primary)" }}
         >
           {status === "saving" ? t.saving : t.save}
