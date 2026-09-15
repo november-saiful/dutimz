@@ -40,61 +40,38 @@ async function searchSupabase(
   limit: number,
   offset: number,
 ): Promise<SearchResult> {
-  const { createSupabaseServerClient } = await import("@/lib/supabase/server");
-  const supabase = createSupabaseServerClient();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) return { items: [], total: 0, query: q };
 
-  // Use the tsvector search with websearch-to-tsquery
-  const { data, error, count } = await supabase
-    .from("contents")
-    .select(
-      "*, category:categories(*), author:profiles(id, username, display_name, avatar_url, is_verified)",
-      { count: "exact" },
-    )
-    .eq("status", "published")
-    .textSearch("search_vector", q, { type: "websearch" })
-    .order("published_at", { ascending: false })
-    .range(offset, offset + limit - 1);
-
-  if (error || !data) {
-    // Fallback to trigram-like LIKE search if tsvector fails
-    return searchSupabaseLike(q, limit, offset);
-  }
-
-  return {
-    items: data as unknown as ContentWithRelations[],
-    total: count ?? data.length,
-    query: q,
-  };
-}
-
-// Fallback: ILIKE search across key columns
-async function searchSupabaseLike(
-  q: string,
-  limit: number,
-  offset: number,
-): Promise<SearchResult> {
-  const { createSupabaseServerClient } = await import("@/lib/supabase/server");
-  const supabase = createSupabaseServerClient();
   const pattern = `%${q}%`;
+  const select =
+    "*,category:categories(*),author:profiles!contents_author_id_fkey(id,username,display_name,avatar_url,is_verified)";
+  const rest =
+    `${supabaseUrl}/rest/v1/contents?select=${encodeURIComponent(select)}` +
+    `&status=eq.published` +
+    `&or=(title_bn.ilike.${encodeURIComponent(pattern)},title_en.ilike.${encodeURIComponent(pattern)},excerpt_bn.ilike.${encodeURIComponent(pattern)},excerpt_en.ilike.${encodeURIComponent(pattern)})` +
+    `&order=published_at.desc&limit=${limit}&offset=${offset}`;
 
-  const { data, error } = await supabase
-    .from("contents")
-    .select(
-      "*, category:categories(*), author:profiles(id, username, display_name, avatar_url, is_verified)",
-    )
-    .eq("status", "published")
-    .or(
-      `title_bn.ilike.${pattern},title_en.ilike.${pattern},excerpt_bn.ilike.${pattern},excerpt_en.ilike.${pattern},body_bn.ilike.${pattern},body_en.ilike.${pattern}`,
-    )
-    .order("published_at", { ascending: false })
-    .range(offset, offset + limit - 1);
+  try {
+    const res = await fetch(rest, {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        Prefer: "count=exact",
+      },
+    });
 
-  if (error || !data) return { items: [], total: 0, query: q };
-  return {
-    items: data as unknown as ContentWithRelations[],
-    total: data.length,
-    query: q,
-  };
+    if (!res.ok) return { items: [], total: 0, query: q };
+
+    const items = (await res.json()) as ContentWithRelations[];
+    const total =
+      Number(res.headers.get("content-range")?.split("/")[1]) ?? items.length;
+
+    return { items, total, query: q };
+  } catch {
+    return { items: [], total: 0, query: q };
+  }
 }
 
 // ── Mock search ─────────────────────────────────────────────────────

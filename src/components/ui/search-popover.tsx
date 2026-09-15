@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   SearchIcon,
   Loader2Icon,
@@ -80,6 +81,7 @@ const useDebounce = (value: string, delay: number = 300) => {
 /* ── component ────────────────────────────────────────────────────── */
 
 const SearchPopover = () => {
+  const router = useRouter();
   const [inputValue, setInputValue] = useState('');
   const [results, setResults] = useState<ContentWithRelations[]>([]);
   const [total, setTotal] = useState(0);
@@ -131,6 +133,13 @@ const SearchPopover = () => {
     performSearch(debouncedSearch);
   }, [debouncedSearch, performSearch]);
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && inputValue.trim().length >= 2) {
+      saveRecent(inputValue.trim());
+      router.push(`/search?q=${encodeURIComponent(inputValue.trim())}`);
+    }
+  };
+
   const handleClear = () => {
     setInputValue('');
     setResults([]);
@@ -174,8 +183,7 @@ const SearchPopover = () => {
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center justify-center pl-3.5 text-neutral-400">
               <SearchIcon className="size-3.5" />
-            </div>
-            <Input
+            </div>              <Input
               ref={inputRef}
               type="text"
               placeholder="সংবাদ খুঁজুন..."
@@ -183,6 +191,7 @@ const SearchPopover = () => {
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                 setInputValue(e.target.value);
               }}
+              onKeyDown={handleKeyDown}
               className="h-11 rounded-2xl border-neutral-100 bg-neutral-100/50 px-10 text-xs font-medium transition-all outline-none placeholder:text-neutral-500 focus-visible:border-neutral-200 focus-visible:ring-0 focus-visible:ring-offset-0 dark:border-neutral-800 dark:bg-neutral-900/50 dark:focus-visible:border-neutral-700"
             />
             <div className="absolute inset-y-0 right-0 flex items-center pr-3">
@@ -324,13 +333,14 @@ const SearchPopover = () => {
           </ul>
 
           {/* View full search link */}
-          {hasSearched && results.length > 0 && (
+          {hasSearched && (
             <div className="border-t border-neutral-100 pt-3 dark:border-neutral-800">
               <Link
                 href={`/search?q=${encodeURIComponent(inputValue)}`}
+                onClick={() => { if (inputValue.trim()) saveRecent(inputValue.trim()); }}
                 className="block text-center text-xs font-semibold text-[#5f2367] transition-colors hover:text-[#a370a0] dark:text-[#dbbce0]"
               >
-                সব ফলাফল দেখুন →
+                {results.length > 0 ? `সব ${total} টি ফলাফল দেখুন →` : 'সব ফলাফল দেখুন →'}
               </Link>
             </div>
           )}
