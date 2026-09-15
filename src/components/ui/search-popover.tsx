@@ -83,6 +83,7 @@ const useDebounce = (value: string, delay: number = 300) => {
 
 const SearchPopover = () => {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [inputValue, setInputValue] = useState('');
   const [results, setResults] = useState<ContentWithRelations[]>([]);
   const [total, setTotal] = useState(0);
@@ -137,7 +138,17 @@ const SearchPopover = () => {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && inputValue.trim().length >= 2) {
       saveRecent(inputValue.trim());
+      setOpen(false);
       router.push(`/search?q=${encodeURIComponent(inputValue.trim())}`);
+    }
+  };
+
+  // Auto-focus the input whenever the popover opens
+  const handleOpenChange = (isOpen: boolean) => {
+    setOpen(isOpen);
+    if (isOpen) {
+      // Small delay to let the popover animate in
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
   };
 
@@ -161,7 +172,7 @@ const SearchPopover = () => {
   const showRecent = !inputValue && recent.length > 0;
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger
         render={
           <Button
@@ -338,7 +349,7 @@ const SearchPopover = () => {
             <div className="border-t border-neutral-100 pt-3 dark:border-neutral-800">
               <Link
                 href={`/search?q=${encodeURIComponent(inputValue)}`}
-                onClick={() => { if (inputValue.trim()) saveRecent(inputValue.trim()); }}
+                onClick={() => { if (inputValue.trim()) saveRecent(inputValue.trim()); setOpen(false); }}
                 className="block text-center text-xs font-semibold text-[#5f2367] transition-colors hover:text-[#a370a0] dark:text-[#dbbce0]"
               >
                 {results.length > 0 ? `সব ${total} টি ফলাফল দেখুন →` : 'সব ফলাফল দেখুন →'}
