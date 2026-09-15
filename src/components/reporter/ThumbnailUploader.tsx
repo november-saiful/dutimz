@@ -109,7 +109,7 @@ export function ThumbnailUploader({
       <label className="text-xs font-bold opacity-70">{t.label}</label>
 
       {url ? (
-        <div className="overflow-hidden rounded-xl border border-white/40">
+        <div className="overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
           <div className="relative aspect-video bg-black/5 dark:bg-white/5">
             {/* Data-URL / Storage URL — plain img covers both. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}

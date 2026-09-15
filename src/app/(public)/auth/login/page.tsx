@@ -97,7 +97,7 @@ function LoginPageInner() {
           type="button"
           onClick={handleGoogleSignIn}
           disabled={loading}
-          className="mt-6 flex w-full items-center justify-center gap-3 rounded-full border border-white/40 bg-white/70 px-6 py-3 text-sm font-bold transition hover:bg-white disabled:opacity-60 dark:bg-white/10 dark:hover:bg-white/20"
+          className="mt-6 flex w-full items-center justify-center gap-3 rounded-full border border-neutral-200 bg-white/70 px-6 py-3 text-sm font-bold transition hover:bg-white disabled:opacity-60 dark:border-neutral-700 dark:bg-white/10 dark:hover:bg-white/20"
         >
           <GoogleIcon />
           {loading ? c.redirecting : c.button}

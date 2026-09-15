@@ -202,7 +202,7 @@ export function NavigationDrawer({
                 width={40}
                 height={40}
                 referrerPolicy="no-referrer"
-                className="h-10 w-10 rounded-full object-cover border border-white/40"
+                className="h-10 w-10 rounded-full object-cover border border-neutral-200 dark:border-neutral-700"
               />
             ) : (
               <span

@@ -19,7 +19,7 @@ export function SignOutButton({ label = "লগআউট / Log out" }: { label?:
       type="button"
       onClick={handleSignOut}
       disabled={busy}
-      className="rounded-full border border-white/40 px-4 py-2 text-sm font-bold transition hover:bg-black/5 disabled:opacity-60 dark:hover:bg-white/10"
+      className="rounded-full border border-neutral-200 px-4 py-2 text-sm font-bold transition hover:bg-black/5 disabled:opacity-60 dark:border-neutral-700 dark:hover:bg-white/10"
     >
       {busy ? "…" : label}
     </button>

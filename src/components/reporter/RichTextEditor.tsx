@@ -139,10 +139,10 @@ export function RichTextEditor({
         </span>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-white/40 bg-white/70 dark:bg-black/40">
+      <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white/70 dark:border-neutral-700 dark:bg-black/40">
         {/* Toolbar */}
         <div
-          className="flex flex-wrap items-center gap-1 border-b border-white/30 bg-black/[0.03] px-2 py-1.5 dark:border-white/10"
+          className="flex flex-wrap items-center gap-1 border-b border-neutral-200 bg-black/[0.03] px-2 py-1.5 dark:border-neutral-700"
           role="toolbar"
           aria-label={label}
         >
@@ -259,7 +259,7 @@ export function RichTextEditor({
 
         {/* Link prompt */}
         {linkPrompt !== null && (
-          <div className="flex items-center gap-2 border-b border-white/30 bg-black/[0.03] px-3 py-2 dark:border-white/10">
+          <div className="flex items-center gap-2 border-b border-neutral-200 bg-black/[0.03] px-3 py-2 dark:border-neutral-700">
             <input
               type="url"
               autoFocus

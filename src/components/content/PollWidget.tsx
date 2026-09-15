@@ -90,7 +90,7 @@ export function PollWidget({ poll: initialPoll }: { poll: Poll }) {
                   className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-all ${
                     isSelected
                       ? "border-primary bg-primary/5"
-                      : "border-white/20 hover:border-white/40 dark:border-white/10 dark:hover:border-white/20"
+                      : "border-neutral-200 hover:border-neutral-300 dark:border-neutral-700 dark:hover:border-neutral-600"
                   }`}
                 >
                   <input
@@ -113,7 +113,7 @@ export function PollWidget({ poll: initialPoll }: { poll: Poll }) {
                   </span>
                 </label>
               ) : (
-                <div className="relative overflow-hidden rounded-lg border border-white/20 p-3">
+                <div className="relative overflow-hidden rounded-lg border border-neutral-200 p-3 dark:border-neutral-700">
                   {/* Background bar */}
                   <div
                     className="absolute inset-0 rounded-lg transition-all duration-700"

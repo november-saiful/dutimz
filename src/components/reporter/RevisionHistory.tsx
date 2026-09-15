@@ -99,7 +99,7 @@ export function RevisionHistory({
           return (
             <li
               key={rev.id}
-              className="rounded-xl border border-white/40 bg-white/50 px-4 py-3 text-sm dark:bg-black/30"
+              className="rounded-xl border border-neutral-200 bg-white/50 px-4 py-3 text-sm dark:border-neutral-700 dark:bg-black/30"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">

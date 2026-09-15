@@ -46,7 +46,7 @@ export default async function ProfilePage() {
               width={72}
               height={72}
               referrerPolicy="no-referrer"
-              className="h-18 w-18 rounded-full border border-white/40 object-cover"
+              className="h-18 w-18 rounded-full border border-neutral-200 object-cover dark:border-neutral-700"
             />
           ) : (
             <div
@@ -86,7 +86,7 @@ export default async function ProfilePage() {
           </div>
         </div>
 
-        <hr className="my-8 border-white/30" />
+        <hr className="my-8 border-neutral-200 dark:border-neutral-800" />
 
         <ProfileForm profile={profile} />
 

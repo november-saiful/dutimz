@@ -154,7 +154,7 @@ export function ModerationQueue({ role }: Props) {
                     </div>
                     <Link
                       href={`/reporter/contents/${content.id}`}
-                      className="rounded-full border border-white/40 px-4 py-1.5 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/10"
+                      className="rounded-full border border-neutral-200 px-4 py-1.5 text-xs font-bold hover:bg-black/5 dark:border-neutral-700 dark:hover:bg-white/10"
                     >
                       {t.view}
                     </Link>

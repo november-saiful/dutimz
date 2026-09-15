@@ -53,7 +53,7 @@ export function HeroHaloReel({ items }: { items: ContentWithRelations[] }) {
         holdDuration={2200}
         stepDuration={800}
         onActiveChange={onActiveChange}
-        className="h-[420px] w-full rounded-glass border border-white/30 bg-white/30 backdrop-blur-glass dark:bg-black/20 md:h-[480px]"
+        className="h-[420px] w-full rounded-glass border border-neutral-200 bg-white/30 backdrop-blur-glass dark:border-neutral-800 dark:bg-black/20 md:h-[480px]"
         centerLabel={
           <a
             href={hrefFor(active)}

@@ -11,7 +11,7 @@ export function Footer({ categories }: { categories: Category[] }) {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="no-print mb-20 mt-16 border-t border-white/20 bg-white/40 backdrop-blur-glass tablet:mb-0 dark:bg-black/40">
+    <footer className="no-print mb-20 mt-16 border-t border-neutral-200 bg-white/40 backdrop-blur-glass tablet:mb-0 dark:border-neutral-800 dark:bg-black/40">
       <div className="container grid gap-8 py-10 md:grid-cols-4">
         <div className="md:col-span-2">
           <div className="flex items-center gap-2">
@@ -51,7 +51,7 @@ export function Footer({ categories }: { categories: Category[] }) {
         </div>
       </div>
 
-      <div className="border-t border-white/20 py-4 text-center text-xs opacity-60">
+      <div className="border-t border-neutral-200 py-4 text-center text-xs opacity-60 dark:border-neutral-800">
         © {year} DUTIMZ. {t("footer.rights")}
       </div>
     </footer>
