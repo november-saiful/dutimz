@@ -6,6 +6,11 @@ compatibility_date = "2026-08-01"
 # SUPABASE_URL and SUPABASE_ANON_KEY are set via `wrangler secret put` or
 # the Cloudflare dashboard — never committed.
 
+# R2 bucket for image uploads
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "dutimz-images"
+
 # Production routes (enable after first deploy):
 # [routes]
 # route = "api.dutimz.com/*"

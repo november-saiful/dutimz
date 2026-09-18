@@ -10,6 +10,7 @@ export interface Env {
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
+  IMAGES: R2Bucket;
 }
 
 interface Route {
@@ -353,6 +354,82 @@ addRoute("POST", "/api/polls/vote", "write", async (request, env) => {
   }
   // Placeholder — polls table would be created in a future migration
   return json({ ok: true, message: "vote_recorded" });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// IMAGE UPLOADS (R2)
+// ═══════════════════════════════════════════════════════════════════
+
+addRoute("POST", "/api/images/upload", "write", async (request, env) => {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.startsWith("multipart/form-data")) {
+    return json({ error: "Expected multipart/form-data" }, 400);
+  }
+
+  const formData = await request.formData();
+  const file = formData.get("file") as File | null;
+  const folder = (formData.get("folder") as string) || "thumbnails";
+
+  if (!file) {
+    return json({ error: "No file provided" }, 400);
+  }
+
+  // Validate file type
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"];
+  if (!allowedTypes.includes(file.type)) {
+    return json({ error: "Unsupported file type. Allowed: JPEG, PNG, WebP, AVIF, GIF" }, 400);
+  }
+
+  // Max 10MB
+  if (file.size > 10 * 1024 * 1024) {
+    return json({ error: "File too large. Maximum size: 10MB" }, 400);
+  }
+
+  // Generate unique key
+  const ext = file.name.split(".").pop() ?? "jpg";
+  const timestamp = Date.now().toString(36);
+  const random = Math.random().toString(36).substring(2, 8);
+  const key = `${folder}/${timestamp}-${random}.${ext}`;
+
+  // Upload to R2
+  const arrayBuffer = await file.arrayBuffer();
+  await env.IMAGES.put(key, arrayBuffer, {
+    httpMetadata: {
+      contentType: file.type,
+      cacheControl: "public, max-age=31536000, immutable",
+    },
+    customMetadata: {
+      originalName: file.name,
+      uploadedAt: new Date().toISOString(),
+    },
+  });
+
+  // Return the public URL
+  const publicUrl = `https://dutimz-images.r2.dev/${key}`;
+  return json({ url: publicUrl, key }, 201);
+});
+
+addRoute("GET", "/api/images/:key+", "public", async (_request, env, params) => {
+  const key = params.key;
+  if (!key) return json({ error: "Key is required" }, 400);
+
+  const object = await env.IMAGES.get(key);
+  if (!object) return json({ error: "Image not found" }, 404);
+
+  const headers = new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set("etag", object.httpEtag);
+  headers.set("cache-control", "public, max-age=31536000, immutable");
+
+  return new Response(object.body, { headers });
+});
+
+addRoute("DELETE", "/api/images/:key+", "write", async (_request, env, params) => {
+  const key = params.key;
+  if (!key) return json({ error: "Key is required" }, 400);
+
+  await env.IMAGES.delete(key);
+  return json({ ok: true });
 });
 
 // ═══════════════════════════════════════════════════════════════════

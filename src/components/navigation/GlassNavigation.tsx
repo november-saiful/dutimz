@@ -122,7 +122,7 @@ export function GlassNavigation({ categories, user }: Props) {
           <div className="flex items-center gap-1.5">
             <NotificationBell />
 
-            <SearchPopover />
+            <SearchPopover categories={categories} />
 
             <button
               type="button"
