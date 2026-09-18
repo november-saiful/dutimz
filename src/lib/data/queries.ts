@@ -181,12 +181,34 @@ export async function getContentBySlug(
   }
   const { createSupabaseServerClient } = await import("@/lib/supabase/server");
   const supabase = createSupabaseServerClient();
-  const { data } = await supabase
+
+  // Decode the slug in case it arrives URL-encoded from the route param.
+  let decoded = slug;
+  try {
+    decoded = decodeURIComponent(slug);
+  } catch {
+    // Already decoded or invalid encoding — use as-is.
+  }
+
+  // Try exact match first.
+  let { data } = await supabase
     .from("contents")
     .select("*, category:categories(*), author:profiles!contents_author_id_fkey(id, username, display_name, avatar_url, is_verified)")
-    .eq("slug", slug)
+    .eq("slug", decoded)
     .eq("status", "published")
     .maybeSingle();
+
+  // Fallback: try with the raw (possibly encoded) slug.
+  if (!data) {
+    const result = await supabase
+      .from("contents")
+      .select("*, category:categories(*), author:profiles!contents_author_id_fkey(id, username, display_name, avatar_url, is_verified)")
+      .eq("slug", slug)
+      .eq("status", "published")
+      .maybeSingle();
+    data = result.data;
+  }
+
   return (data as unknown as ContentWithRelations) ?? null;
 }
 

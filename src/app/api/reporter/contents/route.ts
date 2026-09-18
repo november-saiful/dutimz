@@ -50,6 +50,7 @@ interface CreateBody {
   category_id?: string | null;
   tags?: string[];
   submit?: boolean;
+  custom_slug?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -79,7 +80,9 @@ export async function POST(request: NextRequest) {
     return jsonError(issues[0]?.message_en ?? "Validation failed", 422, { issues });
   }
 
-  const slugBase = buildSlug(body.title_en ?? null, title);
+  const slugBase = body.custom_slug?.trim()
+    ? body.custom_slug.trim().replace(/[^a-zA-Z0-9-_]/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "")
+    : buildSlug(body.title_en ?? null, title);
 
   if (hasSupabase()) {
     const { createSupabaseServerClient } = await import("@/lib/supabase/server");

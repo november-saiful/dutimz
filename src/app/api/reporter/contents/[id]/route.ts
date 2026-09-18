@@ -210,6 +210,14 @@ export async function PATCH(
   for (const key of allowed) {
     if (key in fields) patch[key] = fields[key as keyof Content];
   }
+  // Handle custom slug update (not a Content field, sent separately).
+  const rawBody = fields as unknown as Record<string, unknown>;
+  if (rawBody.custom_slug && typeof rawBody.custom_slug === "string") {
+    const customSlug = (rawBody.custom_slug as string).trim();
+    if (customSlug.length >= 2) {
+      patch.slug = customSlug.replace(/[^a-zA-Z0-9-_]/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "");
+    }
+  }
   if (Object.keys(patch).length === 0) {
     return jsonError("No editable fields provided");
   }

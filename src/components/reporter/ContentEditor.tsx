@@ -119,6 +119,7 @@ interface FormState {
   content_type: Content["content_type"];
   category_id: string | null;
   tags: string;
+  custom_slug: string;
 }
 
 function toForm(content: Content | null | undefined): FormState {
@@ -137,6 +138,7 @@ function toForm(content: Content | null | undefined): FormState {
     content_type: content?.content_type ?? "news",
     category_id: content?.category_id ?? null,
     tags: (content?.tags ?? []).join(", "),
+    custom_slug: "",
   };
 }
 
@@ -173,10 +175,10 @@ export function ContentEditor({
     setSaveState("idle");
   };
 
-  const slug = useMemo(
-    () => buildSlug(form.title_en, form.title_bn),
-    [form.title_en, form.title_bn],
-  );
+  const slug = useMemo(() => {
+    if (form.custom_slug.trim()) return form.custom_slug.trim();
+    return buildSlug(form.title_en, form.title_bn);
+  }, [form.custom_slug, form.title_en, form.title_bn]);
 
   const draftInput = useMemo(
     () => ({
@@ -203,7 +205,7 @@ export function ContentEditor({
     setSaveState("saving");
     setActionError(null);
 
-    const fields = {
+    const fields: Record<string, unknown> = {
       title_bn: form.title_bn.trim(),
       subtitle_bn: form.subtitle_bn.trim() || null,
       excerpt_bn: form.excerpt_bn.trim() || null,
@@ -222,6 +224,11 @@ export function ContentEditor({
         .map((s) => s.trim())
         .filter(Boolean),
     };
+    // Only send custom_slug when editing existing content (PATCH).
+    // For new content, the slug is generated server-side from title_en/title_bn.
+    if (content && form.custom_slug.trim()) {
+      fields.custom_slug = form.custom_slug.trim();
+    }
 
     try {
       if (!content) {
@@ -659,11 +666,14 @@ export function ContentEditor({
               id="ce-slug"
               type="text"
               dir="ltr"
-              readOnly
-              value={content?.slug ?? slug}
-              className={`${inputClass} opacity-70`}
+              value={content?.slug ?? form.custom_slug}
+              onChange={(e) => set("custom_slug", e.target.value)}
+              placeholder={slug}
+              className={inputClass}
             />
-            <p className="text-xs opacity-40">{t.slugAuto}</p>
+            <p className="text-xs opacity-40">
+              {form.custom_slug.trim() ? `→ /news/${slug}` : t.slugAuto}
+            </p>
           </div>
 
           <div className="flex flex-col gap-1.5">
