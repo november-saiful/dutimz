@@ -40,6 +40,45 @@ export function HeroHaloReel({ items }: { items: ContentWithRelations[] }) {
   if (items.length === 0) return null;
 
   const active = items[activeIdx] ?? items[0]!;
+
+  // Single post: render a static card with headline, no orbit animation.
+  if (items.length === 1) {
+    return (
+      <section aria-label="বৈশিষ্ট্য সংবাদ" className="container mt-6">
+        <div className="flex flex-col sm:flex-row items-center gap-6 rounded-glass border border-neutral-200 bg-white/30 p-6 backdrop-blur-glass dark:border-neutral-800 dark:bg-black/20">
+          {active.thumbnail_url && (
+            <a href={hrefFor(active)} className="shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={active.thumbnail_url}
+                alt={active.thumbnail_alt ?? active.title_bn}
+                className="h-[200px] w-[160px] rounded-xl object-cover sm:h-[240px] sm:w-[200px]"
+              />
+            </a>
+          )}
+          <a
+            href={hrefFor(active)}
+            className="flex flex-col gap-3 max-w-md group/link focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-xl transition-opacity hover:opacity-80"
+          >
+            <h2 className="text-xl font-bold leading-snug md:text-3xl group-hover/link:underline decoration-1 underline-offset-4">
+              {active.title_bn}
+            </h2>
+            {active.excerpt_bn ? (
+              <p className="text-sm leading-relaxed opacity-70 line-clamp-3">
+                {active.excerpt_bn}
+              </p>
+            ) : null}
+            {active.category && (
+              <span className="text-xs font-medium text-[#a370a0]">
+                {active.category.name_bn}
+              </span>
+            )}
+          </a>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section aria-label="বৈশিষ্ট্য সংবাদ" className="container mt-6">
       <HaloReel
