@@ -40,49 +40,11 @@ const TYPE_ROUTES: Record<string, string> = {
 
 export interface Notification {
   id: string;
-  type: "breaking" | "new_article" | "comment" | "trending";
+  type: string;
   title: string;
   slug: string;
   read: boolean;
   createdAt: string;
-}
-
-function generateMockNotifications(): Notification[] {
-  const now = Date.now();
-  return [
-    {
-      id: "n1",
-      type: "breaking",
-      title: "মেট্রোরেলের নতুন সময়সূচি ঘোষণা",
-      slug: "dhaka-metro-rail-new-timetable",
-      read: false,
-      createdAt: new Date(now - 300_000).toISOString(),
-    },
-    {
-      id: "n2",
-      type: "new_article",
-      title: "বাংলা নিউজরুমে কৃত্রিম বুদ্ধিমত্তা",
-      slug: "ai-in-bangla-newsrooms",
-      read: false,
-      createdAt: new Date(now - 3600_000).toISOString(),
-    },
-    {
-      id: "n3",
-      type: "trending",
-      title: "টি-টোয়েন্টি সিরিজের জন্য দল ঘোষণা",
-      slug: "bangladesh-t20-series-squad",
-      read: true,
-      createdAt: new Date(now - 7200_000).toISOString(),
-    },
-    {
-      id: "n4",
-      type: "comment",
-      title: "নতুন মন্তব্য: দুতিমজ চালু করল দ্বিভাষিক সংবাদ পোর্টাল",
-      slug: "dutimz-launches-bilingual-news-portal-2026",
-      read: true,
-      createdAt: new Date(now - 14400_000).toISOString(),
-    },
-  ];
 }
 
 export function NotificationBell() {
@@ -92,9 +54,29 @@ export function NotificationBell() {
   const portalRef = useRef<HTMLDivElement>(null);
   const [panelPos, setPanelPos] = useState<{ top: number; right: number; left: number | "auto" }>({ top: 72, right: 12, left: "auto" });
 
-  useEffect(() => {
-    setNotifications(generateMockNotifications());
+  // Fetch notifications from the API.
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications");
+      if (!res.ok) return;
+      const data = await res.json();
+      const items = (data.notifications ?? []).map((n: Record<string, unknown>) => ({
+        id: String(n.id),
+        type: String(n.type),
+        title: String(n.title),
+        slug: (n.data as Record<string, unknown>)?.slug as string ?? "",
+        read: Boolean(n.is_read),
+        createdAt: String(n.created_at),
+      }));
+      setNotifications(items);
+    } catch {
+      // Silently fail — the bell just stays empty.
+    }
   }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   // Recalculate panel position when opening, and on scroll/resize
   const updatePosition = useCallback(() => {
@@ -143,10 +125,21 @@ export function NotificationBell() {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n)),
     );
+    // Persist to database (fire-and-forget).
+    fetch("/api/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    }).catch(() => {});
   }, []);
 
   const markAllRead = useCallback(() => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    fetch("/api/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ all: true }),
+    }).catch(() => {});
   }, []);
 
   const formatTime = (iso: string) => {
