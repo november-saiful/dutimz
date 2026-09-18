@@ -121,7 +121,8 @@
 
   :lang(bn) p,
   .prose-bn p {
-    text-align: start;
+    text-align: justify;
+    hyphens: auto;
   }
 
   ::selection {
