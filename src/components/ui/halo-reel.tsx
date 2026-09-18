@@ -146,17 +146,17 @@ export function HaloReel({
   // `radius × step` apart at the widest point of each axis, so the tighter
   // axis decides how many slots the ring needs; below that number a wider ring
   // just means bigger gaps.
-  const slots = clamp(
-    Math.ceil(
-      TAU *
-        Math.max(
-          radiusX / (cardWidth * spread),
-          radiusY / (cardHeight * spread),
-        ),
-    ),
-    count,
-    Math.max(count, maxCards),
+  // Only fill the ring with as many slots as there are real items.
+  // Don't repeat items to keep the ring dense — an honest sparse ring
+  // is better than duplicate cards.
+  const idealSlots = Math.ceil(
+    TAU *
+      Math.max(
+        radiusX / (cardWidth * spread),
+        radiusY / (cardHeight * spread),
+      ),
   );
+  const slots = clamp(idealSlots, 1, Math.min(count, maxCards));
   const step = slots ? TAU / slots : 0;
 
   // Cards shrink continuously to fit whatever box they are given, instead of
@@ -353,11 +353,8 @@ export function HaloReel({
       {Array.from({ length: slots }, (_, i) => (
         <WheelCard
           key={i}
-          item={items[i % count]!}
-          // The ring repeats `items` to stay dense. A screen reader should hear
-          // each image once, not once per lap, so only the first pass is real
-          // content and the copies are decoration.
-          decorative={i >= count}
+          item={items[i]!}
+          decorative={false}
           index={i}
           step={step}
           rotation={rotation}
