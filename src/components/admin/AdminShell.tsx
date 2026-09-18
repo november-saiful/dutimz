@@ -14,8 +14,10 @@ const TagManagerPanel = dynamic(() => import("./TagManagerPanel").then((m) => m.
 const AdManagerPanel = dynamic(() => import("./AdManagerPanel").then((m) => m.AdManagerPanel), { ssr: false });
 const PollManagerPanel = dynamic(() => import("./PollManagerPanel").then((m) => m.PollManagerPanel), { ssr: false });
 const NewsletterPanel = dynamic(() => import("./NewsletterPanel").then((m) => m.NewsletterPanel), { ssr: false });
+const ContentManagerPanel = dynamic(() => import("./ContentManagerPanel").then((m) => m.ContentManagerPanel), { ssr: false });
 
 const TABS = [
+  { id: "contents", icon: "📰", labelBn: "সংবাদ", labelEn: "Contents" },
   { id: "settings", icon: "⚙️", labelBn: "সাইট সেটিংস", labelEn: "Site Settings" },
   { id: "users", icon: "👥", labelBn: "ব্যবহারকারী", labelEn: "Users" },
   { id: "categories", icon: "📁", labelBn: "বিভাগ", labelEn: "Categories" },
@@ -28,6 +30,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]["id"];
 
 const PANELS: Record<TabId, React.ComponentType> = {
+  contents: ContentManagerPanel,
   settings: SiteSettingsPanel,
   users: UserManagementPanel,
   categories: CategoryManagerPanel,
