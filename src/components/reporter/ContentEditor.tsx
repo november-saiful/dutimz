@@ -9,7 +9,7 @@ import { RichTextEditor } from "@/components/reporter/RichTextEditor";
 import { ThumbnailUploader } from "@/components/reporter/ThumbnailUploader";
 import { StatusBadge, WorkflowActions } from "@/components/reporter/StatusBadge";
 import { RevisionHistory } from "@/components/reporter/RevisionHistory";
-import { useLocaleStore } from "@/stores/locale";
+
 import { buildSlug, validateDraft, validateForPublish, type ValidationIssue } from "@/lib/content/validate";
 import { estimateReadTime } from "@/lib/utils/format";
 
@@ -30,8 +30,7 @@ interface Props {
 }
 
 const COPY = {
-  bn: {
-    newTitle: "নতুন লেখা",
+  newTitle: "নতুন লেখা",
     editTitle: "লেখা সম্পাদনা",
     sectionBangla: "বাংলা (প্রধান)",
     sectionEnglish: "ইংরেজি (ঐচ্ছিক)",
@@ -45,6 +44,11 @@ const COPY = {
     bodyEn: "Body (English)",
     slugLabel: "স্লাগ (SEO)",
     slugAuto: "ইংরেজি শিরোনাম থেকে স্বয়ংক্রিয়",
+    slugTooShort: "স্লাগ কমপক্ষে ২ অক্ষরের হতে হবে",
+    slugTooLong: "স্লাগ ১০০ অক্ষরের বেশি হতে পারে না",
+    slugInvalidChars: "অনুমোদিত: a-z, 0-9, - এবং _",
+    slugTaken: "এই স্লাগ ইতিমধ্যে ব্যবহৃত",
+    slugChecking: "স্লাগ যাচাই হচ্ছে…",
     type: "ধরন",
     category: "বিভাগ",
     tags: "ট্যাগ (কমা দিয়ে আলাদা)",
@@ -65,43 +69,6 @@ const COPY = {
     notePlaceholder: "পর্যালোচকের জন্য নোট…",
     autosaveOn: "স্বয়ংক্রিয় সংরক্ষণ চালু",
     backToList: "তালিকায় ফিরুন",
-  },
-  en: {
-    newTitle: "New story",
-    editTitle: "Edit story",
-    sectionBangla: "Bangla (primary)",
-    sectionEnglish: "English (optional)",
-    titleBn: "Title (Bangla)",
-    titleEn: "Title (English)",
-    subtitleBn: "Subtitle (Bangla)",
-    subtitleEn: "Subtitle (English)",
-    excerptBn: "Excerpt (Bangla)",
-    excerptEn: "Excerpt (English)",
-    bodyBn: "Body (Bangla)",
-    bodyEn: "Body (English)",
-    slugLabel: "Slug (SEO)",
-    slugAuto: "auto from English title",
-    type: "Type",
-    category: "Category",
-    tags: "Tags (comma separated)",
-    video: "Video link (YouTube/Vimeo)",
-    saving: "Saving…",
-    saved: "Saved",
-    unsaved: "Unsaved changes",
-    saveNow: "Save now",
-    error: "Something went wrong — please retry.",
-    issues: "Fix before continuing:",
-    readTime: "Read time",
-    min: "min",
-    restoreDone: "Old version restored — remember to save.",
-    publishBlocked: "Cannot publish yet — see the issues below.",
-    delete: "Delete",
-    deleteConfirm: "Really delete this draft?",
-    note: "Note (optional)",
-    notePlaceholder: "Note for the reviewer…",
-    autosaveOn: "Autosave on",
-    backToList: "Back to list",
-  },
 } as const;
 
 interface FormState {
@@ -151,8 +118,7 @@ export function ContentEditor({
   role,
 }: Props) {
   const router = useRouter();
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const t = COPY;
 
   const [content, setContent] = useState<Content | null>(initialContent);
   const [allRevisions, setAllRevisions] = useState<ContentRevisionWithEditor[]>(revisions);
@@ -163,7 +129,12 @@ export function ContentEditor({
   const [issues, setIssues] = useState<ValidationIssue[] | null>(null);
   const [note, setNote] = useState("");
   const [restoring, setRestoring] = useState(false);
+  // Bumped after a revision restore so the (uncontrolled) rich-text editors
+  // push the restored HTML back into their contentEditable surfaces.
+  const [editorSyncKey, setEditorSyncKey] = useState(0);
   const [tempId] = useState(() => `new-${Date.now().toString(36)}`);
+  const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null); // null = not checked yet
+  const [slugChecking, setSlugChecking] = useState(false);
   const dirtyRef = useRef(false);
   const savingRef = useRef(false);
 
@@ -179,6 +150,64 @@ export function ContentEditor({
     if (form.custom_slug.trim()) return form.custom_slug.trim();
     return buildSlug(form.title_en, form.title_bn);
   }, [form.custom_slug, form.title_en, form.title_bn]);
+
+  // --- Slug client-side validation (immediate) ---
+  const slugValidation = useMemo(() => {
+    const raw = form.custom_slug;
+    const trimmed = raw.trim();
+    if (!trimmed) return null; // auto-generated slug, no warnings
+    if (trimmed.length < 2) return { type: "error" as const, key: "slugTooShort" };
+    if (trimmed.length > 100) return { type: "error" as const, key: "slugTooLong" };
+    if (/[^a-zA-Z0-9-_]/.test(trimmed)) return { type: "warn" as const, key: "slugInvalidChars" };
+    return null;
+  }, [form.custom_slug]);
+
+  // --- Slug uniqueness check (debounced API call) ---
+  useEffect(() => {
+    const raw = form.custom_slug.trim();
+    // Skip if auto-generated, too short, or has invalid chars (client-side warning covers that).
+    if (!raw || raw.length < 2 || /[^a-zA-Z0-9-_]/.test(raw)) {
+      setSlugAvailable(null);
+      setSlugChecking(false);
+      return;
+    }
+    // Skip if slug hasn't changed from what's already saved.
+    if (content && content.slug === raw) {
+      setSlugAvailable(true);
+      setSlugChecking(false);
+      return;
+    }
+    setSlugChecking(true);
+    const id = content?.id;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      const params = new URLSearchParams({ slug: raw });
+      if (id) params.set("excludeId", id);
+      void fetch(`/api/reporter/contents/check-slug?${params}`, { signal: controller.signal })
+        .then((r) => r.json())
+        .then((d: { available?: boolean }) => setSlugAvailable(d.available ?? null))
+        .catch(() => {}) // abort or network error — don't show stale state
+        .finally(() => setSlugChecking(false));
+    }, 500);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [form.custom_slug, content?.id, content?.slug]);
+
+  // Derived slug UI state (used by the input styling + messages below).
+  const hasCustomSlug = form.custom_slug.trim().length > 0;
+  const slugErr = slugValidation?.type === "error";
+  const slugWarn = slugValidation?.type === "warn";
+  const slugTaken = hasCustomSlug && slugAvailable === false && !slugErr && !slugWarn;
+  const slugOk = hasCustomSlug && slugAvailable === true && !slugErr && !slugWarn;
+  const slugBorderColor = slugErr
+    ? "var(--color-error, #ea4335)"
+    : slugWarn || slugTaken
+      ? "var(--color-warning, #f9ab00)"
+      : slugOk
+        ? "var(--color-success, #34a853)"
+        : undefined;
 
   const draftInput = useMemo(
     () => ({
@@ -199,35 +228,36 @@ export function ContentEditor({
   const readTime = estimateReadTime(form.body_bn || form.body_en || null);
 
   // ---- Save ---------------------------------------------------------------
-  const save = useCallback(async (): Promise<Content | null> => {
+  const save = useCallback(async (override?: FormState): Promise<Content | null> => {
+    // `override` lets callers persist state they just computed in the same tick
+    // (e.g. revision restore) instead of the `form` captured by this closure.
+    const state = override ?? form;
     if (savingRef.current) return content;
     savingRef.current = true;
     setSaveState("saving");
     setActionError(null);
 
     const fields: Record<string, unknown> = {
-      title_bn: form.title_bn.trim(),
-      subtitle_bn: form.subtitle_bn.trim() || null,
-      excerpt_bn: form.excerpt_bn.trim() || null,
-      body_bn: form.body_bn || null,
-      title_en: form.title_en.trim() || null,
-      subtitle_en: form.subtitle_en.trim() || null,
-      excerpt_en: form.excerpt_en.trim() || null,
-      body_en: form.body_en || null,
-      thumbnail_url: form.thumbnail_url,
-      thumbnail_alt: form.thumbnail_alt.trim() || null,
-      video_url: form.video_url.trim() || null,
-      content_type: form.content_type,
-      category_id: form.category_id,
-      tags: form.tags
+      title_bn: state.title_bn.trim(),
+      subtitle_bn: state.subtitle_bn.trim() || null,
+      excerpt_bn: state.excerpt_bn.trim() || null,
+      body_bn: state.body_bn || null,
+      title_en: state.title_en.trim() || null,
+      subtitle_en: state.subtitle_en.trim() || null,
+      excerpt_en: state.excerpt_en.trim() || null,
+      body_en: state.body_en || null,
+      thumbnail_url: state.thumbnail_url,
+      thumbnail_alt: state.thumbnail_alt.trim() || null,
+      video_url: state.video_url.trim() || null,
+      content_type: state.content_type,
+      category_id: state.category_id,
+      tags: state.tags
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean),
     };
-    // Only send custom_slug when editing existing content (PATCH).
-    // For new content, the slug is generated server-side from title_en/title_bn.
-    if (content && form.custom_slug.trim()) {
-      fields.custom_slug = form.custom_slug.trim();
+    if (state.custom_slug.trim()) {
+      fields.custom_slug = state.custom_slug.trim();
     }
 
     try {
@@ -338,24 +368,30 @@ export function ContentEditor({
       if (!res.ok) throw new Error(data.error ?? "restore failed");
       const fields = (data.revision?.changes?.snapshot?.fields ?? {}) as Record<string, unknown>;
 
-      setForm((f) => ({
-        ...f,
-        title_bn: (fields.title_bn as string) ?? f.title_bn,
-        subtitle_bn: (fields.subtitle_bn as string) ?? f.subtitle_bn,
-        excerpt_bn: (fields.excerpt_bn as string) ?? f.excerpt_bn,
-        body_bn: (fields.body_bn as string) ?? f.body_bn,
-        title_en: (fields.title_en as string) ?? f.title_en,
-        subtitle_en: (fields.subtitle_en as string) ?? f.subtitle_en,
-        excerpt_en: (fields.excerpt_en as string) ?? f.excerpt_en,
-        body_en: (fields.body_en as string) ?? f.body_en,
-        thumbnail_url: (fields.thumbnail_url as string | null) ?? f.thumbnail_url,
-        category_id: (fields.category_id as string | null) ?? f.category_id,
-      }));
+      // Build the restored state explicitly and hand it to save(): relying on
+      // setForm() alone would persist the *pre-restore* form, because the save
+      // closure still holds the previous render's `form`.
+      const restored: FormState = {
+        ...form,
+        title_bn: (fields.title_bn as string) ?? form.title_bn,
+        subtitle_bn: (fields.subtitle_bn as string) ?? form.subtitle_bn,
+        excerpt_bn: (fields.excerpt_bn as string) ?? form.excerpt_bn,
+        body_bn: (fields.body_bn as string) ?? form.body_bn,
+        title_en: (fields.title_en as string) ?? form.title_en,
+        subtitle_en: (fields.subtitle_en as string) ?? form.subtitle_en,
+        excerpt_en: (fields.excerpt_en as string) ?? form.excerpt_en,
+        body_en: (fields.body_en as string) ?? form.body_en,
+        thumbnail_url: (fields.thumbnail_url as string | null) ?? form.thumbnail_url,
+        category_id: (fields.category_id as string | null) ?? form.category_id,
+      };
+      setForm(restored);
+      setEditorSyncKey((k) => k + 1);
       setActionError(null);
       setSaveState("idle");
       setDirty(true);
       // Force a new revision on save so restore is never destructive.
-      await save();
+      const saved = await save(restored);
+      if (!saved) throw new Error("restore save failed");
       setSaveState("saved");
       // Reload the page's editor payload so the restored state is canonical.
       router.refresh();
@@ -377,7 +413,7 @@ export function ContentEditor({
   }
 
   const status = content?.status ?? "draft";
-  const isBangla = locale !== "en";
+  const isBangla = true;
   const inputClass =
     "w-full rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none placeholder:text-neutral-400 focus:border-[var(--md-sys-color-primary)] dark:border-neutral-700 dark:bg-neutral-900";
 
@@ -390,7 +426,7 @@ export function ContentEditor({
             <h1 className="text-xl font-bold">
               {content ? t.editTitle : t.newTitle}
             </h1>
-            <StatusBadge status={status} locale={locale} />
+            <StatusBadge status={status} locale="bn" />
           </div>
           <div className="flex items-center gap-3 text-sm">
             <span
@@ -427,17 +463,17 @@ export function ContentEditor({
         </div>
         {content && (
           <div className="flex flex-wrap items-center gap-2 text-xs opacity-60">
-            <StatusBadge status={status} locale={locale} />
+            <StatusBadge status={status} locale="bn" />
             <span>v{content.version}</span>
             {content.published_at && (
-              <span>· {new Date(content.published_at).toLocaleString(isBangla ? "bn-BD" : "en-GB")}</span>
+              <span>· {new Date(content.published_at).toLocaleString("bn-BD")}</span>
             )}
           </div>
         )}
         <WorkflowActions
           status={status}
           role={role}
-          locale={locale}
+          locale="bn"
           onAction={(a) => void runAction(a)}
           disabled={saveState === "saving"}
         />
@@ -515,6 +551,7 @@ export function ContentEditor({
           label={t.bodyBn}
           lang="bn"
           value={form.body_bn}
+          syncKey={editorSyncKey}
           onChange={(html) => set("body_bn", html)}
           placeholder="লেখা শুরু করুন…"
         />
@@ -574,6 +611,7 @@ export function ContentEditor({
             label={t.bodyEn}
             lang="en"
             value={form.body_en}
+            syncKey={editorSyncKey}
             onChange={(html) => set("body_en", html)}
             placeholder="Start writing…"
           />
@@ -666,14 +704,42 @@ export function ContentEditor({
               id="ce-slug"
               type="text"
               dir="ltr"
-              value={content?.slug ?? form.custom_slug}
+              value={form.custom_slug || content?.slug || ""}
               onChange={(e) => set("custom_slug", e.target.value)}
               placeholder={slug}
               className={inputClass}
+              style={slugBorderColor ? { borderColor: slugBorderColor } : undefined}
+              maxLength={100}
             />
+            {/* URL preview */}
             <p className="text-xs opacity-40">
-              {form.custom_slug.trim() ? `→ /news/${slug}` : t.slugAuto}
+              {form.custom_slug.trim() ? `→ /${form.content_type === "article" ? "articles" : form.content_type === "documentary" ? "documentaries" : "news"}/${slug}` : t.slugAuto}
             </p>
+            {/* Validation messages */}
+            {slugValidation && (
+              <p
+                className="text-xs"
+                style={{
+                  color: slugValidation.type === "error"
+                    ? "var(--color-error, #ea4335)"
+                    : "var(--color-warning, #f9ab00)",
+                }}
+              >
+                {slugValidation.key === "slugTooShort"
+                  ? t.slugTooShort
+                  : slugValidation.key === "slugTooLong"
+                    ? t.slugTooLong
+                    : t.slugInvalidChars}
+              </p>
+            )}
+            {slugChecking && form.custom_slug.trim().length >= 2 && (
+              <p className="text-xs opacity-50">{t.slugChecking}</p>
+            )}
+            {slugTaken && (
+              <p className="text-xs" style={{ color: "var(--color-warning, #f9ab00)" }}>
+                {t.slugTaken}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">

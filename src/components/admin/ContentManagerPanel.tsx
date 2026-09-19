@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useLocaleStore } from "@/stores/locale";
+
 
 interface ContentRow {
   id: string;
@@ -20,7 +20,6 @@ interface ContentRow {
 }
 
 const COPY = {
-  bn: {
     title: "সংবাদ পরিচালনা",
     searchPlaceholder: "শিরোনাম বা স্লাগ খুঁজুন…",
     filterAll: "সব",
@@ -47,35 +46,6 @@ const COPY = {
     deleteFailed: "মুছে ফেলা যায়নি।",
     empty: "কোনো সংবাদ পাওয়া যায়নি।",
     view: "দেখুন",
-  },
-  en: {
-    title: "Content Management",
-    searchPlaceholder: "Search title or slug…",
-    filterAll: "All",
-    published: "Published",
-    draft: "Draft",
-    pending: "Pending Review",
-    archived: "Archived",
-    rejected: "Rejected",
-    news: "News",
-    article: "Article",
-    documentary: "Documentary",
-    type: "Type",
-    status: "Status",
-    views: "Views",
-    date: "Date",
-    actions: "Actions",
-    delete: "Delete",
-    confirmDelete: "Delete this article? This cannot be undone.",
-    total: "Total",
-    page: "Page",
-    prev: "Previous",
-    next: "Next",
-    deleted: "Deleted!",
-    deleteFailed: "Delete failed.",
-    empty: "No content found.",
-    view: "View",
-  },
 } as const;
 
 const STATUS_FILTERS = ["", "published", "draft", "pending_review", "archived", "rejected"] as const;
@@ -96,8 +66,7 @@ const TYPE_COLORS: Record<string, string> = {
 };
 
 export function ContentManagerPanel() {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const t = COPY;
   const [contents, setContents] = useState<ContentRow[]>([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
@@ -290,10 +259,10 @@ export function ContentManagerPanel() {
                       </span>
                     </td>
                     <td className="py-3 text-xs opacity-50 hidden lg:table-cell">
-                      {item.view_count.toLocaleString(locale === "bn" ? "bn-BD" : "en-US")}
+                      {item.view_count.toLocaleString("bn-BD")}
                     </td>
                     <td className="py-3 text-xs opacity-50 hidden lg:table-cell">
-                      {new Date(item.created_at).toLocaleDateString(locale === "bn" ? "bn-BD" : "en-US")}
+                      {new Date(item.created_at).toLocaleDateString("bn-BD")}
                     </td>
                     <td className="py-3">
                       <div className="flex items-center justify-end gap-2">

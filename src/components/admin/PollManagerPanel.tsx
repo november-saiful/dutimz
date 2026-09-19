@@ -1,58 +1,31 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useLocaleStore } from "@/stores/locale";
 import { PollsSkeleton } from "@/components/admin/AdminSkeleton";
 
 const COPY = {
-  bn: {
-    title: "পোল পরিচালনা",
-    addNew: "নতুন পোল",
-    questionBn: "প্রশ্ন (বাংলা)",
-    questionEn: "প্রশ্ন (English)",
-    options: "অপশন",
-    addOption: "অপশন যোগ করুন",
-    optionBn: "অপশন (বাংলা)",
-    optionEn: "অপশন (English)",
-    active: "সক্রিয়",
-    inactive: "নিষ্ক্রিয়",
-    totalVotes: "মোট ভোট",
-    votes: "ভোট",
-    results: "ফলাফল",
-    endsAt: "শেষের তারিখ",
-    save: "সংরক্ষণ",
-    cancel: "বাতিল",
-    delete: "মুছুন",
-    confirmDelete: "মুছে ফেলবেন?",
-    success: "সংরক্ষিত!",
-    error: "ত্রুটি।",
-    noPolls: "কোনো পোল নেই।",
-    noEnd: "কোনো সময়সীমা নেই",
-  },
-  en: {
-    title: "Poll Management",
-    addNew: "New poll",
-    questionBn: "Question (Bangla)",
-    questionEn: "Question (English)",
-    options: "Options",
-    addOption: "Add option",
-    optionBn: "Option (Bangla)",
-    optionEn: "Option (English)",
-    active: "Active",
-    inactive: "Inactive",
-    totalVotes: "Total votes",
-    votes: "votes",
-    results: "Results",
-    endsAt: "End date",
-    save: "Save",
-    cancel: "Cancel",
-    delete: "Delete",
-    confirmDelete: "Delete this poll?",
-    success: "Saved!",
-    error: "Error.",
-    noPolls: "No polls.",
-    noEnd: "No end date",
-  },
+  title: "পোল পরিচালনা",
+  addNew: "নতুন পোল",
+  questionBn: "প্রশ্ন (বাংলা)",
+  questionEn: "প্রশ্ন (English)",
+  options: "অপশন",
+  addOption: "অপশন যোগ করুন",
+  optionBn: "অপশন (বাংলা)",
+  optionEn: "অপশন (English)",
+  active: "সক্রিয়",
+  inactive: "নিষ্ক্রিয়",
+  totalVotes: "মোট ভোট",
+  votes: "ভোট",
+  results: "ফলাফল",
+  endsAt: "শেষের তারিখ",
+  save: "সংরক্ষণ",
+  cancel: "বাতিল",
+  delete: "মুছুন",
+  confirmDelete: "মুছে ফেলবেন?",
+  success: "সংরক্ষিত!",
+  error: "ত্রুটি।",
+  noPolls: "কোনো পোল নেই।",
+  noEnd: "কোনো সময়সীমা নেই",
 } as const;
 
 const inputClass =
@@ -77,8 +50,7 @@ interface Poll {
 }
 
 export function PollManagerPanel() {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const t = COPY;
   const [polls, setPolls] = useState<Poll[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -304,7 +276,7 @@ export function PollManagerPanel() {
                     return (
                       <div key={opt.id}>
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs">{locale === "bn" ? opt.label_bn : opt.label_en}</span>
+                          <span className="text-xs">{opt.label_bn}</span>
                           <span className="text-[10px] opacity-50">{opt.votes} {t.votes} ({Math.round(pct)}%)</span>
                         </div>
                         <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--md-sys-color-surface-variant)" }}>

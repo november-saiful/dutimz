@@ -18,19 +18,61 @@ export interface SearchResult {
   query: string;
 }
 
+export interface SearchOptions {
+  /** Content type filter (`news` | `article` | `documentary`). */
+  contentType?: string | null;
+  /** Category id (UUID) filter. */
+  categoryId?: string | null;
+}
+
+/**
+ * Read a PostgREST `content-range` header (`"0-23/57"`) into a total.
+ * Returns `fallback` when the header is missing or not a number — note that
+ * `Number(undefined)` is NaN, which `??` does *not* catch.
+ */
+export function parseContentRangeTotal(
+  value: string | null | undefined,
+  fallback: number,
+): number {
+  const parsed = Number(value?.split("/")[1]);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+/**
+ * Build a PostgREST `ilike` pattern that is safe inside a logic tree
+ * (`or=(...)`). Commas, parentheses, dots and colons are structural there, so
+ * the value must be double-quoted and backslash-escaped — otherwise a search
+ * for e.g. "Hossain, Kamal" breaks the whole filter with a 400.
+ */
+export function postgrestIlikePattern(term: string): string {
+  const escaped = term.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `"%${escaped}%"`;
+}
+
+const SEARCH_COLUMNS = [
+  "title_bn",
+  "title_en",
+  "excerpt_bn",
+  "excerpt_en",
+] as const;
+
+const SELECT =
+  "*,category:categories(*),author:profiles!contents_author_id_fkey(id,username,display_name,avatar_url,is_verified)";
+
 export async function searchContents(
   query: string,
   limit = 20,
   offset = 0,
+  options: SearchOptions = {},
 ): Promise<SearchResult> {
   const q = query.trim();
   if (!q) return { items: [], total: 0, query: q };
 
   if (!hasSupabase()) {
-    return searchMock(q, limit, offset);
+    return searchMock(q, limit, offset, options);
   }
 
-  return searchSupabase(q, limit, offset);
+  return searchSupabase(q, limit, offset, options);
 }
 
 // ── Supabase full-text search ───────────────────────────────────────
@@ -39,18 +81,25 @@ async function searchSupabase(
   q: string,
   limit: number,
   offset: number,
+  options: SearchOptions,
 ): Promise<SearchResult> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!supabaseUrl || !supabaseKey) return { items: [], total: 0, query: q };
 
-  const pattern = `%${q}%`;
-  const select =
-    "*,category:categories(*),author:profiles!contents_author_id_fkey(id,username,display_name,avatar_url,is_verified)";
+  const pattern = encodeURIComponent(postgrestIlikePattern(q));
+  const filters = ["status=eq.published"];
+  if (options.contentType) {
+    filters.push(`content_type=eq.${encodeURIComponent(options.contentType)}`);
+  }
+  if (options.categoryId) {
+    filters.push(`category_id=eq.${encodeURIComponent(options.categoryId)}`);
+  }
+
   const rest =
-    `${supabaseUrl}/rest/v1/contents?select=${encodeURIComponent(select)}` +
-    `&status=eq.published` +
-    `&or=(title_bn.ilike.${encodeURIComponent(pattern)},title_en.ilike.${encodeURIComponent(pattern)},excerpt_bn.ilike.${encodeURIComponent(pattern)},excerpt_en.ilike.${encodeURIComponent(pattern)})` +
+    `${supabaseUrl}/rest/v1/contents?select=${encodeURIComponent(SELECT)}` +
+    `&${filters.join("&")}` +
+    `&or=(${SEARCH_COLUMNS.map((column) => `${column}.ilike.${pattern}`).join(",")})` +
     `&order=published_at.desc&limit=${limit}&offset=${offset}`;
 
   try {
@@ -65,10 +114,11 @@ async function searchSupabase(
     if (!res.ok) return { items: [], total: 0, query: q };
 
     const items = (await res.json()) as ContentWithRelations[];
-    const total =
-      Number(res.headers.get("content-range")?.split("/")[1]) ?? items.length;
-
-    return { items, total, query: q };
+    return {
+      items,
+      total: parseContentRangeTotal(res.headers.get("content-range"), items.length),
+      query: q,
+    };
   } catch {
     return { items: [], total: 0, query: q };
   }
@@ -80,26 +130,31 @@ async function searchMock(
   q: string,
   limit: number,
   offset: number,
+  options: SearchOptions,
 ): Promise<SearchResult> {
   const { mockContents } = await import("@/lib/data/mock");
   const lower = q.toLowerCase();
 
-  const matches = mockContents.filter((c) => {
-    const haystack = [
-      c.title_bn,
-      c.title_en,
-      c.excerpt_bn,
-      c.excerpt_en,
-      c.body_bn,
-      c.body_en,
-      c.category?.name_bn,
-      c.category?.name_en,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-    return haystack.includes(lower);
-  });
+  const matches = mockContents
+    .filter((c) => c.status === "published")
+    .filter((c) => !options.contentType || c.content_type === options.contentType)
+    .filter((c) => !options.categoryId || c.category_id === options.categoryId)
+    .filter((c) => {
+      const haystack = [
+        c.title_bn,
+        c.title_en,
+        c.excerpt_bn,
+        c.excerpt_en,
+        c.body_bn,
+        c.body_en,
+        c.category?.name_bn,
+        c.category?.name_en,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(lower);
+    });
 
   // Score: title match > excerpt match > body match
   const scored = matches.map((c) => {

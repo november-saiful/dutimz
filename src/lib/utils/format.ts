@@ -51,18 +51,13 @@ export function formatDate(
 ): string {
   const date = typeof iso === "string" ? new Date(iso) : iso;
   const day = date.getDate();
-  const month = (EN_MONTHS[date.getMonth()] ?? "").toLowerCase();
-  const bnMonth =
-    BN_MONTHS[date.getMonth()] ?? EN_MONTHS[date.getMonth()] ?? "";
+  const monthIndex = date.getMonth();
   const year = date.getFullYear();
   if (locale === "bn") {
+    const bnMonth = BN_MONTHS[monthIndex] ?? EN_MONTHS[monthIndex] ?? "";
     return `${toBanglaNumerals(day)} ${bnMonth}, ${toBanglaNumerals(year)}`;
   }
-  const monthName =
-    EN_MONTHS.find((m) => m.toLowerCase() === month) ??
-    EN_MONTHS[date.getMonth()] ??
-    "";
-  return `${day} ${monthName}, ${year}`;
+  return `${day} ${EN_MONTHS[monthIndex] ?? ""}, ${year}`;
 }
 
 /** Estimate reading minutes from plain text. */

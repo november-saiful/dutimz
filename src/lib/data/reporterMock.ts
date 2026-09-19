@@ -5,6 +5,13 @@ import type {
   ContentType,
 } from "@/types";
 import { mockCategories } from "@/lib/data/mock";
+import {
+  buildRevisionChanges,
+  buildSnapshot,
+  nextRevisionVersion,
+  shouldRecordRevision,
+  type RevisionAction,
+} from "@/lib/content/revisions";
 
 /**
  * Mock-mode backing store for the Phase 3 desk (reporter dashboard, editor,
@@ -18,6 +25,7 @@ export interface MockRevisionRow {
   content_id: string;
   editor_id: string;
   editor_name: string;
+  /** Same payload shape as `content_revisions.changes` (see revisions.ts). */
   changes: Record<string, unknown>;
   version: number;
   created_at: string;
@@ -103,6 +111,10 @@ const SEED_ROWS: Content[] = [
       "<p>ছাত্র সংসদ নির্বাচন ঘিরে বিভিন্ন প্যানেল শিক্ষার্থীদের কাছে দাবিতালিকা নিয়ে যাচ্ছে। হল সংস্কার, লাইব্রেরি সময় বৃদ্ধি ও পরিবহন ভাতা এবারের প্রধান ইস্যু।</p><p>নির্বাচন কমিশন জানিয়েছে, ভোটগ্রহণ হবে আগামী মাসের প্রথম সপ্তাহে।</p>",
     title_en: "Campus election: demands before the vote",
     excerpt_bn: "হল সংস্কার ও পরিবহন ভাতা এবারের প্রধান দাবি।",
+    // Publish validation requires a thumbnail; without one here the demo desk
+    // could never actually take a story live in mock mode.
+    thumbnail_url: "/news-clubroom-plaque-vandalism.jpeg",
+    thumbnail_alt: "ক্যাম্পাস নির্বাচনের দাবিতালিকা",
     category_id: mockCategories[0]?.id ?? null,
     tags: ["campus", "election"],
     status: "draft",
@@ -117,6 +129,8 @@ const SEED_ROWS: Content[] = [
     body_bn:
       "<p>বিজ্ঞান অনুষদের পরীক্ষাগারগুলোতে ব্যবহৃত যন্ত্রপাতি সংস্কারে নতুন বরাদ্দ পেয়েছে বিশ্ববিদ্যালয়। রসায়ন ও পদার্থবিজ্ঞান বিভাগের তিনটি ল্যাবে কাজ শুরু হবে এই মাসেই।</p>",
     excerpt_bn: "রসায়ন ও পদার্থবিজ্ঞান ল্যাবে শুরু হবে সংস্কার।",
+    thumbnail_url: "/news-clubroom-plaque-vandalism.jpeg",
+    thumbnail_alt: "পরীক্ষাগারের যন্ত্রপাতি",
     category_id: mockCategories[2]?.id ?? null,
     status: "pending_review",
     version: 3,
@@ -253,8 +267,11 @@ export function createMockContent(
     version: 1,
     created_at: now,
     changes: {
+      // A creation's diff is just the title (that is what the history should
+      // say), but the snapshot has to be complete or restoring v1 would come
+      // back missing every field the summary skipped.
       diff: { title_bn: { from: null, to: row.title_bn } },
-      snapshot: { fields: { body_bn: row.body_bn, title_bn: row.title_bn }, savedAt: now },
+      snapshot: buildSnapshot(row),
       action: "create",
       note: partial.status === "pending_review" ? "সরাসরি জমা" : undefined,
     },
@@ -262,48 +279,45 @@ export function createMockContent(
   return row;
 }
 
+/**
+ * Apply a patch and, when it deserves one, record a revision.
+ *
+ * Mirrors `saveContent` (src/lib/data/contentStore.ts) so mock mode and
+ * Supabase mode produce the same history: the diff and snapshot come from the
+ * shared builders, a field save that changed nothing writes nothing, a
+ * transition is always recorded, and the version is allocated with
+ * `nextRevisionVersion` so a story can never hold two revisions of the same
+ * number — which is what used to happen when a publish kept the version of the
+ * edit it published.
+ */
 export function updateMockContent(
   id: string,
   patch: Partial<Content>,
-  meta?: { editorName?: string; note?: string; action?: string; bumpVersion?: boolean },
+  meta?: { editorName?: string; note?: string; action?: RevisionAction },
 ): Content | undefined {
   const row = rows.find((r) => r.id === id);
   if (!row) return undefined;
 
   const before = { ...row };
-  Object.assign(row, patch, { updated_at: new Date().toISOString() });
-  const version =
-    meta?.bumpVersion === false ? row.version : row.version + 1;
-  row.version = version;
+  const action: RevisionAction = meta?.action ?? "edit";
+  const changes = buildRevisionChanges(before, { ...before, ...patch }, {
+    action,
+    note: meta?.note,
+  });
 
-  const diff: Record<string, { from: unknown; to: unknown }> = {};
-  for (const [key, value] of Object.entries(patch)) {
-    if (JSON.stringify(before[key as keyof Content]) !== JSON.stringify(value)) {
-      diff[key] = { from: before[key as keyof Content] ?? null, to: value ?? null };
-    }
-  }
+  if (!shouldRecordRevision(action, changes.diff)) return row;
+
+  Object.assign(row, patch, { updated_at: new Date().toISOString() });
+  row.version = nextRevisionVersion(row.version, latestMockRevisionVersion(row.id));
 
   revisions.push({
     id: genId(),
     content_id: row.id,
     editor_id: meta?.editorName === MOCK_MODERATOR.display_name ? MOCK_MODERATOR.id : MOCK_DESK_USER.id,
     editor_name: meta?.editorName ?? MOCK_DESK_USER.display_name,
-    version,
+    version: row.version,
     created_at: row.updated_at,
-    changes: {
-      diff,
-      snapshot: {
-        fields: {
-          title_bn: row.title_bn,
-          body_bn: row.body_bn,
-          thumbnail_url: row.thumbnail_url,
-          category_id: row.category_id,
-        },
-        savedAt: row.updated_at,
-      },
-      action: meta?.action ?? "edit",
-      note: meta?.note,
-    },
+    changes,
   });
 
   return row;
@@ -313,6 +327,16 @@ export function listMockRevisions(contentId: string): MockRevisionRow[] {
   return revisions
     .filter((r) => r.content_id === contentId)
     .sort((a, b) => b.version - a.version);
+}
+
+/** Highest version already recorded for a story (null when it has no history). */
+export function latestMockRevisionVersion(contentId: string): number | null {
+  let latest: number | null = null;
+  for (const revision of revisions) {
+    if (revision.content_id !== contentId) continue;
+    if (latest === null || revision.version > latest) latest = revision.version;
+  }
+  return latest;
 }
 
 export function getMockRevision(

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useLocaleStore } from "@/stores/locale";
+
 
 interface SearchResult {
   type: "user" | "category" | "tag" | "content";
@@ -12,24 +12,13 @@ interface SearchResult {
 }
 
 const COPY = {
-  bn: {
-    placeholder: "ব্যবহারকারী, বিভাগ, ট্যাগ বা কন্টেন্ট খুঁজুন…",
-    users: "ব্যবহারকারী",
-    categories: "বিভাগ",
-    tags: "ট্যাগ",
-    content: "কন্টেন্ট",
-    noResults: "কোনো ফলাফল পাওয়া যায়নি।",
-    typeToSearch: "অন্তত ২ অক্ষর লিখুন…",
-  },
-  en: {
-    placeholder: "Search users, categories, tags, or content…",
-    users: "Users",
-    categories: "Categories",
-    tags: "Tags",
-    content: "Content",
-    noResults: "No results found.",
-    typeToSearch: "Type at least 2 characters…",
-  },
+  placeholder: "ব্যবহারকারী, বিভাগ, ট্যাগ বা কন্টেন্ট খুঁজুন…",
+  users: "ব্যবহারকারী",
+  categories: "বিভাগ",
+  tags: "ট্যাগ",
+  content: "কন্টেন্ট",
+  noResults: "কোনো ফলাফল পাওয়া যায়নি।",
+  typeToSearch: "অন্তত ২ অক্ষর লিখুন…",
 } as const;
 
 const TYPE_ICONS: Record<string, string> = {
@@ -39,11 +28,11 @@ const TYPE_ICONS: Record<string, string> = {
   content: "📰",
 };
 
-const TYPE_LABELS: Record<string, { bn: string; en: string }> = {
-  user: { bn: "ব্যবহারকারী", en: "User" },
-  category: { bn: "বিভাগ", en: "Category" },
-  tag: { bn: "ট্যাগ", en: "Tag" },
-  content: { bn: "কন্টেন্ট", en: "Content" },
+const TYPE_LABELS: Record<string, string> = {
+  user: "ব্যবহারকারী",
+  category: "বিভাগ",
+  tag: "ট্যাগ",
+  content: "কন্টেন্ট",
 };
 
 interface Props {
@@ -51,8 +40,7 @@ interface Props {
 }
 
 export function AdminSearchBar({ onNavigate }: Props) {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const t = COPY;
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -228,7 +216,7 @@ export function AdminSearchBar({ onNavigate }: Props) {
               {/* Section header */}
               <div className="px-3 pt-2.5 pb-1">
                 <span className="text-[10px] font-bold uppercase tracking-wider opacity-40">
-                  {TYPE_LABELS[type]?.[locale === "en" ? "en" : "bn"] ?? type}
+                  {TYPE_LABELS[type] ?? type}
                 </span>
               </div>
 
@@ -257,7 +245,7 @@ export function AdminSearchBar({ onNavigate }: Props) {
                       className="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold opacity-50"
                       style={{ background: "var(--md-sys-color-primary-container)" }}
                     >
-                      {TYPE_LABELS[result.type]?.[locale === "en" ? "en" : "bn"]}
+                      {TYPE_LABELS[result.type]}
                     </span>
                   </button>
                 );

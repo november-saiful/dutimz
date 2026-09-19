@@ -5,63 +5,53 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import type { Comment } from "@/types";
-import { useLocaleStore } from "@/stores/locale";
+
 
 // ── Copy ────────────────────────────────────────────────────────────
 const COPY = {
-  bn: {
-    title: "মন্তব্য",
-    reply: "উত্তর দিন",
-    cancel: "বাতিল",
-    submit: "পাঠান",
-    placeholder: "আপনার মন্তব্য লিখুন…",
-    namePlaceholder: "আপনার নাম",
-    noComments: "এখনো কোনো মন্তব্য নেই। প্রথম মন্তব্য করুন!",
-    loadMore: "আরো মন্তব্য দেখুন",
-    replyingTo: "উত্তর দিচ্ছেন",
-    anonymous: "অজ্ঞাত",
-    signInToComment: "মন্তব্য করতে লগইন করুন",
-  },
-  en: {
-    title: "Comments",
-    reply: "Reply",
-    cancel: "Cancel",
-    submit: "Submit",
-    placeholder: "Write your comment…",
-    namePlaceholder: "Your name",
-    noComments: "No comments yet. Be the first!",
-    loadMore: "Show more comments",
-    replyingTo: "Replying to",
-    anonymous: "Anonymous",
-    signInToComment: "Log in to comment",
-  },
+  title: "মন্তব্য",
+  reply: "উত্তর দিন",
+  cancel: "বাতিল",
+  submit: "পাঠান",
+  placeholder: "আপনার মন্তব্য লিখুন…",
+  namePlaceholder: "আপনার নাম",
+  noComments: "এখনো কোনো মন্তব্য নেই। প্রথম মন্তব্য করুন!",
+  loadMore: "আরো মন্তব্য দেখুন",
+  replyingTo: "উত্তর দিচ্ছেন",
+  anonymous: "অজ্ঞাত",
+  signInToComment: "মন্তব্য করতে লগইন করুন",
+  nameOptional: "আপনার নাম (ডিফল্ট: আপনার অ্যাকাউন্টের নাম)",
+  signInCta: "লগইন করুন",
 } as const;
 
 // ── Single comment node ─────────────────────────────────────────────
 
 function CommentNode({
   comment,
-  locale,
   depth,
   onReact,
   onReply,
+  onAuthRequired,
 }: {
   comment: Comment;
-  locale: "bn" | "en";
+
   depth: number;
   onReact: (id: string, reaction: "like" | "dislike") => void;
-  onReply: (parentId: string) => void;
+  onReply: () => void;
+  /** Called when the API rejects an action because nobody is signed in. */
+  onAuthRequired: () => void;
 }) {
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [replyName, setReplyName] = useState("");
   const [replyBody, setReplyBody] = useState("");
   const [replying, setReplying] = useState(false);
-  const t = COPY[locale];
+  const t = COPY;
   const maxDepth = 3;
 
   const handleSubmitReply = useCallback(async () => {
-    if (!replyBody.trim() || !replyName.trim()) return;
+    if (!replyBody.trim()) return;
     setReplying(true);
     try {
       const res = await fetch("/api/comments", {
@@ -70,20 +60,24 @@ function CommentNode({
         body: JSON.stringify({
           contentId: comment.content_id,
           parentId: comment.id,
-          authorName: replyName.trim(),
+          authorName: replyName.trim() || undefined,
           body: replyBody.trim(),
         }),
       });
+      if (res.status === 401) {
+        onAuthRequired();
+        return;
+      }
       if (res.ok) {
         setShowReplyForm(false);
         setReplyBody("");
         // Trigger re-render via parent
-        onReply(comment.id);
+        onReply();
       }
     } finally {
       setReplying(false);
     }
-  }, [replyBody, replyName, comment, onReply]);
+  }, [replyBody, replyName, comment, onReply, onAuthRequired]);
 
   return (
     <div
@@ -95,7 +89,7 @@ function CommentNode({
           {(comment.author_name ?? t.anonymous).charAt(0).toUpperCase()}
         </div>
         <span className="text-sm font-semibold">{comment.author_name ?? t.anonymous}</span>
-        <span className="text-xs opacity-50">{formatRelative(comment.created_at, locale)}</span>
+        <span className="text-xs opacity-50">{formatRelative(comment.created_at, "bn")}</span>
       </div>
 
       <p className="mt-2 text-sm leading-relaxed opacity-85">{comment.body}</p>
@@ -134,8 +128,7 @@ function CommentNode({
           <input
             type="text"
             value={replyName}
-            onChange={(e) => setReplyName(e.target.value)}
-            placeholder={t.namePlaceholder}
+            onChange={(e) => setReplyName(e.target.value)}              placeholder={t.nameOptional}
             className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2 text-sm outline-none focus:border-[var(--md-sys-color-primary)] dark:border-neutral-700 dark:bg-neutral-900"
           />
           <textarea
@@ -156,7 +149,7 @@ function CommentNode({
             <button
               type="button"
               onClick={handleSubmitReply}
-              disabled={replying || !replyBody.trim() || !replyName.trim()}
+              disabled={replying || !replyBody.trim()}
               className="rounded-lg px-4 py-1.5 text-xs font-bold text-white disabled:opacity-50"
               style={{ background: "var(--md-sys-color-primary)" }}
             >
@@ -178,13 +171,16 @@ export function CommentThread({
   contentId: string;
   comments: Comment[];
 }) {
-  const locale = useLocaleStore((s) => s.locale);
+  const locale = "bn";
   const [comments, setComments] = useState(initialComments);
   const [newCommentName, setNewCommentName] = useState("");
   const [newCommentBody, setNewCommentBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const t = COPY[locale];
+  // Comments are stored against an account, so the API answers 401 when the
+  // visitor is signed out (mock mode never does).
+  const [needsAuth, setNeedsAuth] = useState(false);
+  const t = COPY;
 
   const refreshComments = useCallback(async () => {
     const res = await fetch(`/api/comments?contentId=${contentId}`);
@@ -195,11 +191,16 @@ export function CommentThread({
   }, [contentId]);
 
   const handleReact = useCallback(async (commentId: string, reaction: "like" | "dislike") => {
-    await fetch("/api/comments/react", {
+    const res = await fetch("/api/comments/react", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ commentId, reaction }),
     });
+    if (res.status === 401) {
+      setNeedsAuth(true);
+      return;
+    }
+    if (!res.ok) return;
     // Optimistic update
     setComments((prev) =>
       prev.map((c) =>
@@ -211,7 +212,7 @@ export function CommentThread({
   }, []);
 
   const handleSubmit = useCallback(async () => {
-    if (!newCommentBody.trim() || !newCommentName.trim()) return;
+    if (!newCommentBody.trim()) return;
     setSubmitting(true);
     try {
       const res = await fetch("/api/comments", {
@@ -219,10 +220,14 @@ export function CommentThread({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contentId,
-          authorName: newCommentName.trim(),
+          authorName: newCommentName.trim() || undefined,
           body: newCommentBody.trim(),
         }),
       });
+      if (res.status === 401) {
+        setNeedsAuth(true);
+        return;
+      }
       if (res.ok) {
         setNewCommentBody("");
         setShowForm(false);
@@ -250,10 +255,11 @@ export function CommentThread({
       <div key={c.id}>
         <CommentNode
           comment={c}
-          locale={locale}
+
           depth={depth}
           onReact={handleReact}
-          onReply={() => refreshComments()}
+          onReply={() => void refreshComments()}
+          onAuthRequired={() => setNeedsAuth(true)}
         />
         {renderTree(c.id, depth + 1)}
       </div>
@@ -277,7 +283,14 @@ export function CommentThread({
 
       {/* New comment form */}
       <div className="mt-6">
-        {!showForm ? (
+        {needsAuth ? (
+          <p className="rounded-xl border border-dashed p-4 text-sm opacity-70" style={{ borderColor: "var(--md-sys-color-outline)" }} role="status">
+            {t.signInToComment} ·{" "}
+            <Link href="/auth/login" className="font-bold underline" style={{ color: "var(--md-sys-color-primary)" }}>
+              {t.signInCta}
+            </Link>
+          </p>
+        ) : !showForm ? (
           <button
             type="button"
             onClick={() => setShowForm(true)}
@@ -292,7 +305,7 @@ export function CommentThread({
               type="text"
               value={newCommentName}
               onChange={(e) => setNewCommentName(e.target.value)}
-              placeholder={t.namePlaceholder}
+              placeholder={t.nameOptional}
               className="w-full rounded-xl border border-neutral-200 bg-neutral-50 px-3 py-2.5 text-sm outline-none focus:border-[var(--md-sys-color-primary)] dark:border-neutral-700 dark:bg-neutral-900"
             />
             <textarea
@@ -313,7 +326,7 @@ export function CommentThread({
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={submitting || !newCommentBody.trim() || !newCommentName.trim()}
+                disabled={submitting || !newCommentBody.trim()}
                 className="rounded-lg px-5 py-2 text-sm font-bold text-white disabled:opacity-50"
                 style={{ background: "var(--md-sys-color-primary)" }}
               >

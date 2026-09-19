@@ -2,6 +2,8 @@ export const runtime = "edge";
 
 import { NextRequest } from "next/server";
 import { json, jsonError, hasSupabase } from "@/lib/data/deskApi";
+import { postgrestIlikePattern } from "@/lib/content/search";
+import { ROLE_HIERARCHY } from "@/lib/constants/app";
 import { listUsers, updateUser } from "@/lib/data/adminMock";
 
 /**
@@ -30,7 +32,10 @@ export async function GET(request: NextRequest) {
       .range(from, to);
 
     if (search) {
-      query = query.or(`username.ilike.%${search}%,email.ilike.%${search}%,display_name.ilike.%${search}%`);
+      const pattern = postgrestIlikePattern(search);
+      query = query.or(
+        `username.ilike.${pattern},email.ilike.${pattern},display_name.ilike.${pattern}`,
+      );
     }
     if (role) {
       query = query.eq("role", role);
@@ -54,6 +59,11 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (!body.id) return jsonError("`id` is required");
+  if (body.role !== undefined && !(body.role in ROLE_HIERARCHY)) {
+    return jsonError(
+      `Invalid role. Expected one of: ${Object.keys(ROLE_HIERARCHY).join(", ")}`,
+    );
+  }
 
   if (hasSupabase()) {
     const { requireAdmin } = await import("@/lib/auth/admin");

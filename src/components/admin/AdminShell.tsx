@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useLocaleStore } from "@/stores/locale";
 import { AdminSearchBar } from "@/components/admin/AdminSearchBar";
 
 // Lazy-load panels only when their tab is active
@@ -17,14 +16,14 @@ const NewsletterPanel = dynamic(() => import("./NewsletterPanel").then((m) => m.
 const ContentManagerPanel = dynamic(() => import("./ContentManagerPanel").then((m) => m.ContentManagerPanel), { ssr: false });
 
 const TABS = [
-  { id: "contents", icon: "📰", labelBn: "সংবাদ", labelEn: "Contents" },
-  { id: "settings", icon: "⚙️", labelBn: "সাইট সেটিংস", labelEn: "Site Settings" },
-  { id: "users", icon: "👥", labelBn: "ব্যবহারকারী", labelEn: "Users" },
-  { id: "categories", icon: "📁", labelBn: "বিভাগ", labelEn: "Categories" },
-  { id: "tags", icon: "🏷️", labelBn: "ট্যাগ", labelEn: "Tags" },
-  { id: "ads", icon: "📢", labelBn: "বিজ্ঞাপন", labelEn: "Ads" },
-  { id: "polls", icon: "📊", labelBn: "পোল", labelEn: "Polls" },
-  { id: "newsletter", icon: "✉️", labelBn: "নিউজলেটার", labelEn: "Newsletter" },
+  { id: "contents", icon: "📰", label: "সংবাদ" },
+  { id: "settings", icon: "⚙️", label: "সাইট সেটিংস" },
+  { id: "users", icon: "👥", label: "ব্যবহারকারী" },
+  { id: "categories", icon: "📁", label: "বিভাগ" },
+  { id: "tags", icon: "🏷️", label: "ট্যাগ" },
+  { id: "ads", icon: "📢", label: "বিজ্ঞাপন" },
+  { id: "polls", icon: "📊", label: "পোল" },
+  { id: "newsletter", icon: "✉️", label: "নিউজলেটার" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -41,7 +40,7 @@ const PANELS: Record<TabId, React.ComponentType> = {
 };
 
 export function AdminShell() {
-  const locale = useLocaleStore((s) => s.locale);
+
   const [activeTab, setActiveTab] = useState<TabId>("settings");
 
   const handleNavigate = useCallback((tab: string) => {
@@ -88,7 +87,7 @@ export function AdminShell() {
                 }
               >
                 <span className="text-base">{tab.icon}</span>
-                <span>{locale === "bn" ? tab.labelBn : tab.labelEn}</span>
+                <span>{tab.label}</span>
               </button>
             );
           })}

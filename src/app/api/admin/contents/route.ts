@@ -2,6 +2,7 @@ export const runtime = "edge";
 
 import { NextRequest } from "next/server";
 import { json, jsonError, hasSupabase } from "@/lib/data/deskApi";
+import { postgrestIlikePattern } from "@/lib/content/search";
 
 /**
  * GET /api/admin/contents?search=&status=&type=&page=
@@ -35,8 +36,9 @@ export async function GET(request: NextRequest) {
       .range(from, to);
 
     if (search) {
+      const pattern = postgrestIlikePattern(search);
       query = query.or(
-        `title_bn.ilike.%${search}%,title_en.ilike.%${search}%,slug.ilike.%${search}%`,
+        `title_bn.ilike.${pattern},title_en.ilike.${pattern},slug.ilike.${pattern}`,
       );
     }
     if (status) {

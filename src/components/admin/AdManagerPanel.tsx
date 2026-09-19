@@ -1,62 +1,33 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useLocaleStore } from "@/stores/locale";
 import { TableSkeleton } from "@/components/admin/AdminSkeleton";
 
 const COPY = {
-  bn: {
-    title: "বিজ্ঞাপন পরিচালনা",
-    addNew: "নতুন বিজ্ঞাপন",
-    name: "নাম",
-    placement: "প্লেসমেন্ট",
-    imageUrl: "ছবি URL",
-    linkUrl: "লিংক URL",
-    htmlContent: "HTML কন্টেন্ট",
-    startDate: "শুরুর তারিখ",
-    endDate: "শেষের তারিখ",
-    active: "সক্রিয়",
-    inactive: "নিষ্ক্রিয়",
-    impressions: "ইম্প্রেশন",
-    clicks: "ক্লিক",
-    header: "হেডার",
-    sidebar: "সাইডবার",
-    inline: "ইনলাইন",
-    footer: "ফুটার",
-    save: "সংরক্ষণ",
-    cancel: "বাতিল",
-    delete: "মুছুন",
-    confirmDelete: "মুছে ফেলবেন?",
-    success: "সংরক্ষিত!",
-    error: "ত্রুটি।",
-    noAds: "কোনো বিজ্ঞাপন নেই।",
-  },
-  en: {
-    title: "Ad Management",
-    addNew: "New ad",
-    name: "Name",
-    placement: "Placement",
-    imageUrl: "Image URL",
-    linkUrl: "Link URL",
-    htmlContent: "HTML content",
-    startDate: "Start date",
-    endDate: "End date",
-    active: "Active",
-    inactive: "Inactive",
-    impressions: "Impressions",
-    clicks: "Clicks",
-    header: "Header",
-    sidebar: "Sidebar",
-    inline: "Inline",
-    footer: "Footer",
-    save: "Save",
-    cancel: "Cancel",
-    delete: "Delete",
-    confirmDelete: "Delete this ad?",
-    success: "Saved!",
-    error: "Error.",
-    noAds: "No ads.",
-  },
+  title: "বিজ্ঞাপন পরিচালনা",
+  addNew: "নতুন বিজ্ঞাপন",
+  name: "নাম",
+  placement: "প্লেসমেন্ট",
+  imageUrl: "ছবি URL",
+  linkUrl: "লিংক URL",
+  htmlContent: "HTML কন্টেন্ট",
+  startDate: "শুরুর তারিখ",
+  endDate: "শেষের তারিখ",
+  active: "সক্রিয়",
+  inactive: "নিষ্ক্রিয়",
+  impressions: "ইম্প্রেশন",
+  clicks: "ক্লিক",
+  header: "হেডার",
+  sidebar: "সাইডবার",
+  inline: "ইনলাইন",
+  footer: "ফুটার",
+  save: "সংরক্ষণ",
+  cancel: "বাতিল",
+  delete: "মুছুন",
+  confirmDelete: "মুছে ফেলবেন?",
+  success: "সংরক্ষিত!",
+  error: "ত্রুটি।",
+  noAds: "কোনো বিজ্ঞাপন নেই।",
 } as const;
 
 const PLACEMENTS = ["header", "sidebar", "inline", "footer"] as const;
@@ -80,8 +51,7 @@ interface Ad {
 }
 
 export function AdManagerPanel() {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const t = COPY;
   const [ads, setAds] = useState<Ad[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);

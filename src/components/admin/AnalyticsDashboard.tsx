@@ -7,49 +7,28 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useLocaleStore } from "@/stores/locale";
 import { mockContents, mockCategories } from "@/lib/data/mock";
 
 const COPY = {
-  bn: {
-    title: "অ্যানালিটিক্স ড্যাশবোর্ড",
-    totalViews: "মোট পৃষ্ঠা দেখা",
-    totalContent: "মোট কন্টেন্ট",
-    totalComments: "মোট মন্তব্য",
-    avgReadTime: "গড় পড়ার সময়",
-    min: "মিনিট",
-    trending: "ট্রেন্ডিং কন্টেন্ট",
-    topCategories: "সর্বাধিক পঠিত বিভাগ",
-    recentContent: "সাম্প্রতিক কন্টেন্ট",
-    views: "বার পঠিত",
-    publishedAt: "প্রকাশিত",
-    viewsOverTime: "সময়ের সাথে পৃষ্ঠা দেখা",
-    thisWeek: "এই সপ্তাহে",
-    thisMonth: "এই মাসে",
-    allTime: "সর্বকালের",
-  },
-  en: {
-    title: "Analytics Dashboard",
-    totalViews: "Total Page Views",
-    totalContent: "Total Content",
-    totalComments: "Total Comments",
-    avgReadTime: "Avg. Read Time",
-    min: "min",
-    trending: "Trending Content",
-    topCategories: "Most Read Categories",
-    recentContent: "Recent Content",
-    views: "views",
-    publishedAt: "Published",
-    viewsOverTime: "Views Over Time",
-    thisWeek: "This Week",
-    thisMonth: "This Month",
-    allTime: "All Time",
-  },
+  title: "অ্যানালিটিক্স ড্যাশবোর্ড",
+  totalViews: "মোট পৃষ্ঠা দেখা",
+  totalContent: "মোট কন্টেন্ট",
+  totalComments: "মোট মন্তব্য",
+  avgReadTime: "গড় পড়ার সময়",
+  min: "মিনিট",
+  trending: "ট্রেন্ডিং কন্টেন্ট",
+  topCategories: "সর্বাধিক পঠিত বিভাগ",
+  recentContent: "সাম্প্রতিক কন্টেন্ট",
+  views: "বার পঠিত",
+  publishedAt: "প্রকাশিত",
+  viewsOverTime: "সময়ের সাথে পৃষ্ঠা দেখা",
+  thisWeek: "এই সপ্তাহে",
+  thisMonth: "এই মাসে",
+  allTime: "সর্বকালের",
 } as const;
 
 export function AnalyticsDashboard() {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale];
+  const t = COPY;
   const [timeRange, setTimeRange] = useState<"week" | "month" | "all">("week");
 
   const published = mockContents.filter((c) => c.status === "published");
@@ -75,7 +54,7 @@ export function AnalyticsDashboard() {
 
   // Simulated weekly view data for chart
   const weeklyData = Array.from({ length: 7 }, (_, i) => ({
-    day: locale === "bn" ? ["রবি", "সোম", "মঙ্গল", "বুধ", "বৃহ", "শুক্র", "শনি"][i] : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][i],
+    day: ["রবি", "সোম", "মঙ্গল", "বুধ", "বৃহ", "শুক্র", "শনি"][i],
     views: Math.floor(Math.random() * 500 + 200),
   }));
   const maxViews = Math.max(...weeklyData.map((d) => d.views));
@@ -137,7 +116,7 @@ export function AnalyticsDashboard() {
           <h3 className="mb-4 text-sm font-bold">🔥 {t.trending}</h3>
           <div className="space-y-3">
             {trending.map((item, i) => {
-              const title = (locale === "bn" ? item.title_bn : null) ?? item.title_en ?? item.title_bn;
+              const title = item.title_bn;
               return (
                 <div key={item.id} className="flex items-center gap-3">
                   <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ background: "var(--md-sys-color-primary)" }}>
@@ -164,7 +143,7 @@ export function AnalyticsDashboard() {
               return (
                 <div key={cat.id}>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs">{(locale === "bn" ? cat.name_bn : null) ?? cat.name_en ?? cat.name_bn}</span>
+                    <span className="text-xs">{cat.name_bn}</span>
                     <span className="text-[10px] opacity-50">{cat.views.toLocaleString()} {t.views}</span>
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--md-sys-color-surface-variant)" }}>
@@ -187,16 +166,14 @@ export function AnalyticsDashboard() {
       <div className="rounded-xl p-5" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
         <h3 className="mb-4 text-sm font-bold">📋 {t.recentContent}</h3>
         <div className="space-y-2">
-          {published.slice(0, 8).map((item) => {
-            const title = (locale === "bn" ? item.title_bn : null) ?? item.title_en ?? item.title_bn;
+          {published.slice(0, 8).map((item) => {              const title = item.title_bn;
             return (
               <div key={item.id} className="flex items-center justify-between border-b py-2" style={{ borderColor: "var(--glass-border)" }}>
                 <div className="min-w-0 flex-1">
                   <Link href={`/news/${item.slug}`} className="text-xs font-medium line-clamp-1 hover:underline">
                     {title}
-                  </Link>
-                  <span className="text-[10px] opacity-40">
-                    {item.published_at ? new Date(item.published_at).toLocaleDateString(locale === "bn" ? "bn-BD" : "en-US") : "—"}
+                  </Link>                    <span className="text-[10px] opacity-40">
+                    {item.published_at ? new Date(item.published_at).toLocaleDateString("bn-BD") : "—"}
                   </span>
                 </div>
                 <span className="ml-4 shrink-0 text-[10px] opacity-50">

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
-import { useLocaleStore } from "@/stores/locale";
 import { useThemeStore, type ThemeMode } from "@/stores/theme";
 import { RoleBadge } from "@/components/auth/RoleBadge";
 
@@ -14,22 +13,12 @@ export interface SessionUser {
 }
 
 const COPY = {
-  bn: {
-    profile: "প্রোফাইল",
-    signout: "লগআউট",
-    openMenu: "ইউজার মেনু",
-    reporterDesk: "প্রতিবেদক ডেস্ক",
-    moderatorDesk: "পর্যালোচনা কিউ",
-    darkMode: "ডার্ক মোড",
-  },
-  en: {
-    profile: "Profile",
-    signout: "Sign out",
-    openMenu: "User menu",
-    reporterDesk: "Reporter desk",
-    moderatorDesk: "Review queue",
-    darkMode: "Dark mode",
-  },
+  profile: "প্রোফাইল",
+  signout: "লগআউট",
+  openMenu: "ইউজার মেনু",
+  reporterDesk: "প্রতিবেদক ডেস্ক",
+  moderatorDesk: "পর্যালোচনা কিউ",
+  darkMode: "ডার্ক মোড",
 } as const;
 
 const EDITOR_ROLES = ["reporter", "moderator", "admin"];
@@ -45,8 +34,8 @@ function applyTheme(mode: ThemeMode) {
 
 /** Avatar + Untitled-UI-style dropdown for signed-in users (desktop). */
 export function UserMenu({ user }: { user: SessionUser }) {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const locale = "bn";
+  const t = COPY;
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 

@@ -5,7 +5,6 @@ import Link from "next/link";
 import type { Category, Content } from "@/types";
 import type { WorkflowAction } from "@/lib/content/workflow";
 import { StatusBadge, WorkflowActions } from "@/components/reporter/StatusBadge";
-import { useLocaleStore } from "@/stores/locale";
 import { formatCount } from "@/lib/utils/format";
 
 /**
@@ -19,37 +18,23 @@ interface Props {
 }
 
 const COPY = {
-  bn: {
-    all: "সব",
-    drafts: "খসড়া",
-    pending: "পর্যালোচনাধীন",
-    published: "প্রকাশিত",
-    rejected: "প্রত্যাখ্যাত",
-    views: "বার পঠিত",
-    empty: "এখনো কোনো লেখা নেই। নতুন লেখা দিয়ে শুরু করুন।",
-    error: "লেখা লোড করা যায়নি।",
-    updated: "সর্বশেষ পরিবর্তন",
-    edit: "সম্পাদনা",
-  },
-  en: {
-    all: "All",
-    drafts: "Drafts",
-    pending: "Pending review",
-    published: "Published",
-    rejected: "Rejected",
-    views: "views",
-    empty: "No stories yet. Start with a new draft.",
-    error: "Could not load stories.",
-    updated: "Updated",
-    edit: "Edit",
-  },
+  all: "সব",
+  drafts: "খসড়া",
+  pending: "পর্যালোচনাধীন",
+  published: "প্রকাশিত",
+  rejected: "প্রত্যাখ্যাত",
+  views: "বার পঠিত",
+  empty: "এখনো কোনো লেখা নেই। নতুন লেখা দিয়ে শুরু করুন।",
+  error: "লেখা লোড করা যায়নি।",
+  updated: "সর্বশেষ পরিবর্তন",
+  edit: "সম্পাদনা",
 } as const;
 
 type Filter = "all" | "draft" | "pending_review" | "published" | "rejected";
 
 export function ReporterQueue({ role, categories }: Props) {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const locale = "bn";
+  const t = COPY;
   const [contents, setContents] = useState<Content[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -181,7 +166,7 @@ export function ReporterQueue({ role, categories }: Props) {
                     <div className="flex flex-wrap items-center gap-2">
                       <StatusBadge status={content.status} locale={locale} />
                       <span className="text-xs opacity-50">v{formatCount(content.version, locale)}</span>
-                      {category && <span className="text-xs opacity-50">· {(locale === "bn" ? category.name_bn : null) ?? category.name_en ?? category.name_bn}</span>}
+                      {category && <span className="text-xs opacity-50">· {category.name_bn}</span>}
                     </div>
                     <h2 className="mt-1.5 truncate text-lg font-bold">
                       <Link href={`/reporter/contents/${content.id}`} className="hover:underline">
@@ -191,7 +176,7 @@ export function ReporterQueue({ role, categories }: Props) {
                     <p className="mt-0.5 text-xs opacity-60">
                       {t.updated}:{" "}
                       {new Date(content.updated_at).toLocaleString(
-                        locale === "bn" ? "bn-BD" : "en-GB",
+                        "bn-BD",
                         { dateStyle: "medium", timeStyle: "short" },
                       )}
                       {content.view_count > 0 && (
@@ -217,7 +202,7 @@ export function ReporterQueue({ role, categories }: Props) {
                           className="underline opacity-70 hover:opacity-100"
                           style={{ color: "var(--color-error, #ea4335)" }}
                         >
-                          {locale === "bn" ? "মুছুন" : "Delete"}
+                          {"মুছুন"}
                         </button>
                       )}
                     </div>

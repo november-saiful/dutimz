@@ -7,25 +7,15 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useLocaleStore } from "@/stores/locale";
+
 
 const COPY = {
-  bn: {
-    listen: "শুনুন",
-    pause: "থামুন",
-    stop: "বন্ধ করুন",
-    speed: "গতি",
-    loading: "লোড হচ্ছে…",
-    notSupported: "আপনার ব্রাউজার TTS সমর্থন করে না।",
-  },
-  en: {
-    listen: "Listen",
-    pause: "Pause",
-    stop: "Stop",
-    speed: "Speed",
-    loading: "Loading…",
-    notSupported: "Your browser does not support TTS.",
-  },
+  listen: "শুনুন",
+  pause: "থামুন",
+  stop: "বন্ধ করুন",
+  speed: "গতি",
+  loading: "লোড হচ্ছে…",
+  notSupported: "আপনার ব্রাউজার TTS সমর্থন করে না।",
 } as const;
 
 const SPEEDS = [0.75, 1, 1.25, 1.5, 2] as const;
@@ -53,8 +43,7 @@ export function TextToSpeech({
   title: string;
   language?: "bn" | "en";
 }) {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale];
+  const t = COPY;
   const [supported, setSupported] = useState(true);
   const [speaking, setSpeaking] = useState(false);
   const [paused, setPaused] = useState(false);

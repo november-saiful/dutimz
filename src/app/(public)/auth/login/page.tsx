@@ -5,25 +5,15 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { AUTH } from "@/lib/auth/config";
-import type { Locale } from "@/lib/constants/app";
+
 
 const COPY = {
-  bn: {
-    title: "লগইন",
-    subtitle: "শুধুমাত্র Google অ্যাকাউন্ট দিয়ে লগইন করুন।",
-    button: "Google দিয়ে লগইন করুন",
-    redirecting: "Google-এ পাঠানো হচ্ছে…",
-    error: "লগইন শুরু করা যায়নি। আবার চেষ্টা করুন।",
-    legal: "লগইন করলে আপনি আমাদের শর্তাবলী ও গোপনীয়তা নীতিতে সম্মত হচ্ছেন।",
-  },
-  en: {
-    title: "Log in",
-    subtitle: "Sign in with your Google account only.",
-    button: "Sign in with Google",
-    redirecting: "Redirecting to Google…",
-    error: "Could not start sign-in. Please try again.",
-    legal: "By continuing you agree to our Terms and Privacy Policy.",
-  },
+  title: "লগইন",
+  subtitle: "শুধুমাত্র Google অ্যাকাউন্ট দিয়ে লগইন করুন।",
+  button: "Google দিয়ে লগইন করুন",
+  redirecting: "Google-এ পাঠানো হচ্ছে…",
+  error: "লগইন শুরু করা যায়নি। আবার চেষ্টা করুন।",
+  legal: "লগইন করলে আপনি আমাদের শর্তাবলী ও গোপনীয়তা নীতিতে সম্মত হচ্ছেন।",
 } as const;
 
 function GoogleIcon() {
@@ -52,15 +42,8 @@ function GoogleIcon() {
 function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [locale, setLocale] = useState<Locale>("bn");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Read locale from the cookie on mount to avoid hydration mismatch.
-  useEffect(() => {
-    const match = document.cookie.match(/(?:^|;\s*)dutimz-locale=(bn|en)/);
-    if (match?.[1]) setLocale(match[1] as Locale);
-  }, []);
 
   async function handleGoogleSignIn() {
     setLoading(true);
@@ -75,17 +58,17 @@ function LoginPageInner() {
         },
       });
       if (error) {
-        setError(COPY[locale].error);
+        setError(COPY.error);
         setLoading(false);
       }
       // On success the browser is redirected to Google; nothing else to do.
     } catch {
-      setError(COPY[locale].error);
+      setError(COPY.error);
       setLoading(false);
     }
   }
 
-  const c = COPY[locale];
+  const c = COPY;
 
   return (
     <div className="container mt-16 max-w-md">

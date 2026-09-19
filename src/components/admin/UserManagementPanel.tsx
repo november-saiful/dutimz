@@ -1,59 +1,32 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useLocaleStore } from "@/stores/locale";
 import type { Profile } from "@/types";
 import { TableSkeleton } from "@/components/admin/AdminSkeleton";
 
 const COPY = {
-  bn: {
-    title: "ব্যবহারকারী পরিচালনা",
-    searchPlaceholder: "ইউজারনেম, ইমেইল বা নাম খুঁজুন…",
-    filterAll: "সব",
-    visitor: "ভিজিটর",
-    reporter: "প্রতিবেদক",
-    moderator: "সম্পাদক",
-    admin: "অ্যাডমিন",
-    verified: "যাচাইকৃত",
-    unverified: "অনির্ধারিত",
-    joined: "যোগদান",
-    role: "ভূমিকা",
-    actions: "কার্যক্রম",
-    changeRole: "ভূমিকা পরিবর্তন",
-    toggleVerified: "যাচাইকরণ টগল",
-    confirmRole: "ভূমিকা পরিবর্তন করবেন?",
-    users: "ব্যবহারকারী",
-    total: "মোট",
-    page: "পৃষ্ঠা",
-    prev: "আগের",
-    next: "পরের",
-    success: "আপডেট হয়েছে!",
-    error: "আপডেট করা যায়নি।",
-  },
-  en: {
-    title: "User Management",
-    searchPlaceholder: "Search username, email, or name…",
-    filterAll: "All",
-    visitor: "Visitor",
-    reporter: "Reporter",
-    moderator: "Moderator",
-    admin: "Admin",
-    verified: "Verified",
-    unverified: "Unverified",
-    joined: "Joined",
-    role: "Role",
-    actions: "Actions",
-    changeRole: "Change role",
-    toggleVerified: "Toggle verified",
-    confirmRole: "Change role?",
-    users: "Users",
-    total: "Total",
-    page: "Page",
-    prev: "Previous",
-    next: "Next",
-    success: "Updated!",
-    error: "Update failed.",
-  },
+  title: "ব্যবহারকারী পরিচালনা",
+  searchPlaceholder: "ইউজারনেম, ইমেইল বা নাম খুঁজুন…",
+  filterAll: "সব",
+  visitor: "ভিজিটর",
+  reporter: "প্রতিবেদক",
+  moderator: "সম্পাদক",
+  admin: "অ্যাডমিন",
+  verified: "যাচাইকৃত",
+  unverified: "অনির্ধারিত",
+  joined: "যোগদান",
+  role: "ভূমিকা",
+  actions: "কার্যক্রম",
+  changeRole: "ভূমিকা পরিবর্তন",
+  toggleVerified: "যাচাইকরণ টগল",
+  confirmRole: "ভূমিকা পরিবর্তন করবেন?",
+  users: "ব্যবহারকারী",
+  total: "মোট",
+  page: "পৃষ্ঠা",
+  prev: "আগের",
+  next: "পরের",
+  success: "আপডেট হয়েছে!",
+  error: "আপডেট করা যায়নি।",
 } as const;
 
 const ROLES = ["visitor", "reporter", "moderator", "admin"] as const;
@@ -61,8 +34,7 @@ const inputClass =
   "w-full rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm outline-none placeholder:text-neutral-400 focus:border-[var(--md-sys-color-primary)] dark:border-neutral-700 dark:bg-neutral-900";
 
 export function UserManagementPanel() {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const t = COPY;
   const [users, setUsers] = useState<Profile[]>([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
@@ -245,7 +217,7 @@ export function UserManagementPanel() {
                   <td className="py-3 text-xs opacity-60 hidden sm:table-cell truncate max-w-[200px]" dir="ltr">{user.email}</td>
                   <td className="py-3">{roleBadge(user.role)}</td>
                   <td className="py-3 text-xs opacity-50 hidden md:table-cell">
-                    {new Date(user.created_at).toLocaleDateString(locale === "bn" ? "bn-BD" : "en-US")}
+                    {new Date(user.created_at).toLocaleDateString("bn-BD")}
                   </td>
                   <td className="py-3">
                     <div className="flex items-center justify-end gap-2">

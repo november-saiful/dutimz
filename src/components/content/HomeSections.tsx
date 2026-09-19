@@ -14,6 +14,7 @@ import {
   getContentsByCategory,
 } from "@/lib/data/queries";
 import { HOME_SECTIONS } from "@/lib/constants/app";
+import { buildHeroItems } from "@/lib/content/hero";
 import type { ContentWithRelations } from "@/types";
 
 export async function HomeSections() {
@@ -25,13 +26,13 @@ export async function HomeSections() {
     getActiveCategories(),
   ]);
 
-  // Pick 1 latest article per category for the hero reel
-  const heroItems = categories
-    .map((cat) => {
-      const catLatest = latest.find((c) => c.category?.id === cat.id);
-      return catLatest ?? null;
-    })
-    .filter(Boolean) as ContentWithRelations[];
+  // One story per category for the hero reel, topped up to a ring's worth
+  // from the newest stories — otherwise a site whose published stories all sit
+  // in one category hands the reel a single card and it stops reeling.
+  const heroItems = buildHeroItems(
+    { categories, featured, latest },
+    HOME_SECTIONS.heroMinCount,
+  );
   const gridItems: ContentWithRelations[] = latest.filter(
     (c) => !heroItems.some((h) => h.id === c.id),
   );

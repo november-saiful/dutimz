@@ -1,60 +1,32 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useLocaleStore } from "@/stores/locale";
 import { TableSkeleton } from "@/components/admin/AdminSkeleton";
 
 const COPY = {
-  bn: {
-    title: "নিউজলেটার সাবস্ক্রাইবার",
-    totalSubscribers: "মোট সাবস্ক্রাইবার",
-    activeSubscribers: "সক্রিয় সাবস্ক্রাইবার",
-    email: "ইমেইল",
-    locale: "ভাষা",
-    status: "স্ট্যাটাস",
-    subscribed: "সাবস্ক্রাইব",
-    unsubscribed: "আনসাবস্ক্রাইব",
-    active: "সক্রিয়",
-    inactive: "নিষ্ক্রিয়",
-    actions: "কার্যক্রম",
-    unsubscribe: "আনসাবস্ক্রাইব",
-    confirmUnsub: "আনসাবস্ক্রাইব করবেন?",
-    exportCsv: "CSV এক্সপোর্ট",
-    search: "ইমেইল খুঁজুন…",
-    prev: "আগের",
-    next: "পরের",
-    page: "পৃষ্ঠা",
-    total: "মোট",
-    success: "সফল!",
-    error: "ত্রুটি।",
-    bangla: "বাংলা",
-    english: "English",
-  },
-  en: {
-    title: "Newsletter Subscribers",
-    totalSubscribers: "Total subscribers",
-    activeSubscribers: "Active subscribers",
-    email: "Email",
-    locale: "Locale",
-    status: "Status",
-    subscribed: "Subscribed",
-    unsubscribed: "Unsubscribed",
-    active: "Active",
-    inactive: "Inactive",
-    actions: "Actions",
-    unsubscribe: "Unsubscribe",
-    confirmUnsub: "Unsubscribe this user?",
-    exportCsv: "Export CSV",
-    search: "Search email…",
-    prev: "Previous",
-    next: "Next",
-    page: "Page",
-    total: "Total",
-    success: "Done!",
-    error: "Error.",
-    bangla: "Bangla",
-    english: "English",
-  },
+  title: "নিউজলেটার সাবস্ক্রাইবার",
+  totalSubscribers: "মোট সাবস্ক্রাইবার",
+  activeSubscribers: "সক্রিয় সাবস্ক্রাইবার",
+  email: "ইমেইল",
+  locale: "ভাষা",
+  status: "স্ট্যাটাস",
+  subscribed: "সাবস্ক্রাইব",
+  unsubscribed: "আনসাবস্ক্রাইব",
+  active: "সক্রিয়",
+  inactive: "নিষ্ক্রিয়",
+  actions: "কার্যক্রম",
+  unsubscribe: "আনসাবস্ক্রাইব",
+  confirmUnsub: "আনসাবস্ক্রাইব করবেন?",
+  exportCsv: "CSV এক্সপোর্ট",
+  search: "ইমেইল খুঁজুন…",
+  prev: "আগের",
+  next: "পরের",
+  page: "পৃষ্ঠা",
+  total: "মোট",
+  success: "সফল!",
+  error: "ত্রুটি।",
+  bangla: "বাংলা",
+  english: "English",
 } as const;
 
 interface Subscriber {
@@ -67,8 +39,7 @@ interface Subscriber {
 }
 
 export function NewsletterPanel() {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const t = COPY;
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [total, setTotal] = useState(0);
   const [activeCount, setActiveCount] = useState(0);
@@ -210,7 +181,7 @@ export function NewsletterPanel() {
                     </span>
                   </td>
                   <td className="py-3 text-xs opacity-50 hidden md:table-cell">
-                    {new Date(sub.created_at).toLocaleDateString(locale === "bn" ? "bn-BD" : "en-US")}
+                    {new Date(sub.created_at).toLocaleDateString("bn-BD")}
                   </td>
                   <td className="py-3 text-right">
                     {sub.is_active && (

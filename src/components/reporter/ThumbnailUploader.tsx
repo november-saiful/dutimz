@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type DragEvent } from "react";
-import { useLocaleStore } from "@/stores/locale";
+
 import {
   THUMBNAIL_RULES,
   ThumbnailUploadError,
@@ -25,28 +25,15 @@ interface Props {
 }
 
 const COPY = {
-  bn: {
-    label: "থাম্বনেইল ছবি",
-    drop: "ছবি টেনে আনুন বা ক্লিক করে বেছে নিন",
-    hint: "JPEG · PNG · WebP · সর্বোচ্চ ৮MB — স্বয়ংক্রিয়ভাবে WebP-তে কমপ্রেস হয়",
-    uploading: "প্রসেস হচ্ছে…",
-    replace: "বদলান",
-    remove: "সরান",
-    altLabel: "ছবির ক্যাপশন / alt",
-    compressed: "কমপ্রেসড",
-    required: "প্রকাশের আগে থাম্বনেইল আবশ্যক",
-  },
-  en: {
-    label: "Thumbnail image",
-    drop: "Drag an image here, or click to browse",
-    hint: "JPEG · PNG · WebP · up to 8MB — auto-compressed to WebP",
-    uploading: "Processing…",
-    replace: "Replace",
-    remove: "Remove",
-    altLabel: "Image caption / alt",
-    compressed: "compressed",
-    required: "Thumbnail required before publish",
-  },
+  label: "থাম্বনেইল ছবি",
+  drop: "ছবি টেনে আনুন বা ক্লিক করে বেছে নিন",
+  hint: "JPEG · PNG · WebP · সর্বোচ্চ ৮MB — স্বয়ংক্রিয়ভাবে WebP-তে কমপ্রেস হয়",
+  uploading: "প্রসেস হচ্ছে…",
+  replace: "বদলান",
+  remove: "সরান",
+  altLabel: "ছবির ক্যাপশন / alt",
+  compressed: "কমপ্রেসড",
+  required: "প্রকাশের আগে থাম্বনেইল আবশ্যক",
 } as const;
 
 function formatBytes(bytes: number): string {
@@ -64,8 +51,7 @@ export function ThumbnailUploader({
   onRemove,
   disabled = false,
 }: Props) {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const t = COPY;
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,17 +67,13 @@ export function ThumbnailUploader({
       const result = await uploadThumbnail(file, contentId);
       onUploaded(result.url);
       setInfo(
-        locale === "bn"
-          ? `${formatBytes(result.bytes)} · ${result.width}×${result.height}`
-          : `${formatBytes(result.bytes)} ${t.compressed} · ${result.width}×${result.height}`,
+        `${formatBytes(result.bytes)} · ${result.width}×${result.height}`,
       );
     } catch (err) {
       const message =
         err instanceof ThumbnailUploadError
           ? err.message
-          : locale === "bn"
-            ? "আপলোড ব্যর্থ হয়েছে।"
-            : "Upload failed.";
+          : "আপলোড ব্যর্থ হয়েছে।";
       setError(message);
     } finally {
       setBusy(false);

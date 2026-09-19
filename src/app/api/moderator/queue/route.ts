@@ -13,7 +13,7 @@ import {
   getMockContent,
   updateMockContent,
 } from "@/lib/data/reporterMock";
-import { buildSnapshot } from "@/lib/content/revisions";
+import { saveContent } from "@/lib/data/contentStore";
 import { validateForPublish, type ContentDraftInput } from "@/lib/content/validate";
 
 /**
@@ -108,36 +108,23 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      // `applyTransition` is the state/role guard; the store allocates the
+      // revision's version number, exactly as the reporter editor does, so a
+      // publish from this desk and one from the editor number identically.
       const result = applyTransition(current.status, body.action, actor, current.version);
-      const nextVersion = result.version;
-      const { data: updated, error } = await supabase
-        .from("contents")
-        .update({
+      const saved = await saveContent(supabase, {
+        contentId: body.id,
+        patch: {
           status: result.status,
           published_at: result.publishedAt ?? current.published_at,
-          version: nextVersion,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", body.id)
-        .select("*")
-        .single();
-      if (error) return jsonError(error.message, 500);
-      const updatedRow = updated as Content;
-      if (!updatedRow) return jsonError("Update failed", 500);
-
-      await supabase.from("content_revisions").insert({
-        content_id: body.id,
-        editor_id: actor.id,
-        version: nextVersion,
-        changes: {
-          diff: { status: { from: current.status, to: result.status } },
-          snapshot: buildSnapshot(current),
-          action: body.action,
-          note: body.note,
         },
+        editorId: actor.id,
+        action: body.action,
+        note: body.note,
       });
+      if (!saved.ok) return jsonError(saved.error, saved.status);
 
-      return json({ content: updatedRow });
+      return json({ content: saved.content });
     } catch (err) {
       if (err instanceof WorkflowTransitionError) {
         return jsonError(err.message, 409, { reason: err.reason });
@@ -177,10 +164,9 @@ export async function POST(request: NextRequest) {
         editorName: MOCK_MODERATOR.display_name,
         note: body.note,
         action: body.action,
-        bumpVersion: false,
       },
     );
-    if (saved) saved.version = result.version;
+    if (!saved) return jsonError("Not found", 404);
     return json({ content: saved });
   } catch (err) {
     if (err instanceof WorkflowTransitionError) {

@@ -1,33 +1,64 @@
 /**
  * Phase 4 Bookmark toggle — saves/removes articles from the user's bookmarks.
- * Shows filled icon when bookmarked, outline when not. Bilingual labels.
+ *
+ * Bookmarks live per account in Supabase, so the button resolves its own state:
+ * on mount it asks GET /api/bookmarks (which answers 401 when signed out) and
+ * renders a sign-in hint instead of a dead toggle. The `isLoggedIn` prop can
+ * still be passed by a parent that already knows the answer.
  */
 "use client";
 
-import { useState, useCallback } from "react";
-import { useLocaleStore } from "@/stores/locale";
+import { useState, useEffect, useCallback } from "react";
 
-const COPY = {
-  bn: { saved: "সংরক্ষিত", unsaved: "সংরক্ষণ করুন", loginRequired: "লগইন করুন" },
-  en: { saved: "Saved", unsaved: "Save", loginRequired: "Log in to save" },
-} as const;
+
+const COPY = { saved: "সংরক্ষিত", unsaved: "সংরক্ষণ করুন", loginRequired: "লগইন করুন" } as const;
 
 export function BookmarkButton({
   contentId,
   initialBookmarked = false,
-  isLoggedIn = false,
+  isLoggedIn,
 }: {
   contentId: string;
   initialBookmarked?: boolean;
+  /** `true`/`false` when the parent knows; omit to let the button ask the API. */
   isLoggedIn?: boolean;
 }) {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale];
+  const t = COPY;
   const [bookmarked, setBookmarked] = useState(initialBookmarked);
   const [loading, setLoading] = useState(false);
+  // null = still resolving whether there is a session.
+  const [authed, setAuthed] = useState<boolean | null>(isLoggedIn ?? null);
+
+  useEffect(() => {
+    if (isLoggedIn !== undefined || authed !== null) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/bookmarks");
+        if (cancelled) return;
+        if (res.status === 401) {
+          setAuthed(false);
+          return;
+        }
+        if (res.ok) {
+          const data = (await res.json()) as { contentIds?: string[] };
+          if (cancelled) return;
+          setBookmarked((data.contentIds ?? []).includes(contentId));
+          setAuthed(true);
+          return;
+        }
+        setAuthed(false);
+      } catch {
+        if (!cancelled) setAuthed(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [contentId, isLoggedIn, authed]);
 
   const handleToggle = useCallback(async () => {
-    if (!isLoggedIn) return;
+    if (!authed) return;
     setLoading(true);
     try {
       const res = await fetch("/api/bookmarks", {
@@ -35,21 +66,30 @@ export function BookmarkButton({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contentId }),
       });
+      if (res.status === 401) {
+        setAuthed(false);
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
-        setBookmarked(data.bookmarked);
+        setBookmarked(Boolean(data.bookmarked));
       }
     } finally {
       setLoading(false);
     }
-  }, [contentId, isLoggedIn]);
+  }, [contentId, authed]);
 
-  if (!isLoggedIn) {
+  if (authed === false) {
     return (
       <span className="text-xs opacity-40" title={t.loginRequired}>
         🔖 {t.loginRequired}
       </span>
     );
+  }
+
+  if (authed === null) {
+    // Session still being resolved — keep the layout stable, no misleading CTA.
+    return <span className="text-xs opacity-30" aria-hidden="true">🔖</span>;
   }
 
   return (

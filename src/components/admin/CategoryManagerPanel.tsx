@@ -1,59 +1,35 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useLocaleStore } from "@/stores/locale";
 import type { Category } from "@/types";
 import { TableSkeleton } from "@/components/admin/AdminSkeleton";
 
 const COPY = {
-  bn: {
-    title: "বিভাগ পরিচালনা",
-    addNew: "নতুন বিভাগ",
-    nameBn: "নাম (বাংলা)",
-    nameEn: "নাম (English)",
-    slug: "স্লাগ",
-    description: "বিবরণ",
-    active: "সক্রিয়",
-    inactive: "নিষ্ক্রিয়",
-    sortOrder: "ক্রম",
-    save: "সংরক্ষণ",
-    cancel: "বাতিল",
-    delete: "মুছুন",
-    confirmDelete: "মুছে ফেলবেন?",
-    up: "উপরে",
-    down: "নিচে",
-    success: "সংরক্ষিত!",
-    error: "ত্রুটি।",
-    noCategories: "কোনো বিভাগ নেই।",
-  },
-  en: {
-    title: "Category Management",
-    addNew: "New category",
-    nameBn: "Name (Bangla)",
-    nameEn: "Name (English)",
-    slug: "Slug",
-    description: "Description",
-    active: "Active",
-    inactive: "Inactive",
-    sortOrder: "Order",
-    save: "Save",
-    cancel: "Cancel",
-    delete: "Delete",
-    confirmDelete: "Delete this category?",
-    up: "Up",
-    down: "Down",
-    success: "Saved!",
-    error: "Error.",
-    noCategories: "No categories.",
-  },
+  title: "বিভাগ পরিচালনা",
+  addNew: "নতুন বিভাগ",
+  nameBn: "নাম (বাংলা)",
+  nameEn: "নাম (English)",
+  slug: "স্লাগ",
+  description: "বিবরণ",
+  active: "সক্রিয়",
+  inactive: "নিষ্ক্রিয়",
+  sortOrder: "ক্রম",
+  save: "সংরক্ষণ",
+  cancel: "বাতিল",
+  delete: "মুছুন",
+  confirmDelete: "মুছে ফেলবেন?",
+  up: "উপরে",
+  down: "নিচে",
+  success: "সংরক্ষিত!",
+  error: "ত্রুটি।",
+  noCategories: "কোনো বিভাগ নেই।",
 } as const;
 
 const inputClass =
   "w-full rounded-lg border border-neutral-200 bg-neutral-50 px-3 py-2 text-xs outline-none focus:border-[var(--md-sys-color-primary)] dark:border-neutral-700 dark:bg-neutral-900";
 
 export function CategoryManagerPanel() {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const t = COPY;
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);

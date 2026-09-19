@@ -8,7 +8,7 @@ import {
   tagSelectionLanguage,
   type EditorCommand,
 } from "@/lib/content/editor";
-import { useLocaleStore } from "@/stores/locale";
+
 
 /**
  * Phase 3 rich text editor with first-class Bangla support:
@@ -32,6 +32,11 @@ interface Props {
   placeholder?: string;
   minHeight?: number;
   disabled?: boolean;
+  /**
+   * Bump this from the parent to force the editable surface to re-read
+   * `value` (e.g. after restoring a revision into the form).
+   */
+  syncKey?: string | number;
 }
 
 const TOOLBAR_GROUPS: { command: EditorCommand; labelBn: string; labelEn: string }[] = [
@@ -61,8 +66,9 @@ export function RichTextEditor({
   placeholder,
   minHeight = 280,
   disabled = false,
+  syncKey,
 }: Props) {
-  const uiLocale = useLocaleStore((s) => s.locale);
+
   const editableRef = useRef<HTMLDivElement>(null);
   const [wordCount, setWordCount] = useState(0);
   const [charCount, setCharCount] = useState(0);
@@ -87,7 +93,7 @@ export function RichTextEditor({
       recount(el);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [historyVersion]);
+  }, [historyVersion, syncKey]);
 
   const recount = useCallback((el: HTMLElement) => {
     const text = (el.innerText ?? "").trim();
@@ -133,9 +139,7 @@ export function RichTextEditor({
       <div className="flex items-baseline justify-between">
         <label className="text-xs font-bold opacity-70">{label}</label>
         <span className="text-xs opacity-50">
-          {uiLocale === "bn"
-            ? `${bnCount(wordCount)} শব্দ · ${bnCount(charCount)} অক্ষর`
-            : `${wordCount} words · ${charCount} chars`}
+          {`${bnCount(wordCount)} শব্দ · ${bnCount(charCount)} অক্ষর`}
         </span>
       </div>
 
@@ -156,9 +160,9 @@ export function RichTextEditor({
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => run(command)}
                 className={toolbarBtn}
-                title={uiLocale === "bn" ? group.labelBn : group.labelEn}
+                title={group.labelBn}
               >
-                {uiLocale === "bn" ? group.labelBn : group.labelEn}
+                {group.labelBn}
               </button>
             );
           })}
@@ -283,7 +287,7 @@ export function RichTextEditor({
               className="rounded-full px-3 py-1 text-xs font-bold text-white"
               style={{ background: "var(--md-sys-color-primary)" }}
             >
-              {uiLocale === "bn" ? "প্রয়োগ" : "Apply"}
+              {"প্রয়োগ"}
             </button>
             <button
               type="button"
@@ -322,9 +326,7 @@ export function RichTextEditor({
       </div>
 
       <p className="text-xs opacity-40">
-        {uiLocale === "bn"
-          ? "টুলবার থেকে নির্বাচিত অংশে 'বাং' / 'EN' চেপে ভাষা ট্যাগ করুন; পেস্ট সবসময় প্লেইন টেক্সট হয়।"
-          : "Select text and use the বাং / EN buttons to tag script; paste is always plain text."}
+        {"টুলবার থেকে নির্বাচিত অংশে 'বাং' / 'EN' চেপে ভাষা ট্যাগ করুন; পেস্ট সবসময় প্লেইন টেক্সট হয়।"}
       </p>
     </div>
   );

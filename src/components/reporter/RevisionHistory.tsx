@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import type { ContentRevisionWithEditor } from "@/types";
 import { describeRevision, revisionPreview } from "@/lib/content/revisions";
-import { useLocaleStore } from "@/stores/locale";
 import { formatCount } from "@/lib/utils/format";
 
 /**
@@ -20,30 +19,16 @@ interface Props {
 }
 
 const COPY = {
-  bn: {
-    heading: "সংশোধন ইতিহাস",
-    empty: "কোনো সংশোধন নেই।",
-    restore: "এই সংস্করণে ফিরুন",
-    confirmRestore: "নিশ্চিত? আবার চাপ দিলে ফিরিয়ে আনা হবে।",
-    restoring: "ফিরিয়ে আনা হচ্ছে…",
-    current: "বর্তমান",
-    noteLabel: "নোট",
-    preview: "প্রিভিউ",
-    hidePreview: "প্রিভিউ বন্ধ",
-    previewUnavailable: "প্রিভিউ পাওয়া যায়নি।",
-  },
-  en: {
-    heading: "Revision history",
-    empty: "No revisions yet.",
-    restore: "Restore this version",
-    confirmRestore: "Sure? Click again to restore.",
-    restoring: "Restoring…",
-    current: "Current",
-    noteLabel: "Note",
-    preview: "Preview",
-    hidePreview: "Hide preview",
-    previewUnavailable: "Preview unavailable.",
-  },
+  heading: "সংশোধন ইতিহাস",
+  empty: "কোনো সংশোধন নেই।",
+  restore: "এই সংস্করণে ফিরুন",
+  confirmRestore: "নিশ্চিত? আবার চাপ দিলে ফিরিয়ে আনা হবে।",
+  restoring: "ফিরিয়ে আনা হচ্ছে…",
+  current: "বর্তমান",
+  noteLabel: "নোট",
+  preview: "প্রিভিউ",
+  hidePreview: "প্রিভিউ বন্ধ",
+  previewUnavailable: "প্রিভিউ পাওয়া যায়নি।",
 } as const;
 
 export function RevisionHistory({
@@ -53,8 +38,8 @@ export function RevisionHistory({
   onRestore,
   restoring = false,
 }: Props) {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const locale = "bn";
+  const t = COPY;
   const [confirming, setConfirming] = useState<number | null>(null);
   const [previewVersion, setPreviewVersion] = useState<number | null>(null);
   const [previewBody, setPreviewBody] = useState<string>("");
@@ -126,7 +111,7 @@ export function RevisionHistory({
                 </div>
                 <time className="text-xs opacity-60" dateTime={rev.created_at}>
                   {new Date(rev.created_at).toLocaleString(
-                    locale === "bn" ? "bn-BD" : "en-GB",
+                    "bn-BD",
                     { dateStyle: "medium", timeStyle: "short" },
                   )}
                 </time>

@@ -69,11 +69,6 @@ export interface HaloReelProps
   pauseOnHover?: boolean;
   /** Spin the ring by dragging it. @default true */
   draggable?: boolean;
-  /** Gap between neighbouring cards at the widest point of the ring, in card
-   *  widths. `1` is just touching, above that they sit slightly apart, below
-   *  that they overlap. The ring repeats `items` until it holds this spacing,
-   *  so a wider ring means more cards rather than bigger gaps. @default 1.2 */
-  spread?: number;
   /** Ceiling on the number of cards drawn around the ring. @default 64 */
   maxCards?: number;
   /** Multiplier on the drag rotation. @default 1 */
@@ -106,7 +101,6 @@ export function HaloReel({
   stepDuration = 700,
   pauseOnHover = true,
   draggable = true,
-  spread = 1.2,
   maxCards = 64,
   dragSensitivity = 1,
   centerLabel,
@@ -141,22 +135,21 @@ export function HaloReel({
   const radiusX = size.w * radiusXRatio;
   const radiusY = size.h * radiusYRatio;
 
-  // The ring is sized by the stage and *filled* by repeating the items — the
-  // one way a wide ring and close cards can both be true. Neighbours sit
-  // `radius × step` apart at the widest point of each axis, so the tighter
-  // axis decides how many slots the ring needs; below that number a wider ring
-  // just means bigger gaps.
-  // Only fill the ring with as many slots as there are real items.
-  // Don't repeat items to keep the ring dense — an honest sparse ring
-  // is better than duplicate cards.
-  const idealSlots = Math.ceil(
-    TAU *
-      Math.max(
-        radiusX / (cardWidth * spread),
-        radiusY / (cardHeight * spread),
-      ),
+  // Every item gets a slot, and the one exception is a hard cap: past
+  // `maxCards` the tail is dropped, deliberately and visibly.
+  //
+  // Sizing the ring from the stage instead (rendering only what the measured
+  // ellipse had room for) looked tidier but silently hid stories: a feed of
+  // seven cards on a ring that fitted six dropped the seventh *and* kept
+  // stepping by a sixth of a turn, so the headline — whose index wraps by the
+  // item count — could name a card that was not on the ring at all. Density
+  // is now a matter of the radii and the item count: raise `radiusXRatio` /
+  // `radiusYRatio` (and the stage height) to give the cards more room.
+  const cards = React.useMemo(
+    () => (count > maxCards ? items.slice(0, maxCards) : items),
+    [items, count, maxCards],
   );
-  const slots = clamp(idealSlots, 1, Math.min(count, maxCards));
+  const slots = cards.length;
   const step = slots ? TAU / slots : 0;
 
   // Cards shrink continuously to fit whatever box they are given, instead of
@@ -279,20 +272,22 @@ export function HaloReel({
   // Track which card is nearest the front and notify the parent.
   const lastActiveRef = React.useRef(-1);
   React.useEffect(() => {
-    if (!onActiveChange || !count || !step) return;
+    if (!onActiveChange || !slots || !step) return;
+    // Wraps by the number of cards actually on the ring, so the active index
+    // can never point past the last one.
     const unsub = rotation.on("change", (r) => {
-      const idx = ((Math.round(-r / step) % count) + count) % count;
+      const idx = ((Math.round(-r / step) % slots) + slots) % slots;
       if (idx !== lastActiveRef.current) {
         lastActiveRef.current = idx;
         onActiveChange(idx);
       }
     });
     // Fire once for the initial state.
-    const init = ((Math.round(-rotation.get() / step) % count) + count) % count;
+    const init = ((Math.round(-rotation.get() / step) % slots) + slots) % slots;
     lastActiveRef.current = init;
     onActiveChange(init);
     return unsub;
-  }, [count, onActiveChange, rotation, step]);
+  }, [slots, onActiveChange, rotation, step]);
 
   const spinBy = (direction: number) => {
     const target = Math.round(rotation.get() / step) * step - direction * step;
@@ -350,10 +345,10 @@ export function HaloReel({
         </div>
       ) : null}
 
-      {Array.from({ length: slots }, (_, i) => (
+      {cards.map((item, i) => (
         <WheelCard
-          key={i}
-          item={items[i]!}
+          key={item.href ?? item.title ?? i}
+          item={item}
           decorative={false}
           index={i}
           step={step}

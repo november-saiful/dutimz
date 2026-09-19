@@ -14,6 +14,11 @@ import { ROLE_HIERARCHY } from "@/lib/constants/app";
  *
  * `request_changes` is expressed as moving the story back to `draft` with a
  * revision note, matching the "editor sends back" loop used by newsrooms.
+ *
+ * Each accepted transition writes exactly one revision and advances the story's
+ * version by one — including approval, which publishes the story. That pairing
+ * (one revision ⇒ one version number) is what keeps the history unambiguous;
+ * see `nextRevisionVersion` in src/lib/content/revisions.ts.
  */
 
 /** Roles allowed to perform each workflow transition. */
@@ -109,11 +114,16 @@ export interface TransitionResult {
   status: ContentStatus;
   action: WorkflowAction;
   from: ContentStatus;
-  /** Monotonic revision counter for the story. */
+  /**
+   * The story's version after the transition — always one higher than before,
+   * and the number the revision it writes is filed under.
+   */
   version: number;
   /** Epoch ms when the story became live (approve/publish only). */
   publishedAt: string | null;
-}function roleLevel(role: UserRole): number {
+}
+
+function roleLevel(role: UserRole): number {
   return ROLE_HIERARCHY[role] ?? 0;
 }
 
@@ -121,6 +131,13 @@ export interface TransitionResult {
  * Pure transition check + application. Throws WorkflowTransitionError when the
  * action is illegal for the state or the actor's role is insufficient.
  * Immutable inputs; callers persist `status`, `version`, `published_at`.
+ *
+ * **Every** accepted transition advances the version, going live included.
+ * Approving used to keep the previous number, which made the publish revision
+ * collide with the edit it published — two rows claiming the same version, so
+ * `?version=N` was ambiguous and the history's "current" badge landed on the
+ * wrong entry. A transition always writes a revision, so it always needs a
+ * number of its own; callers use `nextRevisionVersion` for the same reason.
  */
 export function applyTransition(
   from: ContentStatus,
@@ -138,14 +155,14 @@ export function applyTransition(
 
   const to = TRANSITIONS[action];
   const goesLive = to === "published";
-  // Every accepted transition is a recorded edit; versions never go backwards.
-  const version = Math.max(currentVersion, 1) + (goesLive ? 0 : 1);
+  // Versions never go backwards and never repeat.
+  const version = Math.max(currentVersion, 0) + 1;
 
   return {
     status: to,
     action,
     from,
-    version: goesLive ? Math.max(currentVersion, 1) : version,
+    version,
     publishedAt: goesLive ? new Date().toISOString() : null,
   };
 }

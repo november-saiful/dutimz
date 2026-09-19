@@ -2,6 +2,7 @@ export const runtime = "edge";
 
 import { NextRequest } from "next/server";
 import { json, jsonError, hasSupabase } from "@/lib/data/deskApi";
+import { postgrestIlikePattern } from "@/lib/content/search";
 import { getSettings } from "@/lib/data/adminMock";
 import {
   listUsers,
@@ -36,12 +37,13 @@ export async function GET(request: NextRequest) {
     if (!ctx) return jsonError("Admin role required", 403);
 
     const results: SearchResult[] = [];
+    const pattern = postgrestIlikePattern(q);
 
     // Search users (username, display_name, email)
     const { data: users } = await ctx.supabase
       .from("profiles")
       .select("id, username, display_name, email, role")
-      .or(`username.ilike.%${q}%,display_name.ilike.%${q}%,email.ilike.%${q}%`)
+      .or(`username.ilike.${pattern},display_name.ilike.${pattern},email.ilike.${pattern}`)
       .limit(5);
 
     if (users) {
@@ -60,7 +62,7 @@ export async function GET(request: NextRequest) {
     const { data: categories } = await ctx.supabase
       .from("categories")
       .select("id, name_bn, name_en, slug")
-      .or(`name_bn.ilike.%${q}%,name_en.ilike.%${q}%,slug.ilike.%${q}%`)
+      .or(`name_bn.ilike.${pattern},name_en.ilike.${pattern},slug.ilike.${pattern}`)
       .limit(5);
 
     if (categories) {
@@ -79,7 +81,7 @@ export async function GET(request: NextRequest) {
     const { data: tags } = await ctx.supabase
       .from("tags")
       .select("id, name_bn, name_en, slug")
-      .or(`name_bn.ilike.%${q}%,name_en.ilike.%${q}%,slug.ilike.%${q}%`)
+      .or(`name_bn.ilike.${pattern},name_en.ilike.${pattern},slug.ilike.${pattern}`)
       .limit(5);
 
     if (tags) {
@@ -98,7 +100,7 @@ export async function GET(request: NextRequest) {
     const { data: contents } = await ctx.supabase
       .from("contents")
       .select("id, title_bn, title_en, slug, status, content_type")
-      .or(`title_bn.ilike.%${q}%,title_en.ilike.%${q}%,slug.ilike.%${q}%`)
+      .or(`title_bn.ilike.${pattern},title_en.ilike.${pattern},slug.ilike.${pattern}`)
       .limit(5);
 
     if (contents) {

@@ -1,6 +1,10 @@
 export const runtime = 'edge';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { amzDateString, sha256Hex, signRequestV4 } from '@/lib/upload/sigv4';
+import { enforceRateLimit, validationFailure } from '@/lib/api/http';
+import { imageUploadSchema } from '@/lib/api/schemas';
+import { validate } from '@/lib/api/validation';
 
 /**
  * POST /api/images/upload
@@ -9,42 +13,41 @@ import { NextRequest, NextResponse } from 'next/server';
  * Accepts multipart/form-data with a "file" field.
  *
  * Falls back to returning a mock URL in development (no worker configured).
+ *
+ * This is the most expensive unauthenticated endpoint (it can push 10 MB into
+ * object storage), so it carries the tightest budget after the newsletter:
+ * 5 uploads/min per IP (spec §9.4).
  */
 
 const WORKER_URL = process.env.CLOUDFLARE_WORKER_URL;
 
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif'];
-const MAX_SIZE = 10 * 1024 * 1024; // 10 MB
+/** Canonical extension per MIME type — never trust the uploaded filename. */
+const EXT_BY_TYPE: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/avif': 'avif',
+  'image/gif': 'gif',
+};
 
 export async function POST(request: NextRequest) {
+  // Budget before parsing the body so rejected uploads cost us nothing.
+  const denied = enforceRateLimit(request, 'upload');
+  if (denied) return denied;
+
   const contentType = request.headers.get('content-type') ?? '';
   if (!contentType.includes('multipart/form-data')) {
     return NextResponse.json({ error: 'Expected multipart/form-data' }, { status: 400 });
   }
 
+  // The schema owns the file type/size rules and the storage-key prefix.
   const formData = await request.formData();
-  const file = formData.get('file') as File | null;
-  const folder = (formData.get('folder') as string) || 'thumbnails';
-
-  if (!file) {
-    return NextResponse.json({ error: 'No file provided' }, { status: 400 });
-  }
-
-  // Validate file type
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    return NextResponse.json(
-      { error: 'Unsupported file type. Allowed: JPEG, PNG, WebP, AVIF, GIF' },
-      { status: 400 },
-    );
-  }
-
-  // Validate file size
-  if (file.size > MAX_SIZE) {
-    return NextResponse.json(
-      { error: 'File too large. Maximum size: 10MB' },
-      { status: 400 },
-    );
-  }
+  const parsed = validate(imageUploadSchema, {
+    file: formData.get('file'),
+    folder: formData.get('folder'),
+  });
+  if (!parsed.ok) return validationFailure(parsed);
+  const { file, folder } = parsed.data;
 
   // If worker URL is configured, proxy to the Cloudflare Worker
   if (WORKER_URL) {
@@ -75,7 +78,7 @@ export async function POST(request: NextRequest) {
 
   if (!R2_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
     // Development fallback: store locally and return a relative path
-    const ext = file.name.split('.').pop() ?? 'jpg';
+    const ext = EXT_BY_TYPE[file.type] ?? 'bin';
     const timestamp = Date.now().toString(36);
     const random = Math.random().toString(36).substring(2, 8);
     const key = `${folder}/${timestamp}-${random}.${ext}`;
@@ -87,43 +90,44 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Direct R2 upload via S3-compatible API
+  // Direct R2 upload via the S3-compatible API, signed with AWS SigV4.
   try {
-    const ext = file.name.split('.').pop() ?? 'jpg';
+    const ext = EXT_BY_TYPE[file.type] ?? 'bin';
     const timestamp = Date.now().toString(36);
     const random = Math.random().toString(36).substring(2, 8);
     const key = `${folder}/${timestamp}-${random}.${ext}`;
 
-    const arrayBuffer = await file.arrayBuffer();
-    const url = `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET}/${key}`;
+    const body = await file.arrayBuffer();
+    const host = `${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`;
+    const amzDate = amzDateString();
+    // R2 requires the payload hash as a signed header for PUT requests.
+    const payloadHash = await sha256Hex(body);
 
-    // Create HMAC signature for S3 auth
-    const date = new Date().toUTCString();
-    const stringToSign = `PUT\n\n${file.type}\n${date}\n/${R2_BUCKET}/${key}`;
-    const encoder = new TextEncoder();
+    const signed = await signRequestV4({
+      method: 'PUT',
+      host,
+      path: `/${R2_BUCKET}/${key}`,
+      headers: {
+        'content-type': file.type,
+        'x-amz-content-sha256': payloadHash,
+      },
+      payloadHash,
+      amzDate,
+      accessKeyId: R2_ACCESS_KEY_ID,
+      secretAccessKey: R2_SECRET_ACCESS_KEY,
+      region: 'auto',
+      service: 's3',
+    });
 
-    const keyData = await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(R2_SECRET_ACCESS_KEY),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['sign'],
-    );
-    const signatureBuffer = await crypto.subtle.sign('HMAC', keyData, encoder.encode(stringToSign));
-    const signature = Array.from(new Uint8Array(signatureBuffer))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-
-    const authHeader = `AWS4-HMAC-SHA256 Credential=${R2_ACCESS_KEY_ID}/${date.slice(0, 10).replace(/-/g, '')}/${R2_ACCOUNT_ID}/s3/aws4_request, SignedHeaders=content-type;date, Signature=${signature}`;
-
-    const res = await fetch(url, {
+    const res = await fetch(`https://${host}/${R2_BUCKET}/${key}`, {
       method: 'PUT',
       headers: {
         'Content-Type': file.type,
-        Date: date,
-        Authorization: authHeader,
+        'x-amz-content-sha256': payloadHash,
+        'x-amz-date': signed.headers['x-amz-date']!,
+        Authorization: signed.authorization,
       },
-      body: arrayBuffer,
+      body,
     });
 
     if (!res.ok) {

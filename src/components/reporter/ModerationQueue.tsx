@@ -5,7 +5,6 @@ import Link from "next/link";
 import type { Content } from "@/types";
 import type { WorkflowAction } from "@/lib/content/workflow";
 import { StatusBadge, WorkflowActions } from "@/components/reporter/StatusBadge";
-import { useLocaleStore } from "@/stores/locale";
 import { formatCount } from "@/lib/utils/format";
 
 /**
@@ -19,26 +18,14 @@ interface Props {
 }
 
 const COPY = {
-  bn: {
-    pending: "পর্যালোচনাধীন",
-    decided: "সাম্প্রতিক সিদ্ধান্ত",
-    empty: "কিউ খালি — কোনো লেখা অপেক্ষা করছে না।",
-    error: "কিউ লোড করা যায়নি।",
-    notePh: "প্রতিবেদকের জন্য নোট (প্রত্যাখ্যান/সংশোধনে প্রযোজ্য)…",
-    view: "দেখুন",
-    reviewer: "সম্পাদক",
-    bodyPreview: "সারপ্রেভিউ",
-  },
-  en: {
-    pending: "Pending review",
-    decided: "Recently decided",
-    empty: "Queue is clear — no stories waiting.",
-    error: "Could not load the queue.",
-    notePh: "Note for the reporter (used on reject / request changes)…",
-    view: "View",
-    reviewer: "Editor",
-    bodyPreview: "Preview",
-  },
+  pending: "পর্যালোচনাধীন",
+  decided: "সাম্প্রতিক সিদ্ধান্ত",
+  empty: "কিউ খালি — কোনো লেখা অপেক্ষা করছে না।",
+  error: "কিউ লোড করা যায়নি।",
+  notePh: "প্রতিবেদকের জন্য নোট (প্রত্যাখ্যান/সংশোধনে প্রযোজ্য)…",
+  view: "দেখুন",
+  reviewer: "সম্পাদক",
+  bodyPreview: "সারপ্রেভিউ",
 } as const;
 
 function bodyPreview(html: string | null): string {
@@ -51,8 +38,8 @@ function bodyPreview(html: string | null): string {
 }
 
 export function ModerationQueue({ role }: Props) {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const locale = "bn";
+  const t = COPY;
   const [contents, setContents] = useState<Content[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

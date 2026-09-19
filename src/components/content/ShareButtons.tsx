@@ -5,21 +5,13 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useLocaleStore } from "@/stores/locale";
+
 
 const COPY = {
-  bn: {
-    share: "শেয়ার করুন",
-    copied: "লিংক কপি হয়েছে!",
-    copyLink: "লিংক কপি করুন",
-    shareOn: "শেয়ার করুন",
-  },
-  en: {
-    share: "Share",
-    copied: "Link copied!",
-    copyLink: "Copy link",
-    shareOn: "Share on",
-  },
+  share: "শেয়ার করুন",
+  copied: "লিংক কপি হয়েছে!",
+  copyLink: "লিংক কপি করুন",
+  shareOn: "শেয়ার করুন",
 } as const;
 
 function getShareUrl(title: string, url: string) {
@@ -39,8 +31,7 @@ export function ShareButtons({
   title: string;
   url: string;
 }) {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale];
+  const t = COPY;
   const [copied, setCopied] = useState(false);
   const links = getShareUrl(title, url);
 

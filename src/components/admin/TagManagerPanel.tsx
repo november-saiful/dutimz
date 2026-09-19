@@ -1,42 +1,23 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useLocaleStore } from "@/stores/locale";
 import { TableSkeleton } from "@/components/admin/AdminSkeleton";
 
 const COPY = {
-  bn: {
-    title: "ট্যাগ পরিচালনা",
-    addNew: "নতুন ট্যাগ",
-    nameBn: "নাম (বাংলা)",
-    nameEn: "নাম (English)",
-    slug: "স্লাগ",
-    usage: "ব্যবহার",
-    search: "ট্যাগ খুঁজুন…",
-    save: "সংরক্ষণ",
-    cancel: "বাতিল",
-    delete: "মুছুন",
-    confirmDelete: "মুছে ফেলবেন?",
-    success: "সংরক্ষিত!",
-    error: "ত্রুটি।",
-    noTags: "কোনো ট্যাগ নেই।",
-  },
-  en: {
-    title: "Tag Management",
-    addNew: "New tag",
-    nameBn: "Name (Bangla)",
-    nameEn: "Name (English)",
-    slug: "Slug",
-    usage: "Usage",
-    search: "Search tags…",
-    save: "Save",
-    cancel: "Cancel",
-    delete: "Delete",
-    confirmDelete: "Delete this tag?",
-    success: "Saved!",
-    error: "Error.",
-    noTags: "No tags.",
-  },
+  title: "ট্যাগ পরিচালনা",
+  addNew: "নতুন ট্যাগ",
+  nameBn: "নাম (বাংলা)",
+  nameEn: "নাম (English)",
+  slug: "স্লাগ",
+  usage: "ব্যবহার",
+  search: "ট্যাগ খুঁজুন…",
+  save: "সংরক্ষণ",
+  cancel: "বাতিল",
+  delete: "মুছুন",
+  confirmDelete: "মুছে ফেলবেন?",
+  success: "সংরক্ষিত!",
+  error: "ত্রুটি।",
+  noTags: "কোনো ট্যাগ নেই।",
 } as const;
 
 const inputClass =
@@ -51,8 +32,7 @@ interface Tag {
 }
 
 export function TagManagerPanel() {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const t = COPY;
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);

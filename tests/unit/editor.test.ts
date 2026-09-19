@@ -94,4 +94,63 @@ describe("mock desk store", () => {
     const created = createMockContent({ title_bn: "খোঁজ" });
     expect(getMockContent(created.id)?.title_bn).toBe("খোঁজ");
   });
+
+  it("skips a save that changed nothing", () => {
+    const created = createMockContent({ title_bn: "অপরিবর্তিত" });
+    const again = updateMockContent(created.id, { title_bn: "অপরিবর্তিত" });
+
+    expect(again?.version).toBe(1);
+    expect(listMockRevisions(created.id)).toHaveLength(1);
+  });
+
+  it("bumps the version when the story goes live", () => {
+    const created = createMockContent({ title_bn: "প্রকাশ" });
+    updateMockContent(created.id, { status: "pending_review" }, { action: "submit" });
+    const beforePublish = getMockContent(created.id)?.version ?? 0;
+
+    const published = updateMockContent(
+      created.id,
+      { status: "published" },
+      { action: "approve" },
+    );
+
+    expect(published?.status).toBe("published");
+    expect(published?.version).toBe(beforePublish + 1);
+  });
+
+  it("records the status change and a full snapshot for a transition", () => {
+    const created = createMockContent({ title_bn: "সিদ্ধান্ত", body_bn: "<p>লেখা</p>" });
+    updateMockContent(created.id, { status: "published" }, { action: "approve" });
+
+    const [latest] = listMockRevisions(created.id);
+    const diff = latest?.changes.diff as Record<string, unknown> | undefined;
+    const snapshot = latest?.changes.snapshot as { fields: Record<string, unknown> } | undefined;
+
+    expect(diff?.status).toEqual({ from: "draft", to: "published" });
+    // Restoring a version has to bring the whole story back, not three fields.
+    expect(snapshot?.fields.body_bn).toBe("<p>লেখা</p>");
+    expect(snapshot?.fields.title_bn).toBe("সিদ্ধান্ত");
+  });
+
+  it("numbers every revision of a story uniquely across its whole career", () => {
+    const created = createMockContent({ title_bn: "ক্যারিয়ার", body_bn: "<p>০</p>" });
+    // Reporter edits, then the desks take it through review and out the far side.
+    updateMockContent(created.id, { body_bn: "<p>১</p>" }, { action: "edit" });
+    updateMockContent(created.id, { status: "pending_review" }, { action: "submit" });
+    updateMockContent(created.id, { status: "rejected" }, { action: "reject" });
+    updateMockContent(created.id, { status: "draft" }, { action: "reopen" });
+    updateMockContent(created.id, { status: "pending_review" }, { action: "submit" });
+    updateMockContent(created.id, { status: "published" }, { action: "approve" });
+    updateMockContent(created.id, { status: "archived" }, { action: "archive" });
+
+    const revisions = listMockRevisions(created.id);
+    const versions = revisions.map((r) => r.version);
+
+    // Newest first, strictly descending: one number per revision, no repeats.
+    expect(versions).toEqual([8, 7, 6, 5, 4, 3, 2, 1]);
+    expect(new Set(versions).size).toBe(versions.length);
+    // The story's counter is its newest revision, so the history's "current"
+    // badge lands on the last thing that actually happened.
+    expect(getMockContent(created.id)?.version).toBe(versions[0]);
+  });
 });

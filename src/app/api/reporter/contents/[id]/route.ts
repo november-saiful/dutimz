@@ -15,7 +15,12 @@ import {
   applyTransition,
   type WorkflowAction,
 } from "@/lib/content/workflow";
-import { diffContents, buildSnapshot } from "@/lib/content/revisions";
+import {
+  checkSlugUnique,
+  saveContent,
+  type SaveContentResult,
+} from "@/lib/data/contentStore";
+import type { RevisionAction } from "@/lib/content/revisions";
 import {
   validateDraft,
   validateForPublish,
@@ -154,6 +159,9 @@ export async function PATCH(
         return jsonError(issues[0]?.message_en ?? "Validation failed", 422, { issues });
       }
 
+      // Guards the transition (state + role) and tells us where it lands. The
+      // revision's version number is allocated by the store, which is also the
+      // authority when a save races this one.
       const result = applyTransition(
         current.status as ContentStatus,
         body.action,
@@ -165,14 +173,12 @@ export async function PATCH(
         status: result.status,
         published_at: result.publishedAt ?? current.published_at,
       };
-      const saved = await persist(params.id, patch, actor, {
+      const saved = await save(params.id, patch, actor, {
         note: body.note,
         action: body.action,
-        bumpVersion: false,
-        forceVersion: result.version,
       });
-      if (!saved) return jsonError("Not found", 404);
-      return json({ content: saved });
+      if (!saved.ok) return jsonError(saved.error, saved.status);
+      return json({ content: saved.content });
     } catch (err) {
       if (err instanceof WorkflowTransitionError) {
         return jsonError(err.message, 409, {
@@ -222,6 +228,18 @@ export async function PATCH(
     return jsonError("No editable fields provided");
   }
 
+  // Slug uniqueness: reject when another story already uses this slug.
+  if (typeof patch.slug === "string" && patch.slug !== current.slug) {
+    if (hasSupabase()) {
+      const { createSupabaseServerClient } = await import("@/lib/supabase/server");
+      const supabase = createSupabaseServerClient();
+      const unique = await checkSlugUnique(supabase, patch.slug as string, params.id);
+      if (!unique) {
+        return jsonError("This slug is already in use by another story.", 409);
+      }
+    }
+  }
+
   // Guards: editing a published story without moderator rights → back to review.
   let statusPatch: Partial<Content> = {};
   if (current.status === "published" && !isModerator) {
@@ -241,14 +259,14 @@ export async function PATCH(
     return jsonError(issues[0]?.message_en ?? "Validation failed", 422, { issues });
   }
 
-  const saved = await persist(
+  const saved = await save(
     params.id,
     { ...patch, ...statusPatch } as Partial<Content>,
     actor,
-    { note: body.note, action: "edit", bumpVersion: true },
+    { note: body.note, action: "edit" },
   );
-  if (!saved) return jsonError("Not found", 404);
-  return json({ content: saved });
+  if (!saved.ok) return jsonError(saved.error, saved.status);
+  return json({ content: saved.content });
 }
 
 export async function DELETE(
@@ -300,58 +318,37 @@ export async function DELETE(
 }
 
 // ---------------------------------------------------------------------------
-// Persistence helpers — one place that knows about Supabase vs mock store.
+// Persistence helper — Supabase store vs mock store behind one call.
 // ---------------------------------------------------------------------------
 
-async function persist(
+/**
+ * Save a story + its revision. Both stores apply the same rules (one revision
+ * per change, one version number per revision — see `saveContent`).
+ */
+async function save(
   id: string,
   patch: Partial<Content>,
   actor: { id: string; name: string; role: "reporter" | "moderator" | "admin" },
-  meta: { note?: string; action: string; bumpVersion: boolean; forceVersion?: number },
-): Promise<Content | null> {
+  meta: { note?: string; action: RevisionAction },
+): Promise<SaveContentResult> {
   if (hasSupabase()) {
     const { createSupabaseServerClient } = await import("@/lib/supabase/server");
-    const supabase = createSupabaseServerClient();
-
-    const { data: beforeRows } = await supabase
-      .from("contents")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
-    const before = (beforeRows as Content | null) ?? null;
-
-    const nextVersion = meta.forceVersion ?? ((before?.version ?? 1) + 1);
-    const { data, error } = await supabase
-      .from("contents")
-      .update({ ...patch, version: nextVersion, updated_at: new Date().toISOString() })
-      .eq("id", id)
-      .select("*")
-      .single();
-    if (error) throw new Error(error.message);
-
-    await supabase.from("content_revisions").insert({
-      content_id: id,
-      editor_id: actor.id,
-      version: nextVersion,
-      changes: {
-        diff: before ? diffContents(before, { ...before, ...patch }) : {},
-        snapshot: buildSnapshot({ ...(before ?? {}), ...patch }),
-        action: meta.action,
-        note: meta.note,
-      },
+    return saveContent(createSupabaseServerClient(), {
+      contentId: id,
+      patch,
+      editorId: actor.id,
+      action: meta.action,
+      note: meta.note,
     });
-
-    return data as Content;
   }
 
   const saved = updateMockContent(id, patch, {
     editorName: actor.name,
     note: meta.note,
     action: meta.action,
-    bumpVersion: meta.bumpVersion,
   });
-  if (meta.forceVersion && saved) saved.version = meta.forceVersion;
-  return saved ?? null;
+  if (!saved) return { ok: false, status: 404, error: "Not found" };
+  return { ok: true, content: saved, version: saved.version, recorded: true };
 }
 
 function mockDelete(id: string): void {

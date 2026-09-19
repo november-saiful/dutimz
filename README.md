@@ -41,8 +41,11 @@ supabase db reset       # recreate + seed
 Migrations: `0001_init.sql` (schema) → `0002_rls.sql` (row level security) →
 `0003_indexes.sql` (performance) → `0004_auth.sql` (profile trigger, role sync,
 hardened profile RLS) → `0005_content_workflow.sql` (thumbnails storage bucket,
-workflow transition guard, version bump trigger). Seed data in
-`supabase/seed.sql`.
+workflow transition guard, version bump trigger) → `0006_public_features.sql`
+(search vector + trigram indexes) → `0007_fix_new_user_role_sync.sql` →
+`0008_public_api_backend.sql` (bilingual poll questions, and the
+`cast_poll_vote` / `cast_comment_reaction` / `subscribe_newsletter` functions
+that the public APIs call). Seed data in `supabase/seed.sql`.
 
 ## Content workflow (Phase 3)
 
@@ -64,6 +67,15 @@ moderators review and publish them. Highlights:
   a field diff, a snapshot, the acting editor and an optional note. The
   editor page can preview and restore any prior version (restore itself
   writes a new revision — nothing is destructive).
+- **Version numbers** — one revision, one number, per story: every recorded
+  change (publishing included) takes the next version, allocated by
+  `nextRevisionVersion` in `src/lib/content/revisions.ts` above both the
+  story's counter and its newest revision. `UNIQUE (content_id, version)`
+  (migration 0009) is what enforces it, so a save that races another is
+  retried with a fresh number instead of quietly sharing one. A field save
+  that changed nothing writes no revision and does not bump — the history
+  only ever lists real changes, and `contents.version` always equals the
+  newest revision (which is what the history panel's "current" badge keys on).
 - **Sanitization** — editor HTML is sanitized server-side with
   DOMPurify (`src/lib/content/sanitize.ts`) before public rendering.
 
@@ -113,8 +125,20 @@ tests/unit/             vitest specs
 - **Social sharing** — Facebook, X, WhatsApp, copy-to-clipboard. Integrated into article pages.
 - **Newsletter** — subscription form wired to `/api/newsletter/subscribe`.
 
-Migration: `0006_public_features.sql` (comments, comment_reactions, bookmarks,
-newsletter_subscribers, trigram + GIN indexes, RLS policies).
+Persistence: these features are backed by the real tables (`comments`,
+`comment_reactions`, `bookmarks`, `newsletter_subscribers`, `polls`,
+`poll_votes`) as soon as Supabase env vars are present. The in-memory stores in
+`src/lib/data/publicMock.ts` and `pollMock.ts` are only a local-dev fallback.
+
+- Comments, reactions, bookmarks and poll votes are **per account** — the schema
+  and RLS require a signed-in user, so those endpoints answer `401` when the
+  visitor is signed out and the UI shows a sign-in hint.
+- Vote tallies live in `polls.options` and comment counters in
+  `comments.likes` / `dislikes`; both are maintained by SECURITY DEFINER
+  functions (migration 0008) so results stay public without exposing individual
+  `poll_votes` rows.
+- Public reads (approved comments, active polls) use a cookie-less anon client so
+  article pages keep their `revalidate = 60` caching.
 
 ## Phase 5 — Advanced features
 
@@ -165,7 +189,42 @@ newsletter_subscribers, trigram + GIN indexes, RLS policies).
 - `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`.
 - `X-XSS-Protection: 1; mode=block`.
 - `Permissions-Policy`: camera/microphone denied by default, interest-cohort opted out.
+- Request payloads are Zod-validated and every unauthenticated write is rate
+  limited — see _Rate limiting_ and _Request validation_ below.
 - `Referrer-Policy: strict-origin-when-cross-origin`.
+
+#### Rate limiting
+
+Every unauthenticated write — and the two expensive reads — is budgeted per IP
+by `src/lib/api/rateLimit.ts`, keyed off `cf-connecting-ip` → `x-forwarded-for`
+→ `x-real-ip`. An over-budget caller gets `429` with `retry-after` and
+`x-ratelimit-*` headers.
+
+| Bucket | Budget | Applies to |
+| --- | --- | --- |
+| `comment` | 30/min | `POST /api/comments` |
+| `reaction` | 30/min | `POST /api/comments/react` |
+| `bookmark` | 30/min | `POST /api/bookmarks` |
+| `poll` | 10/min | `POST /api/polls/vote` |
+| `newsletter` | 5/min | `POST /api/newsletter/subscribe` |
+| `upload` | 5/min | `POST /api/images/upload` |
+| `search` | 60/min | `GET /api/search` |
+
+The counters are in-memory and per instance, so the limits are approximate in a
+multi-isolate deployment: the goal is to make scripted abuse expensive, not to
+be a hard quota. Move them to a shared store (Upstash Redis / Durable Objects)
+if you need exactness. The Cloudflare Worker keeps its own limiter for the R2
+upload path.
+
+#### Request validation
+
+The payload of every public write is parsed with Zod before it reaches a table
+or an RPC — schemas live in `src/lib/api/schemas.ts` (ids trimmed and bounded,
+comment bodies capped at 4000 characters, uploads restricted to the allowed
+image MIME types and 10 MB, newsletter addresses normalised to lower case).
+Failures return `400` with `{ error, issues }`, or `413` when size is the only
+problem. The helpers in `src/lib/api/validation.ts` avoid `next/*` imports so the
+contracts stay unit-tested (`tests/unit/requestValidation.test.ts`).
 
 ### Content seeding
 
@@ -189,7 +248,7 @@ npm i -g supabase
 # Link to your project
 supabase link --project-ref <your-project-ref>
 
-# Push all migrations (0001–0006)
+# Push all migrations (0001–0009)
 supabase db push
 
 # Seed content

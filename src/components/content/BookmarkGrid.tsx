@@ -1,15 +1,17 @@
 /**
- * Phase 4 Bookmark Grid — client component that fetches the user's
- * bookmarked content IDs and displays them as glass cards.
+ * Phase 4 Bookmark Grid — renders the signed-in user's saved stories.
+ *
+ * The API returns the bookmarked content rows themselves (with category and
+ * author), so this no longer has to guess by looking ids up in bundled mock
+ * data — that only ever matched a single demo article.
  */
 "use client";
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useLocaleStore } from "@/stores/locale";
+
 import type { ContentWithRelations } from "@/types";
-import { mockContents } from "@/lib/data/mock";
 
 const TYPE_ROUTES: Record<string, string> = {
   news: "/news",
@@ -18,36 +20,47 @@ const TYPE_ROUTES: Record<string, string> = {
 };
 
 const COPY = {
-  bn: {
-    title: "সংরক্ষিত নিবন্ধ",
-    empty: "আপনি এখনো কোনো নিবন্ধ সংরক্ষণ করেননি।",
-    browse: "ব্রাউজ করুন",
-  },
-  en: {
-    title: "Saved Articles",
-    empty: "You haven't saved any articles yet.",
-    browse: "Browse",
-  },
+  title: "সংরক্ষিত নিবন্ধ",
+  empty: "আপনি এখনো কোনো নিবন্ধ সংরক্ষণ করেননি।",
+  browse: "ব্রাউজ করুন",
+  signIn: "সংরক্ষিত নিবন্ধ দেখতে লগইন করুন।",
+  signInCta: "লগইন করুন",
+  error: "সংরক্ষিত নিবন্ধ লোড করা যায়নি।",
 } as const;
 
 export function BookmarkGrid() {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale];
-  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
+  const t = COPY;
+  const [items, setItems] = useState<ContentWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
+  const [needsAuth, setNeedsAuth] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/bookmarks")
-      .then((r) => r.json())
-      .then((data) => setBookmarkedIds(data.contentIds ?? []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  // In mock mode, find matching content from mock data
-  const items = bookmarkedIds
-    .map((id) => mockContents.find((c) => c.id === id))
-    .filter(Boolean) as ContentWithRelations[];
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/bookmarks?contents=1");
+        if (cancelled) return;
+        if (res.status === 401) {
+          setNeedsAuth(true);
+          return;
+        }
+        if (!res.ok) {
+          setError(t.error);
+          return;
+        }
+        const data = (await res.json()) as { contents?: ContentWithRelations[] };
+        if (!cancelled) setItems(data.contents ?? []);
+      } catch {
+        if (!cancelled) setError(t.error);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [t.error]);
 
   if (loading) {
     return (
@@ -55,6 +68,31 @@ export function BookmarkGrid() {
         {[1, 2, 3].map((i) => (
           <div key={i} className="glass-card h-24 animate-pulse" />
         ))}
+      </div>
+    );
+  }
+
+  if (needsAuth) {
+    return (
+      <div className="glass-card p-12 text-center">
+        <p className="text-lg opacity-60">{t.signIn}</p>
+        <Link
+          href="/auth/login"
+          className="mt-4 inline-block rounded-full px-6 py-2 text-sm font-bold text-white"
+          style={{ background: "var(--md-sys-color-primary)" }}
+        >
+          {t.signInCta}
+        </Link>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="glass-card p-8 text-center">
+        <p role="alert" className="text-sm" style={{ color: "var(--color-error, #ea4335)" }}>
+          {error}
+        </p>
       </div>
     );
   }
@@ -79,8 +117,8 @@ export function BookmarkGrid() {
       <h1 className="mb-6 text-2xl font-bold">{t.title}</h1>
       <div className="space-y-4">
         {items.map((item) => {
-          const title = (locale === "bn" ? item.title_bn : null) ?? item.title_en ?? item.title_bn;
-          const excerpt = (locale === "bn" ? item.excerpt_bn : null) ?? item.excerpt_en ?? item.excerpt_bn;
+          const title = item.title_bn;
+          const excerpt = item.excerpt_bn;
           const route = TYPE_ROUTES[item.content_type] ?? "/news";
 
           return (

@@ -3,6 +3,16 @@ export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { json, jsonError, hasSupabase } from "@/lib/data/deskApi";
 import { listPolls, createPoll, updatePoll, deletePoll } from "@/lib/data/adminMock";
+import { mapPollRow, type PollRow } from "@/lib/data/publicMappers";
+
+/**
+ * The admin panel expects bilingual questions plus a computed vote total; the
+ * `polls` table stores one legacy `question` column, the `question_bn` /
+ * `question_en` columns added in 0008, and votes inside the `options` JSONB.
+ */
+function toPanelPoll(row: PollRow) {
+  return { ...mapPollRow(row), is_active: row.is_active ?? true, created_at: row.created_at ?? null };
+}
 
 /**
  * GET    /api/admin/polls — list all polls.
@@ -22,7 +32,7 @@ export async function GET() {
       .select("*")
       .order("created_at", { ascending: false });
     if (error) return jsonError(error.message, 500);
-    return json({ polls: data ?? [] });
+    return json({ polls: ((data ?? []) as PollRow[]).map(toPanelPoll) });
   }
 
   return json({ polls: listPolls() });
@@ -58,7 +68,10 @@ export async function POST(request: NextRequest) {
     const { data, error } = await ctx.supabase
       .from("polls")
       .insert({
+        // `question` is NOT NULL in the original schema — keep it in sync.
         question: body.question_bn,
+        question_bn: body.question_bn,
+        question_en: body.question_en,
         options,
         is_active: body.is_active ?? true,
         ends_at: body.ends_at ?? null,
@@ -66,7 +79,7 @@ export async function POST(request: NextRequest) {
       .select("*")
       .single();
     if (error) return jsonError(error.message, 500);
-    return json({ poll: data }, { status: 201 });
+    return json({ poll: toPanelPoll(data as PollRow) }, { status: 201 });
   }
 
   const options = body.options!.map((o, i) => ({
@@ -100,12 +113,14 @@ export async function PATCH(request: NextRequest) {
     if (!ctx) return jsonError("Moderator+ role required", 403);
 
     const { id, ...patch } = body;
-    if (patch.options && typeof patch.options === "object") {
-      patch.options = JSON.stringify(patch.options);
+    // `options` is a jsonb column: pass the array through untouched (a
+    // JSON.stringify here would store a scalar string instead of an array).
+    if (typeof patch.question_bn === "string") {
+      patch.question = patch.question_bn;
     }
     const { data, error } = await ctx.supabase.from("polls").update(patch).eq("id", id).select("*").single();
     if (error) return jsonError(error.message, 500);
-    return json({ poll: data });
+    return json({ poll: toPanelPoll(data as PollRow) });
   }
 
   const { id, ...patch } = body;

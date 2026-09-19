@@ -2,6 +2,7 @@ export const runtime = "edge";
 
 import { NextRequest } from "next/server";
 import { json, jsonError, hasSupabase } from "@/lib/data/deskApi";
+import { postgrestIlikePattern } from "@/lib/content/search";
 import { listTags, createTag, updateTag, deleteTag } from "@/lib/data/adminMock";
 
 /**
@@ -21,7 +22,10 @@ export async function GET(request: NextRequest) {
 
     let query = ctx.supabase.from("tags").select("*").order("usage_count", { ascending: false });
     if (search) {
-      query = query.or(`name_bn.ilike.%${search}%,name_en.ilike.%${search}%,slug.ilike.%${search}%`);
+      const pattern = postgrestIlikePattern(search);
+      query = query.or(
+        `name_bn.ilike.${pattern},name_en.ilike.${pattern},slug.ilike.${pattern}`,
+      );
     }
     const { data, error } = await query;
     if (error) return jsonError(error.message, 500);

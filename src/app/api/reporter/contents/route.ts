@@ -8,8 +8,9 @@ import {
   listMockContents,
 } from "@/lib/data/reporterMock";
 import { hasSupabase, json, jsonError } from "@/lib/data/deskApi";
-import { buildSlug } from "@/lib/content/validate";
-import { validateDraft } from "@/lib/content/validate";
+import { buildSlug, validateDraft } from "@/lib/content/validate";
+import { checkSlugUnique } from "@/lib/data/contentStore";
+import { buildSnapshot } from "@/lib/content/revisions";
 import { slugify } from "@/lib/utils/format";
 
 /**
@@ -80,9 +81,13 @@ export async function POST(request: NextRequest) {
     return jsonError(issues[0]?.message_en ?? "Validation failed", 422, { issues });
   }
 
-  const slugBase = body.custom_slug?.trim()
-    ? body.custom_slug.trim().replace(/[^a-zA-Z0-9-_]/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "")
+  const isCustomSlug = Boolean(body.custom_slug?.trim());
+  const slugBase = isCustomSlug
+    ? body.custom_slug!.trim().replace(/[^a-zA-Z0-9-_]/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "")
     : buildSlug(body.title_en ?? null, title);
+  // Custom slugs are used as-is; auto-generated slugs get a timestamp suffix
+  // to avoid collisions between near-simultaneous creates.
+  const slug = isCustomSlug ? slugBase : `${slugBase}-${Date.now().toString(36)}`;
 
   if (hasSupabase()) {
     const { createSupabaseServerClient } = await import("@/lib/supabase/server");
@@ -92,10 +97,19 @@ export async function POST(request: NextRequest) {
     if (profile.role === "visitor") return jsonError("Reporter role required", 403);
 
     const supabase = createSupabaseServerClient();
+
+    // Reject duplicate slug before insert.
+    if (isCustomSlug) {
+      const unique = await checkSlugUnique(supabase, slug);
+      if (!unique) {
+        return jsonError("This slug is already in use by another story.", 409);
+      }
+    }
+
     const { data, error } = await supabase
       .from("contents")
       .insert({
-        slug: `${slugBase}-${Date.now().toString(36)}`,
+        slug,
         content_type: contentType,
         content_format: contentType === "documentary" ? "video" : "text",
         title_bn: title,
@@ -113,27 +127,27 @@ export async function POST(request: NextRequest) {
     if (error) return jsonError(error.message, 500);
     const createdRow = data as Content;
 
-    const { data: revision } = await supabase
-      .from("content_revisions")
-      .insert({
-        content_id: createdRow.id,
-        editor_id: profile.id,
-        version: 1,
-        changes: {
-          diff: { title_bn: { from: null, to: title } },
-          snapshot: { fields: { title_bn: title, body_bn: body.body_bn ?? null }, savedAt: new Date().toISOString() },
-          action: "create",
-          note: status === "pending_review" ? "সরাসরি জমা" : undefined,
-        },
-      });
-    void revision;
+    // A new story opens the history at version 1. The snapshot is the full
+    // tracked-field set (restoring v1 must not come back half-empty); the diff
+    // stays title-only because that is what actually created the story.
+    await supabase.from("content_revisions").insert({
+      content_id: createdRow.id,
+      editor_id: profile.id,
+      version: 1,
+      changes: {
+        diff: { title_bn: { from: null, to: title } },
+        snapshot: buildSnapshot(createdRow),
+        action: "create",
+        note: status === "pending_review" ? "সরাসরি জমা" : undefined,
+      },
+    });
 
     return json({ content: createdRow }, { status: 201 });
   }
 
   // Mock mode.
   const created = createMockContent({
-    slug: slugify(`${slugBase}-${Date.now().toString(36)}`) || `mock-${Date.now().toString(36)}`,
+    slug: isCustomSlug ? slugify(slugBase) : (slugify(`${slugBase}-${Date.now().toString(36)}`) || `mock-${Date.now().toString(36)}`),
     title_bn: title,
     title_en: body.title_en ?? null,
     body_bn: body.body_bn ?? null,

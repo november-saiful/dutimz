@@ -1,63 +1,34 @@
 "use client";
 
 import { useState, useEffect, useCallback, type FormEvent } from "react";
-import { useLocaleStore } from "@/stores/locale";
 import type { SiteSettings } from "@/lib/data/adminMock";
 import { SettingsSkeleton } from "@/components/admin/AdminSkeleton";
 
 const COPY = {
-  bn: {
-    title: "সাইট সেটিংস",
-    siteName: "সাইটের নাম",
-    siteTagline: "ট্যাগলাইন",
-    logoUrl: "লোগো URL",
-    faviconUrl: "ফেভিকন URL",
-    primaryColor: "প্রাথমিক রঙ",
-    secondaryColor: "সেকেন্ডারি রঙ",
-    accentColor: "অ্যাকসেন্ট রঙ",
-    socialLinks: "সোশ্যাল লিংক",
-    seoDefaults: "SEO ডিফল্ট",
-    analyticsId: "Analytics ID",
-    maintenanceMode: "মেইনটেন্যান্স মোড",
-    maintenanceHint: "সকল ভিজিটরদের মেইনটেন্যান্স নোটিশ দেখাবে",
-    save: "সংরক্ষণ করুন",
-    saving: "সংরক্ষণ হচ্ছে…",
-    saved: "সংরক্ষিত হয়েছে!",
-    error: "সংরক্ষণ করা যায়নি।",
-    facebook: "Facebook",
-    twitter: "Twitter / X",
-    youtube: "YouTube",
-    instagram: "Instagram",
-    metaTitle: "ডিফল্ট Meta Title",
-    metaDescription: "ডিফল্ট Meta Description",
-    colorPreview: "রঙের পূর্বরূপ",
-  },
-  en: {
-    title: "Site Settings",
-    siteName: "Site name",
-    siteTagline: "Tagline",
-    logoUrl: "Logo URL",
-    faviconUrl: "Favicon URL",
-    primaryColor: "Primary color",
-    secondaryColor: "Secondary color",
-    accentColor: "Accent color",
-    socialLinks: "Social links",
-    seoDefaults: "SEO defaults",
-    analyticsId: "Analytics ID",
-    maintenanceMode: "Maintenance mode",
-    maintenanceHint: "Shows a maintenance notice to all visitors",
-    save: "Save changes",
-    saving: "Saving…",
-    saved: "Saved!",
-    error: "Could not save.",
-    facebook: "Facebook",
-    twitter: "Twitter / X",
-    youtube: "YouTube",
-    instagram: "Instagram",
-    metaTitle: "Default Meta Title",
-    metaDescription: "Default Meta Description",
-    colorPreview: "Color preview",
-  },
+  title: "সাইট সেটিংস",
+  siteName: "সাইটের নাম",
+  siteTagline: "ট্যাগলাইন",
+  logoUrl: "লোগো URL",
+  faviconUrl: "ফেভিকন URL",
+  primaryColor: "প্রাথমিক রঙ",
+  secondaryColor: "সেকেন্ডারি রঙ",
+  accentColor: "অ্যাকসেন্ট রঙ",
+  socialLinks: "সোশ্যাল লিংক",
+  seoDefaults: "SEO ডিফল্ট",
+  analyticsId: "Analytics ID",
+  maintenanceMode: "মেইনটেন্যান্স মোড",
+  maintenanceHint: "সকল ভিজিটরদের মেইনটেন্যান্স নোটিশ দেখাবে",
+  save: "সংরক্ষণ করুন",
+  saving: "সংরক্ষণ হচ্ছে…",
+  saved: "সংরক্ষিত হয়েছে!",
+  error: "সংরক্ষণ করা যায়নি।",
+  facebook: "Facebook",
+  twitter: "Twitter / X",
+  youtube: "YouTube",
+  instagram: "Instagram",
+  metaTitle: "ডিফল্ট Meta Title",
+  metaDescription: "ডিফল্ট Meta Description",
+  colorPreview: "রঙের পূর্বরূপ",
 } as const;
 
 const inputClass =
@@ -66,8 +37,7 @@ const inputClass =
 const labelClass = "text-xs font-bold opacity-70";
 
 export function SiteSettingsPanel() {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const t = COPY;
   const [settings, setSettings] = useState<SiteSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);

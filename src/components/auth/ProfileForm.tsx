@@ -4,47 +4,31 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { Profile } from "@/types";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
-import { useLocaleStore } from "@/stores/locale";
+
 
 interface Props {
   profile: Profile;
 }
 
 const COPY = {
-  bn: {
-    heading: "প্রোফাইল সম্পাদনা",
-    username: "ইউজারনেম",
-    displayName: "প্রদর্শনী নাম",
-    bio: "নিজের সম্পর্কে",
-    bioPlaceholder: "২-৩ লাইনে নিজেকে পরিচয় করান…",
-    avatarUrl: "অ্যাভাটার URL",
-    save: "সংরক্ষণ করুন",
-    saving: "সংরক্ষণ হচ্ছে…",
-    success: "প্রোফাইল সংরক্ষিত হয়েছে।",
-    error: "সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
-    usernameHint: "শুধু ছোট হাতের অক্ষর, সংখ্যা ও হাইফেন।",
-  },
-  en: {
-    heading: "Edit profile",
-    username: "Username",
-    displayName: "Display name",
-    bio: "Bio",
-    bioPlaceholder: "Introduce yourself in 2-3 lines…",
-    avatarUrl: "Avatar URL",
-    save: "Save",
-    saving: "Saving…",
-    success: "Profile saved.",
-    error: "Could not save. Please try again.",
-    usernameHint: "Lowercase letters, numbers and hyphens only.",
-  },
+  heading: "প্রোফাইল সম্পাদনা",
+  username: "ইউজারনেম",
+  displayName: "প্রদর্শনী নাম",
+  bio: "নিজের সম্পর্কে",
+  bioPlaceholder: "২-৩ লাইনে নিজেকে পরিচয় করান…",
+  avatarUrl: "অ্যাভাটার URL",
+  save: "সংরক্ষণ করুন",
+  saving: "সংরক্ষণ হচ্ছে…",
+  success: "প্রোফাইল সংরক্ষিত হয়েছে।",
+  error: "সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
+  usernameHint: "শুধু ছোট হাতের অক্ষর, সংখ্যা ও হাইফেন।",
 } as const;
 
 const USERNAME_RE = /^[a-z0-9-]{3,30}$/;
 
 export function ProfileForm({ profile }: Props) {
   const router = useRouter();
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale === "en" ? "en" : "bn"];
+  const t = COPY;
 
   const [username, setUsername] = useState(profile.username ?? "");
   const [displayName, setDisplayName] = useState(profile.display_name ?? "");

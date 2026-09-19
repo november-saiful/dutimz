@@ -6,7 +6,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { useLocaleStore } from "@/stores/locale";
+
 
 export interface PollOption {
   id: string;
@@ -25,57 +25,60 @@ export interface Poll {
 }
 
 const COPY = {
-  bn: {
-    vote: "ভোট দিন",
-    voted: "ভোট দেওয়া হয়েছে",
-    totalVotes: "মোট ভোট",
-    closed: "পোল বন্ধ",
-    thanks: "ভোটের জন্য ধন্যবাদ!",
-  },
-  en: {
-    vote: "Vote",
-    voted: "Voted",
-    totalVotes: "total votes",
-    closed: "Poll closed",
-    thanks: "Thanks for voting!",
-  },
+  vote: "ভোট দিন",
+  voted: "ভোট দেওয়া হয়েছে",
+  totalVotes: "মোট ভোট",
+  closed: "পোল বন্ধ",
+  thanks: "ভোটের জন্য ধন্যবাদ!",
+  loginRequired: "ভোট দিতে লগইন করুন।",
+  alreadyVoted: "আপনি ইতিমধ্যে ভোট দিয়েছেন।",
+  voteFailed: "ভোট দেওয়া যায়নি — আবার চেষ্টা করুন।",
 } as const;
 
 export function PollWidget({ poll: initialPoll }: { poll: Poll }) {
-  const locale = useLocaleStore((s) => s.locale);
-  const t = COPY[locale];
+  const t = COPY;
   const [poll, setPoll] = useState(initialPoll);
   const [selected, setSelected] = useState<string | null>(null);
   const [voted, setVoted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const isClosed = poll.endsAt ? new Date(poll.endsAt) < new Date() : false;
 
   const handleVote = useCallback(async () => {
     if (!selected || voted || submitting || isClosed) return;
     setSubmitting(true);
+    setError(null);
     try {
       const res = await fetch("/api/polls/vote", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pollId: poll.id, optionId: selected }),
       });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.poll) {
         setPoll(data.poll);
         setVoted(true);
+        return;
       }
+      // Voting is one-per-account, so a signed-out or repeat voter needs a hint.
+      if (res.status === 401) setError(t.loginRequired);
+      else if (res.status === 409) {
+        setError(String(data.error ?? "").includes("already") ? t.alreadyVoted : t.closed);
+      } else setError(t.voteFailed);
+    } catch {
+      setError(t.voteFailed);
     } finally {
       setSubmitting(false);
     }
-  }, [selected, voted, submitting, isClosed, poll.id]);
+  }, [selected, voted, submitting, isClosed, poll.id, t]);
 
   const showResults = voted || isClosed;
 
   return (
     <div className="rounded-xl p-5" style={{ background: "var(--glass-bg)", border: "1px solid var(--glass-border)" }}>
       <h3 className="mb-4 text-sm font-bold leading-snug">
-        📊 {locale === "bn" ? poll.question_bn : poll.question_en}
+        📊 {poll.question_bn}
       </h3>
 
       <div className="space-y-3">
@@ -109,7 +112,7 @@ export function PollWidget({ poll: initialPoll }: { poll: Poll }) {
                     {isSelected && <span className="h-2 w-2 rounded-full" style={{ background: "var(--md-sys-color-primary)" }} />}
                   </span>
                   <span className="text-sm">
-                    {locale === "bn" ? opt.label_bn : opt.label_en}
+                    {opt.label_bn}
                   </span>
                 </label>
               ) : (
@@ -127,7 +130,7 @@ export function PollWidget({ poll: initialPoll }: { poll: Poll }) {
                   />
                   <div className="relative flex items-center justify-between">
                     <span className="text-sm">
-                      {locale === "bn" ? opt.label_bn : opt.label_en}
+                      {opt.label_bn}
                     </span>
                     <span className="text-xs font-bold opacity-80">
                       {pct}%
@@ -156,6 +159,12 @@ export function PollWidget({ poll: initialPoll }: { poll: Poll }) {
       {voted && (
         <p className="mt-3 text-center text-xs font-medium" style={{ color: "var(--md-sys-color-primary)" }}>
           ✓ {t.thanks}
+        </p>
+      )}
+
+      {error && (
+        <p role="alert" className="mt-3 text-center text-xs" style={{ color: "var(--color-error, #ea4335)" }}>
+          {error}
         </p>
       )}
 
