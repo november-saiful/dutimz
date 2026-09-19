@@ -67,6 +67,14 @@ export async function POST(request: NextRequest) {
     return jsonError("Title is required (minimum 2 characters)");
   }
 
+  const customSlug = (body.custom_slug ?? "").trim();
+  if (!customSlug) {
+    return jsonError("Slug is required");
+  }
+  if (customSlug.length < 2) {
+    return jsonError("Slug must be at least 2 characters");
+  }
+
   const contentType: ContentType = body.content_type ?? "news";
   const status = body.submit ? "pending_review" : "draft";
 

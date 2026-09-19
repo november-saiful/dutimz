@@ -218,11 +218,15 @@ export async function PATCH(
   }
   // Handle custom slug update (not a Content field, sent separately).
   const rawBody = fields as unknown as Record<string, unknown>;
-  if (rawBody.custom_slug && typeof rawBody.custom_slug === "string") {
-    const customSlug = (rawBody.custom_slug as string).trim();
-    if (customSlug.length >= 2) {
-      patch.slug = customSlug.replace(/[^a-zA-Z0-9-_]/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "");
+  if (rawBody.custom_slug !== undefined) {
+    const customSlug = typeof rawBody.custom_slug === "string" ? (rawBody.custom_slug as string).trim() : "";
+    if (!customSlug) {
+      return jsonError("Slug cannot be empty");
     }
+    if (customSlug.length < 2) {
+      return jsonError("Slug must be at least 2 characters");
+    }
+    patch.slug = customSlug.replace(/[^a-zA-Z0-9-_]/g, "-").replace(/-{2,}/g, "-").replace(/^-+|-+$/g, "");
   }
   if (Object.keys(patch).length === 0) {
     return jsonError("No editable fields provided");
