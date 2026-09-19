@@ -307,5 +307,5 @@ See `dutimz-ai-agent-build-instructions.md` for the full specification.
 
 ## Live
 
-- **Production**: https://dutimz-news.pages.dev
+- **Production**: https://dutimz.pages.dev
 - **Supabase Dashboard**: https://supabase.com/dashboard/project/bccikoroyovmlpzikinf

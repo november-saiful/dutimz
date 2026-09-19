@@ -75,7 +75,7 @@ manually via **Actions → Migrate Database → Run workflow**).
 1. <https://dash.cloudflare.com> → **Workers & Pages → Create → Pages →
    Create using Direct Upload** (the actual upload comes from CI; we only
    need the project to exist).
-2. Name it `dutimz-news` (or anything — set it as `CF_PAGES_PROJECT` below).
+2. Name it `dutimz` (or anything — set it as `CF_PAGES_PROJECT` below).
 
 ### 2.2 Create an API token
 <https://dash.cloudflare.com/profile/api-tokens> → **Create Token** →
@@ -100,11 +100,11 @@ Repo → **Settings → Secrets and variables → Actions**:
 | Name | Value |
 |---|---|
 | `CLOUDFLARE_DEPLOY_ENABLED` | `true` |
-| `CF_PAGES_PROJECT` | `dutimz-news` (only if you named it differently) |
+| `CF_PAGES_PROJECT` | `dutimz` (only if you named it differently) |
 
 ### 2.4 Production domain
 After the first deploy, set the Pages custom domain (e.g. `dutimz.com`) in
-**Pages → dutimz-news → Custom domains**. Cloudflare manages DNS + TLS
+**Pages → dutimz → Custom domains**. Cloudflare manages DNS + TLS
 automatically if the zone is on the same account.
 
 ---
@@ -117,7 +117,7 @@ automatically if the zone is on the same account.
    - `Deploy Web (Cloudflare Pages)` uploads the site.
    - `Migrate Database (Supabase)` applies migrations 0001→0005 and seeds.
 3. Add the two public env values to the **Pages project**
-   (Pages → dutimz-news → Settings → Environment variables):
+   (Pages → dutimz → Settings → Environment variables):
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    (They're baked at build time — the workflow already passes them, so this
