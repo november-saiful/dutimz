@@ -110,7 +110,7 @@ export function NewsDetailBody({ content, related, showVideoEmbed = false }: Pro
 
       {/* নিবন্ধ শুনুন */}
       {rawBody && (
-        <div className="mt-6 max-w-[720px]">
+        <div className="mt-6">
           <TextToSpeech
             bodyHtml={rawBody}
             title={title}
@@ -120,7 +120,7 @@ export function NewsDetailBody({ content, related, showVideoEmbed = false }: Pro
       )}
 
       <div
-        className="prose-bn mt-6 max-w-[720px] space-y-4 text-[1.075rem] leading-[1.8]"
+        className="prose-bn mt-6 space-y-4 text-[1.075rem] leading-[1.8] text-justify"
         dangerouslySetInnerHTML={{ __html: body }}
       />
 
