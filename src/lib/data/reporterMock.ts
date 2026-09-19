@@ -4,7 +4,7 @@ import type {
   ContentStatus,
   ContentType,
 } from "@/types";
-import { mockCategories } from "@/lib/data/mock";
+import { mockCategories, mockContents } from "@/lib/data/mock";
 import {
   buildRevisionChanges,
   buildSnapshot,
@@ -309,6 +309,11 @@ export function updateMockContent(
 
   Object.assign(row, patch, { updated_at: new Date().toISOString() });
   row.version = nextRevisionVersion(row.version, latestMockRevisionVersion(row.id));
+
+  // Keep the public-facing mock store in sync so slug changes are visible
+  // on /news/{slug} etc.  mockContents is a separate array from `rows`.
+  const pubEntry = mockContents.find((c) => c.id === row.id);
+  if (pubEntry) Object.assign(pubEntry, patch);
 
   revisions.push({
     id: genId(),
