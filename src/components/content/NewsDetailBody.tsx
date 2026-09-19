@@ -7,7 +7,6 @@ import { NewsletterCTA } from "@/components/content/NewsletterCTA";
 import { CommentSection } from "@/components/content/CommentSection";
 import { ShareButtons } from "@/components/content/ShareButtons";
 import { BookmarkButton } from "@/components/content/BookmarkButton";
-import { TextToSpeech } from "@/components/content/TextToSpeech";
 import { ReadTracker } from "@/components/content/ReadTracker";
 import { formatCount, estimateReadTime } from "@/lib/utils/format";
 import { sanitizeArticleHtml } from "@/lib/content/sanitize";
@@ -107,17 +106,6 @@ export function NewsDetailBody({ content, related, showVideoEmbed = false }: Pro
       ) : null}
 
       {excerpt && <p className="mt-6 border-l-4 pl-4 text-lg opacity-80" style={{ borderColor: "var(--md-sys-color-primary)" }}>{excerpt}</p>}
-
-      {/* নিবন্ধ শুনুন */}
-      {rawBody && (
-        <div className="mt-6">
-          <TextToSpeech
-            bodyHtml={rawBody}
-            title={title}
-            language={content.language_primary}
-          />
-        </div>
-      )}
 
       <div
         className="prose-bn mt-6 space-y-4 text-[1.075rem] leading-[1.8] text-justify"
