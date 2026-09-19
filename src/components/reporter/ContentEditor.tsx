@@ -43,6 +43,7 @@ const COPY = {
     bodyBn: "মূল লেখা (বাংলা)",
     bodyEn: "Body (English)",
     slugLabel: "স্লাগ (SEO)",
+    slugRequired: "স্লাগ আবশ্যক",
     slugAuto: "ইংরেজি শিরোনাম থেকে স্বয়ংক্রিয়",
     slugTooShort: "স্লাগ কমপক্ষে ২ অক্ষরের হতে হবে",
     slugTooLong: "স্লাগ ১০০ অক্ষরের বেশি হতে পারে না",
@@ -105,7 +106,7 @@ function toForm(content: Content | null | undefined): FormState {
     content_type: content?.content_type ?? "news",
     category_id: content?.category_id ?? null,
     tags: (content?.tags ?? []).join(", "),
-    custom_slug: "",
+    custom_slug: content?.slug ?? "",
   };
 }
 
@@ -155,12 +156,16 @@ export function ContentEditor({
   const slugValidation = useMemo(() => {
     const raw = form.custom_slug;
     const trimmed = raw.trim();
-    if (!trimmed) return null; // auto-generated slug, no warnings
+    if (!trimmed) {
+      // Slug is required for new content; for existing content the slug already exists on the server.
+      if (!content) return { type: "error" as const, key: "slugRequired" };
+      return null;
+    }
     if (trimmed.length < 2) return { type: "error" as const, key: "slugTooShort" };
     if (trimmed.length > 100) return { type: "error" as const, key: "slugTooLong" };
     if (/[^a-zA-Z0-9-_]/.test(trimmed)) return { type: "warn" as const, key: "slugInvalidChars" };
     return null;
-  }, [form.custom_slug]);
+  }, [form.custom_slug, content]);
 
   // --- Slug uniqueness check (debounced API call) ---
   useEffect(() => {
@@ -518,6 +523,55 @@ export function ContentEditor({
           />
         </div>
 
+        {/* Slug — required, right after title */}
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="ce-slug" className="text-xs font-bold opacity-70">
+            {t.slugLabel} *
+          </label>
+          <input
+            id="ce-slug"
+            type="text"
+            dir="ltr"
+            required
+            value={form.custom_slug}
+            onChange={(e) => set("custom_slug", e.target.value)}
+            className={inputClass}
+            style={slugBorderColor ? { borderColor: slugBorderColor } : undefined}
+            maxLength={100}
+          />
+          {/* URL preview */}
+          <p className="text-xs opacity-40">
+            {form.custom_slug.trim() ? `→ /${form.content_type === "article" ? "articles" : form.content_type === "documentary" ? "documentaries" : "news"}/${slug}` : ""}
+          </p>
+          {/* Validation messages */}
+          {slugValidation && (
+            <p
+              className="text-xs"
+              style={{
+                color: slugValidation.type === "error"
+                  ? "var(--color-error, #ea4335)"
+                  : "var(--color-warning, #f9ab00)",
+              }}
+            >
+              {slugValidation.key === "slugRequired"
+                ? t.slugRequired
+                : slugValidation.key === "slugTooShort"
+                  ? t.slugTooShort
+                  : slugValidation.key === "slugTooLong"
+                    ? t.slugTooLong
+                    : t.slugInvalidChars}
+            </p>
+          )}
+          {slugChecking && form.custom_slug.trim().length >= 2 && (
+            <p className="text-xs opacity-50">{t.slugChecking}</p>
+          )}
+          {slugTaken && (
+            <p className="text-xs" style={{ color: "var(--color-warning, #f9ab00)" }}>
+              {t.slugTaken}
+            </p>
+          )}
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="ce-sub-bn" className="text-xs font-bold opacity-70">
@@ -694,52 +748,6 @@ export function ContentEditor({
               className={inputClass}
               placeholder="https://www.youtube.com/watch?v=…"
             />
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="ce-slug" className="text-xs font-bold opacity-70">
-              {t.slugLabel}
-            </label>
-            <input
-              id="ce-slug"
-              type="text"
-              dir="ltr"
-              value={form.custom_slug || content?.slug || ""}
-              onChange={(e) => set("custom_slug", e.target.value)}
-              placeholder={slug}
-              className={inputClass}
-              style={slugBorderColor ? { borderColor: slugBorderColor } : undefined}
-              maxLength={100}
-            />
-            {/* URL preview */}
-            <p className="text-xs opacity-40">
-              {form.custom_slug.trim() ? `→ /${form.content_type === "article" ? "articles" : form.content_type === "documentary" ? "documentaries" : "news"}/${slug}` : t.slugAuto}
-            </p>
-            {/* Validation messages */}
-            {slugValidation && (
-              <p
-                className="text-xs"
-                style={{
-                  color: slugValidation.type === "error"
-                    ? "var(--color-error, #ea4335)"
-                    : "var(--color-warning, #f9ab00)",
-                }}
-              >
-                {slugValidation.key === "slugTooShort"
-                  ? t.slugTooShort
-                  : slugValidation.key === "slugTooLong"
-                    ? t.slugTooLong
-                    : t.slugInvalidChars}
-              </p>
-            )}
-            {slugChecking && form.custom_slug.trim().length >= 2 && (
-              <p className="text-xs opacity-50">{t.slugChecking}</p>
-            )}
-            {slugTaken && (
-              <p className="text-xs" style={{ color: "var(--color-warning, #f9ab00)" }}>
-                {t.slugTaken}
-              </p>
-            )}
           </div>
 
           <div className="flex flex-col gap-1.5">
