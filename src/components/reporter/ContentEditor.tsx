@@ -10,8 +10,9 @@ import { ThumbnailUploader } from "@/components/reporter/ThumbnailUploader";
 import { StatusBadge, WorkflowActions } from "@/components/reporter/StatusBadge";
 import { RevisionHistory } from "@/components/reporter/RevisionHistory";
 
-import { buildSlug, validateDraft, validateForPublish, type ValidationIssue } from "@/lib/content/validate";
+import { validateDraft, validateForPublish, type ValidationIssue } from "@/lib/content/validate";
 import { estimateReadTime } from "@/lib/utils/format";
+import { previewSlug } from "@/lib/utils/slugPreview";
 
 /**
  * Phase 3 content editor — the reporter's workspace.
@@ -151,7 +152,7 @@ export function ContentEditor({
 
   const slug = useMemo(() => {
     if (form.custom_slug.trim()) return form.custom_slug.trim();
-    return buildSlug(form.title_en, form.title_bn);
+    return previewSlug(form.title_en, form.title_bn);
   }, [form.custom_slug, form.title_en, form.title_bn]);
 
   // --- Slug client-side validation (immediate) ---

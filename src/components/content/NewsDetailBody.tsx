@@ -8,6 +8,7 @@ import { CommentSection } from "@/components/content/CommentSection";
 import { ShareButtons } from "@/components/content/ShareButtons";
 import { BookmarkButton } from "@/components/content/BookmarkButton";
 import { ReadTracker } from "@/components/content/ReadTracker";
+import { ReadingProgress } from "@/components/content/ReadingProgress";
 import { formatCount, estimateReadTime } from "@/lib/utils/format";
 import { sanitizeArticleHtml } from "@/lib/content/sanitize";
 import { SITE } from "@/lib/constants/app";
@@ -29,6 +30,7 @@ export function NewsDetailBody({ content, related, showVideoEmbed = false }: Pro
 
   return (
     <article className="container mt-6 max-w-4xl page-transition">
+      <ReadingProgress />
       <ReadTracker content={content} />
       <nav aria-label="ব্রেডক্রাম্ব" className="mb-4 text-xs opacity-60">
         <ol className="flex items-center gap-1.5">

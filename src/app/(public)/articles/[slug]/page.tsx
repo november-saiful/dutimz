@@ -8,6 +8,12 @@ import { getLocaleServer } from "@/lib/i18n/server";
 
 export const revalidate = 60;
 
+import { getStaticSlugs } from "@/lib/data/slugs";
+
+export async function generateStaticParams() {
+  return getStaticSlugs();
+}
+
 export async function generateMetadata({
   params,
 }: {

@@ -6,6 +6,7 @@ import { getAuthContext } from "@/lib/auth/server";
 import { AUTH } from "@/lib/auth/config";
 import { StatusBadge } from "@/components/reporter/StatusBadge";
 import { ReporterQueue } from "@/components/reporter/ReporterQueue";
+import { ReporterAnalytics } from "@/components/reporter/ReporterAnalytics";
 import { getActiveCategories } from "@/lib/data/queries";
 
 export const metadata: Metadata = {
@@ -60,6 +61,8 @@ export default async function ReporterPage() {
           + নতুন লেখা / New story
         </Link>
       </div>
+
+      <ReporterAnalytics />
 
       <ReporterQueue
         role={role}

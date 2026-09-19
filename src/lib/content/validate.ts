@@ -1,4 +1,5 @@
-import { slugify, stripHtml } from "@/lib/utils/format";
+import { stripHtml } from "@/lib/utils/format";
+import { previewSlug } from "@/lib/utils/slugPreview";
 import type { ContentFormat, ContentType } from "@/types";
 
 /**
@@ -98,27 +99,11 @@ export function isPublishable(input: ContentDraftInput): boolean {
 
 /**
  * SEO slug from the English title, falling back to a transliterated Bangla
- * title. Returns a non-empty slug even for empty input (date-based fallback).
+ * title. Delegates to the shared previewSlug utility.
  */
 export function buildSlug(
   titleEn: string | null | undefined,
   titleBn: string | null | undefined,
 ): string {
-  const fromEnglish = titleEn?.trim() ? slugify(titleEn) : "";
-  if (fromEnglish.length >= 3) return fromEnglish;
-
-  // slugify drops non-latin scripts entirely; keep Bangla letters, vowel
-  // signs and other combining marks (\p{M}) so slugs stay readable.
-  const fromBangla = (titleBn ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_]+/g, "-")
-    .replace(/[^\p{L}\p{M}\p{N}-]+/gu, "")
-    .replace(/-{2,}/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-  if (fromBangla.length >= 3) return fromBangla;
-
-  const fallback = `story-${Date.now().toString(36)}`;
-  return fallback;
+  return previewSlug(titleEn, titleBn);
 }

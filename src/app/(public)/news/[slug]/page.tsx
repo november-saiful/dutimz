@@ -9,6 +9,12 @@ import { SITE } from "@/lib/constants/app";
 
 export const revalidate = 60;
 
+import { getStaticSlugs } from "@/lib/data/slugs";
+
+export async function generateStaticParams() {
+  return getStaticSlugs();
+}
+
 export async function generateMetadata({
   params,
 }: {

@@ -14,6 +14,12 @@ import { getLocaleServer } from "@/lib/i18n/server";
 
 export const revalidate = 60;
 
+import { getStaticCategorySlugs } from "@/lib/data/slugs";
+
+export async function generateStaticParams() {
+  return getStaticCategorySlugs();
+}
+
 export async function generateMetadata({
   params,
 }: {
