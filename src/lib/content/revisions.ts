@@ -14,6 +14,7 @@ import type { WorkflowAction } from "@/lib/content/workflow";
 /* * Content fields tracked by the revision system (snapshotted and diffed).
  */
 const TRACKED_FIELDS = [
+  "slug",
   "title_bn",
   "subtitle_bn",
   "excerpt_bn",
@@ -190,6 +191,7 @@ export function describeRevision(
     return locale === "bn" ? "কোনো পরিবর্তন নেই" : "No field changes";
   }
   const labels: Record<RevisionField, { bn: string; en: string }> = {
+    slug: { bn: "স্লাগ", en: "Slug" },
     title_bn: { bn: "বাংলা শিরোনাম", en: "Bangla title" },
     subtitle_bn: { bn: "বাংলা সাবটাইটেল", en: "Bangla subtitle" },
     excerpt_bn: { bn: "বাংলা সারসংক্ষেপ", en: "Bangla excerpt" },
