@@ -44,6 +44,8 @@ const COPY = {
     bodyEn: "Body (English)",
     slugLabel: "স্লাগ (SEO)",
     slugRequired: "স্লাগ আবশ্যক",
+    slugSuggest: "সুপারিশ:",
+    slugUseSuggestion: "এই স্লাগ ব্যবহার করুন",
     slugAuto: "ইংরেজি শিরোনাম থেকে স্বয়ংক্রিয়",
     slugTooShort: "স্লাগ কমপক্ষে ২ অক্ষরের হতে হবে",
     slugTooLong: "স্লাগ ১০০ অক্ষরের বেশি হতে পারে না",
@@ -539,10 +541,26 @@ export function ContentEditor({
             style={slugBorderColor ? { borderColor: slugBorderColor } : undefined}
             maxLength={100}
           />
-          {/* URL preview */}
-          <p className="text-xs opacity-40">
-            {form.custom_slug.trim() ? `→ /${form.content_type === "article" ? "articles" : form.content_type === "documentary" ? "documentaries" : "news"}/${slug}` : ""}
-          </p>
+          {/* Transliteration suggestion from Bangla title when English title is empty */}
+          {!form.custom_slug.trim() && !form.title_en.trim() && slug && slug.length >= 3 && !slug.startsWith("story-") && (
+            <button
+              type="button"
+              onClick={() => set("custom_slug", slug)}
+              className="flex items-center gap-1.5 text-xs rounded-lg px-2.5 py-1.5 text-left transition-colors hover:bg-[var(--md-sys-color-primary-container, rgba(0,105,142,0.08))]"
+              style={{ color: "var(--md-sys-color-primary, #00698e)" }}
+              title={t.slugUseSuggestion}
+            >
+              <span className="opacity-60">{t.slugSuggest}</span>
+              <span className="font-mono font-medium">/{form.content_type === "article" ? "articles" : form.content_type === "documentary" ? "documentaries" : "news"}/{slug}</span>
+              <span className="opacity-40">←</span>
+            </button>
+          )}
+          {/* URL preview when slug is filled in */}
+          {form.custom_slug.trim() && (
+            <p className="text-xs opacity-40">
+              {`→ /${form.content_type === "article" ? "articles" : form.content_type === "documentary" ? "documentaries" : "news"}/${slug}`}
+            </p>
+          )}
           {/* Validation messages */}
           {slugValidation && (
             <p
