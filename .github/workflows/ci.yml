@@ -75,7 +75,10 @@ jobs:
         env:
           PUBLIC_DEMO_MODE: "true"
       - name: Deploy Pages preview
-        run: npx wrangler pages deploy dist --project-name=dutimz
+        # --branch must not be the project's production branch: wrangler treats a
+        # deployment with no branch as production, which would overwrite dutimz.com
+        # with a demo-mode build straight from an unmerged pull request.
+        run: npx wrangler pages deploy dist --project-name=dutimz --branch=preview
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -140,5 +143,16 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --output /dev/null --write-out 'Portal HTTP %{http_code}\n' https://dutimz.com/
-          curl --fail --silent --show-error --output /dev/null --write-out 'Public config HTTP %{http_code}\n' https://dutimz.com/api/config.json
+          config=$(curl --fail --silent --show-error https://dutimz.com/api/config.json)
+          node -e '
+            const config = JSON.parse(process.argv[1]);
+            const problems = [];
+            if (!config.supabaseUrl) problems.push("SUPABASE_URL is missing from the Pages project, so the site cannot reach the database");
+            if (!config.supabaseAnonKey) problems.push("SUPABASE_ANON_KEY is missing from the Pages project, so no client can sign in");
+            if (!config.mediaUrl) problems.push("MEDIA_URL is missing from the Pages project, so no article image can load");
+            if (config.demoMode) problems.push("the live site is serving demo mode instead of production content");
+            for (const problem of problems) console.error(`::error::${problem}`);
+            if (problems.length) process.exit(1);
+            console.log(`Live config OK: ${config.supabaseUrl} with media at ${config.mediaUrl}`);
+          ' "$config"
         shell: bash

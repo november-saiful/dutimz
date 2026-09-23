@@ -1,5 +1,6 @@
+// Only the values the Pages Functions actually read are declared here. Media lives in the
+// separate `dutimz-media` Worker, so this project holds no storage binding at all.
 interface Env {
-  MEDIA_BUCKET: R2Bucket;
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
   PUBLIC_DEMO_MODE?: string;
