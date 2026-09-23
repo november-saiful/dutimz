@@ -588,7 +588,9 @@ begin
   if p_method not in ('bkash', 'nagad') then raise exception 'বিকাশ বা নগদ নির্বাচন করুন'; end if;
   select * into details from public.profile_details where user_id = actor for update;
   completion := public.profile_completion_for(actor);
-  if completion <> 100 then raise exception 'টাকা তুলতে প্রোফাইল ১০০% সম্পূর্ণ হতে হবে'; end if;
+  -- '%%' because RAISE treats a bare % in the message as a format placeholder:
+  -- a literal "১০০%" here is a parse error ("too few parameters specified for RAISE").
+  if completion <> 100 then raise exception 'টাকা তুলতে প্রোফাইল ১০০%% সম্পূর্ণ হতে হবে'; end if;
   if details.payout_method <> p_method or details.payout_number <> trim(p_payout_number) then raise exception 'পেমেন্টের তথ্য আপনার প্রোফাইলে সংরক্ষিত তথ্যের সঙ্গে মিলতে হবে'; end if;
   if exists (select 1 from public.withdrawals where user_id = actor and status = 'pending') then raise exception 'আগের উত্তোলনের অনুরোধ নিষ্পত্তি হওয়া পর্যন্ত অপেক্ষা করুন'; end if;
   select count(*) into prior_paid from public.withdrawals where user_id = actor and status = 'paid';
