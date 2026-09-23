@@ -52,6 +52,8 @@ Configure private Worker keys with Wrangler secrets, not in `wrangler.jsonc`, an
 
 Configure GitHub Actions environment variables `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `MEDIA_URL`, `MEDIA_WORKER_URL`, and the protected secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_ID`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`. Use a least-privilege Cloudflare token limited to the needed Pages/Workers/R2/Images resources. The Pages project’s dashboard-based **Builds/automatic production deployments must be disabled** so GitHub Actions is the single trigger.
 
+The release ends with `scripts/verify-live-config.mjs`, which polls the live configuration (a deployment serves requests before it serves its own configuration) and then repeats a signed-out visitor's anonymous reads against Supabase REST. That last part is not decoration: a row level security policy that calls a function the `anon` role cannot execute refuses the entire query with `42501`, so a missing `grant execute` takes the whole public feed down while the site still returns HTTP 200. Run it locally with `node scripts/verify-live-config.mjs`.
+
 ## Important MVP business rules
 
 - Reporter fees are issued exactly once on the first successful publication: junior ৳৯০, general ৳১১৫, executive ৳১৪০. Only assigned reporters earn article fees; a moderator receives a fee only when separately assigned a reporter tier.

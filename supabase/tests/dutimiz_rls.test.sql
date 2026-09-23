@@ -1,5 +1,5 @@
 begin;
-select plan(35);
+select plan(41);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -48,6 +48,20 @@ set local role anon;
 select set_config('request.jwt.claim.role', 'anon', true);
 select lives_ok($$select * from public.list_corrections(5)$$, 'Anyone can read the public corrections feed');
 select throws_ok($$select id from public.article_revisions$$, '42501', null, 'Anonymous readers cannot read the raw revision history');
+
+-- The public read policies call the role helpers, so a role that cannot execute them cannot
+-- query the table at all. These four reads failed with 42501 before migration 006 while the
+-- signed-out site was live.
+select lives_ok($$select slug from public.articles$$, 'A signed-out visitor can open the published article feed');
+select lives_ok($$select slug from public.categories$$, 'A signed-out visitor can list the sections');
+select lives_ok($$select id from public.comments$$, 'A signed-out visitor can read visible comments');
+select lives_ok($$select id from public.reactions$$, 'A signed-out visitor can read reactions on published articles');
+select results_eq(
+  $$select count(*) from public.articles$$,
+  $$values (1::bigint)$$,
+  'The article feed is filtered to published rows rather than refused outright'
+);
+select is_empty($$select id from public.articles where status = 'pending'$$, 'Anonymous readers never see a submission awaiting moderation');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '11000000-0000-4000-8000-000000000001', true);
