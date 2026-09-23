@@ -55,7 +55,7 @@ select throws_ok($$select id from public.article_revisions$$, '42501', null, 'An
 select lives_ok($$select slug from public.articles$$, 'A signed-out visitor can open the published article feed');
 select lives_ok($$select slug from public.categories$$, 'A signed-out visitor can list the sections');
 select lives_ok($$select id from public.comments$$, 'A signed-out visitor can read visible comments');
-select lives_ok($$select id from public.reactions$$, 'A signed-out visitor can read reactions on published articles');
+select lives_ok($$select article_id from public.reactions$$, 'A signed-out visitor can read reactions on published articles');
 select results_eq(
   $$select count(*) from public.articles$$,
   $$values (1::bigint)$$,
