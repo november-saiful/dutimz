@@ -26,7 +26,7 @@ select col_not_null('public', 'profiles', 'username', 'Every profile has a stabl
 select lives_ok($$select public.reporter_fee_for_tier('junior')$$, 'Junior reporters earn ৳90 per published article');
 select results_eq($$select public.reporter_fee_for_tier('general')$$, $$values (115)$$, 'General reporters earn ৳115 per published article');
 select results_eq($$select public.reporter_fee_for_tier('executive')$$, $$values (140)$$, 'Executive reporters earn ৳140 per published article');
-select results_eq($$select public.profile_completion_for('11000000-0000-4000-8000-000000000001')$$, $$values (0)$$, 'An unfilled profile starts below the completion thresholds');
+select results_eq($$select public.profile_completion_for('11000000-0000-4000-8000-000000000001')$$, $$values (13)$$, 'A fresh signup sits at 13% (display name only, one of eight fields) and stays below the prompt threshold');
 
 -- Slugs come from the Bengali headline, never from the reporter.
 select results_eq($$select public.slugify_title('ঢাকা')$$, $$values ('dhaka')$$, 'A Bengali headline transliterates into a Latin slug');
