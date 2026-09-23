@@ -134,6 +134,14 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Materialise the Pages variables
+        # The Pages Functions read their configuration from this deployment, not from the
+        # dashboard, so the Supabase values have to be in wrangler.jsonc at deploy time.
+        # Injecting them here keeps them out of the repository.
+        run: node scripts/inject-pages-vars.mjs
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
       - name: Deploy the Pages production build
         run: npx wrangler pages deploy dist --project-name=dutimz --branch=main
         env:
@@ -143,7 +151,20 @@ jobs:
         run: |
           set -euo pipefail
           curl --fail --silent --show-error --output /dev/null --write-out 'Portal HTTP %{http_code}\n' https://dutimz.com/
-          config=$(curl --fail --silent --show-error https://dutimz.com/api/config.json)
+          # A deployment's Functions routing manifest propagates a moment after the upload,
+          # so the first request can still be served by static assets alone (a 404 here).
+          config=""
+          for attempt in $(seq 1 12); do
+            if config=$(curl --fail --silent --show-error https://dutimz.com/api/config.json); then
+              break
+            fi
+            echo "Waiting for /api/config.json to be routed to the Functions bundle (attempt $attempt)"
+            sleep 5
+          done
+          if [ -z "$config" ]; then
+            echo "::error::https://dutimz.com/api/config.json never responded after the deployment finished"
+            exit 1
+          fi
           node -e '
             const config = JSON.parse(process.argv[1]);
             const problems = [];

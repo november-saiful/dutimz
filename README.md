@@ -37,14 +37,18 @@ Astro's current Cloudflare adapter deploys to Workers rather than Pages. This re
 
 ## Cloudflare setup
 
-Create a Cloudflare Pages project named `dutimz` and a private R2 bucket named `dutimz-media`. Connect `dutimz.com` to the Pages project and configure `media.dutimz.com` to route to the `dutimz-media` Worker. Bind the same bucket as `MEDIA_BUCKET` to the Pages project and Worker. Enable the Cloudflare Images binding for image processing.
+Create a Cloudflare Pages project named `dutimz` (production branch `main`) and a private R2 bucket named `dutimz-media`. Connect `dutimz.com` to the Pages project and configure `media.dutimz.com` to route to the `dutimz-media` Worker. Enable the Cloudflare Images binding for image processing. The Pages project itself holds no storage binding: all media is written and served by the Worker, so the site cannot reach R2 directly.
 
-Configure Pages production/preview bindings from `wrangler.jsonc`; configure private Worker keys with Wrangler secrets, not in `wrangler.jsonc`. Supabase credentials are deliberately not committed, so set `SUPABASE_URL` and `SUPABASE_ANON_KEY` on the Pages project for **both** production and preview in the Cloudflare dashboard (or with `wrangler pages secret put`), and leave `OPTIMIZE_IMAGES` at `false` unless you want smaller delivery derivatives. Set:
+`wrangler.jsonc` is the source of truth for the Pages project configuration, which means the Cloudflare dashboard is **not**: a deployment reads the variables in `env.production`, and anything set only in the dashboard is shadowed rather than merged. `wrangler pages download config dutimz` prints what a project actually has. Because of that:
 
-- Pages bindings: `MEDIA_BUCKET` to the created R2 bucket; variables `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SITE_URL`, `MEDIA_URL`, `MEDIA_WORKER_URL`.
+- Everything except credentials lives in `wrangler.jsonc`: `SITE_URL`, `MEDIA_URL`, `MEDIA_WORKER_URL`, `PUBLIC_DEMO_MODE`.
+- `SUPABASE_URL` and `SUPABASE_ANON_KEY` are credentials, so they are not committed. The release workflow calls `scripts/inject-pages-vars.mjs`, which folds them (from the GitHub repository variables or secrets) into `wrangler.jsonc` in the ephemeral runner just before `wrangler pages deploy`. Deploying by hand therefore needs those two variables exported, and the script refuses to write them into a tracked file outside CI.
+- `env.preview` pins preview deployments to `PUBLIC_DEMO_MODE: "true"` so unmerged pull-request code can never read the production database.
 - Media Worker R2 binding: `MEDIA_BUCKET`; Cloudflare Images binding `IMAGES`; public variables `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `ALLOWED_ORIGIN`.
 - Worker secret `SUPABASE_JWT_SECRET` is deliberately not used. Verify user access by calling Supabase Auth's `/auth/v1/user` endpoint with the presented bearer token; do not trust unsigned claims.
 - Bindings and variables must be configured for production **and** preview environments. Keep a separate staging Supabase project and media bucket when possible.
+
+Configure private Worker keys with Wrangler secrets, not in `wrangler.jsonc`, and leave `OPTIMIZE_IMAGES` at `false` unless you want smaller delivery derivatives. Disable the zone's **Email Address Obfuscation** (Scrape Shield) so the published contact address stays readable rather than being rewritten into a `/cdn-cgi/l/email-protection` link.
 
 Configure GitHub Actions environment variables `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `MEDIA_URL`, `MEDIA_WORKER_URL`, and the protected secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_ID`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`. Use a least-privilege Cloudflare token limited to the needed Pages/Workers/R2/Images resources. The Pages project’s dashboard-based **Builds/automatic production deployments must be disabled** so GitHub Actions is the single trigger.
 

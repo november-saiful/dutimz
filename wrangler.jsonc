@@ -9,5 +9,13 @@
     "SITE_URL": "https://dutimz.com",
     "MEDIA_URL": "https://media.dutimz.com",
     "MEDIA_WORKER_URL": "https://media.dutimz.com"
+  },
+  "env": {
+    "preview": {
+      "vars": {
+        "PUBLIC_DEMO_MODE": "true",
+        "SITE_URL": "https://dutimz.com"
+      }
+    }
   }
 }
