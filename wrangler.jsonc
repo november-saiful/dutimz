@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dutimz",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-09-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA_BUCKET",
+      "bucket_name": "dutimz-media"
+    }
+  ],
+  "vars": {
+    "PUBLIC_DEMO_MODE": "false",
+    "SITE_URL": "https://dutimz.com",
+    "MEDIA_URL": "https://media.dutimz.com",
+    "MEDIA_WORKER_URL": "https://media.dutimz.com"
+  }
+}

@@ -1,0 +1,140 @@
+---
+import SiteHeader from '../components/SiteHeader.astro';
+import type { Story } from '../data/stories';
+
+interface Props {
+  title?: string;
+  description?: string;
+  canonicalPath?: string;
+  image?: string;
+  demoMode?: boolean;
+  featured?: Story | null;
+}
+
+const {
+  title = 'ডুটিমজ — ঢাকা বিশ্ববিদ্যালয়ের সংবাদমাধ্যম',
+  description = 'ঢাকা বিশ্ববিদ্যালয় ক্যাম্পাসের সংবাদ, মতামত, সংস্কৃতি ও শিক্ষার্থীদের গল্প।',
+  canonicalPath = '/',
+  image,
+  demoMode = false,
+  featured = null,
+} = Astro.props;
+const canonical = `https://dutimz.com${canonicalPath}`;
+const fullTitle = title.includes('ডুটিমজ') ? title : `${title} | ডুটিমজ`;
+---
+<!doctype html>
+<html lang="bn">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="/site.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#edf1fc" />
+    <meta name="color-scheme" content="light" />
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+Bengali:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <meta property="og:site_name" content="ডুটিমজ" />
+    <meta property="og:locale" content="bn_BD" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    {image && <meta property="og:image" content={image} />}
+    <meta name="twitter:card" content={image ? 'summary_large_image' : 'summary'} />
+    <title>{fullTitle}</title>
+  </head>
+  <body data-demo-mode={String(demoMode)}>
+    <a class="skip-link" href="#main-content">মূল লেখায় যান</a>
+    <div class="page-backdrop" aria-hidden="true"></div>
+    <SiteHeader />
+    {demoMode && (
+      <div class="preview-banner" role="note">
+        <span class="preview-banner__dot" aria-hidden="true"></span>
+        এটি নকশার প্রিভিউ—এখানে দেখানো শিরোনামগুলো নমুনা, বাস্তব সংবাদ নয়।
+      </div>
+    )}
+    <main id="main-content" class="site-main">
+      <slot />
+    </main>
+    <footer class="site-footer">
+      <a class="footer-brand" href="/" aria-label="ডুটিমজ মূলপাতা">
+        <span class="brand-mark brand-mark--small" aria-hidden="true">ঢা</span>
+        <span>ডুটিমজ</span>
+      </a>
+      <p>ঢাকা বিশ্ববিদ্যালয়ের কণ্ঠস্বর</p>
+      <nav class="footer-links" aria-label="প্রয়োজনীয় লিংক">
+        <a href="/about/">আমাদের পরিচয়</a>
+        <a href="/guidelines/">সম্পাদকীয় নীতিমালা</a>
+        <a href="mailto:hello@dutimz.com">যোগাযোগ</a>
+      </nav>
+      <span class="footer-copy">© {new Date().getFullYear()} ডুটিমজ</span>
+    </footer>
+    <nav class="mobile-dock" aria-label="দ্রুত নেভিগেশন">
+      <a href="/" class="mobile-dock__link is-active" aria-label="মূলপাতা">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z" /></svg>
+        <span>মূলপাতা</span>
+      </a>
+      <a href="/search/" class="mobile-dock__link" aria-label="খবর খুঁজুন">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></svg>
+        <span>খুঁজুন</span>
+      </a>
+      <a href="/saved/" class="mobile-dock__link" aria-label="সংরক্ষিত খবর">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.8L6 21z" /></svg>
+        <span>সংরক্ষিত</span>
+      </a>
+      <button class="mobile-dock__link mobile-dock__account" type="button" aria-label="অ্যাকাউন্ট খুলুন" data-open-account>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4.5 21a7.5 7.5 0 0 1 15 0" /></svg>
+        <span>অ্যাকাউন্ট</span>
+      </button>
+    </nav>
+    {featured && (
+      <script type="application/ld+json" set:html={JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'NewsMediaOrganization',
+        name: 'ডুটিমজ',
+        alternateName: 'Dhaka University Timz',
+        url: 'https://dutimz.com',
+        inLanguage: 'bn',
+      })} />
+    )}
+    <dialog class="profile-modal" data-profile-modal aria-labelledby="profile-modal-title">
+      <form class="profile-form" data-profile-form>
+        <div class="profile-modal__top">
+          <span class="profile-modal__icon" aria-hidden="true">ঢা</span>
+          <button class="icon-button profile-modal__close" type="button" aria-label="পরে পূরণ করুন" data-close-profile>×</button>
+        </div>
+        <span class="section-kicker">আপনার প্রোফাইল</span>
+        <h2 id="profile-modal-title">ঢাকা বিশ্ববিদ্যালয়ের সঙ্গে আপনার যোগসূত্র</h2>
+        <p class="profile-modal__intro">তথ্যগুলো ব্যক্তিগত থাকবে। এখন যতটুকু পারেন পূরণ করুন; উত্তোলন সুবিধার জন্য প্রোফাইল সম্পূর্ণ করতে হবে।</p>
+        <div class="profile-progress-summary"><span>প্রোফাইল সম্পূর্ণ</span><strong data-modal-percent>০%</strong></div>
+        <div class="completion-track completion-track--modal"><span data-modal-progress style="width:0%"></span></div>
+        <div class="profile-fields">
+          <label class="field-label">পূর্ণ নাম <span>আবশ্যক</span><input name="display_name" autocomplete="name" maxlength="80" placeholder="আপনার নাম" required /></label>
+          <label class="field-label">বিভাগ <span>ঐচ্ছিক</span><input name="department" maxlength="100" placeholder="যেমন: গণযোগাযোগ ও সাংবাদিকতা" /></label>
+          <label class="field-label">শিক্ষাবর্ষ / সেশন <span>ঐচ্ছিক</span><input name="session" maxlength="24" placeholder="যেমন: ২০২২–২৩" /></label>
+          <label class="field-label">শিক্ষার্থী নিবন্ধন নম্বর <span>ব্যক্তিগত · ঐচ্ছিক</span><input name="du_registration_number" maxlength="40" autocomplete="off" placeholder="আপনার ডিইউ রেজিস্ট্রেশন নম্বর" /></label>
+          <label class="field-label">আবাসন <span>ঐচ্ছিক</span><select name="residency_status"><option value="">এখন নয়</option><option value="hall_resident">হলে আবাসিক</option><option value="off_campus">ক্যাম্পাসের বাইরে</option></select></label>
+          <label class="field-label" data-hall-field>হলের নাম <span>ঐচ্ছিক</span><input name="hall_name" maxlength="120" placeholder="আপনার হলের নাম" /></label>
+          <label class="field-label">হোয়াটসঅ্যাপ নম্বর <span>ব্যক্তিগত · ঐচ্ছিক</span><input name="whatsapp_number" inputmode="tel" maxlength="24" autocomplete="tel" placeholder="+৮৮০…" /></label>
+          <label class="field-check"><input name="whatsapp_na" type="checkbox" /><span>আমার হোয়াটসঅ্যাপ নম্বর নেই</span></label>
+          <label class="field-label">পেমেন্ট পদ্ধতি <span>আয়ের জন্য · ঐচ্ছিক</span><select name="payout_method"><option value="">এখন নয়</option><option value="bkash">বিকাশ</option><option value="nagad">নগদ</option></select></label>
+          <label class="field-label">পেমেন্ট নম্বর <span>ব্যক্তিগত · ঐচ্ছিক</span><input name="payout_number" inputmode="tel" maxlength="24" autocomplete="off" placeholder="বিকাশ বা নগদ নম্বর" /></label>
+        </div>
+        <p class="form-error" role="alert" data-profile-error hidden></p>
+        <div class="profile-modal__actions">
+          <button class="read-button profile-save" type="submit"><span>তথ্য সংরক্ষণ করুন</span><span aria-hidden="true">→</span></button>
+          <button class="text-link profile-skip" type="button" data-close-profile>এখন নয়, পরে পূরণ করব</button>
+        </div>
+        <p class="privacy-note">🔒 নিবন্ধন, যোগাযোগ ও পেমেন্টের তথ্য কেবল আপনি এবং অনুমোদিত প্রশাসক দেখতে পারবেন।</p>
+      </form>
+    </dialog>
+    <div class="toast-region" aria-live="polite" aria-atomic="true" data-toast-region></div>
+    <script is:inline src="/client.js" defer>    </script>
+  </body>
+</html>

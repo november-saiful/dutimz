@@ -1,0 +1,15 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+<BaseLayout title="সংবাদ খুঁজুন" description="ঢাকা বিশ্ববিদ্যালয়ের খবর, বিভাগ ও বিষয় খুঁজুন।" canonicalPath="/search/">
+  <section class="content-page">
+    <div class="content-page__intro"><span class="section-kicker">ডুটিমজ আর্কাইভ</span><h1>কোন গল্পটি খুঁজছেন?</h1><p>শিরোনাম, বিষয় কিংবা সংবাদ বিভাগ লিখে খুঁজুন।</p></div>
+    <form class="search-page-form" role="search" action="/search/" data-search-page-form>
+      <label class="sr-only" for="search-page-input">সংবাদ খুঁজুন</label><input id="search-page-input" name="q" type="search" placeholder="যেমন: ক্যাম্পাস, সংস্কৃতি, শিক্ষার্থী…" data-page-search-input />
+      <button class="read-button" type="submit"><span>খুঁজুন</span><span aria-hidden="true">⌕</span></button>
+    </form>
+    <div class="feed-heading search-page-heading"><div><span class="section-kicker" data-search-count>সংবাদ আর্কাইভ</span><h2 data-search-heading>সাম্প্রতিক প্রতিবেদন</h2></div></div>
+    <div class="search-page-results story-grid" id="search-page-results" aria-live="polite"></div>
+    <div class="feed-empty" data-search-no-results hidden><span class="feed-empty__icon" aria-hidden="true">⌕</span><strong>এই খোঁজে কোনো খবর পাওয়া যায়নি</strong><p>বানান ঠিক আছে কি না দেখে আবার চেষ্টা করুন।</p></div>
+  </section>
+</BaseLayout>

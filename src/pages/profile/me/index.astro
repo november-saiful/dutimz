@@ -1,0 +1,11 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+---
+<BaseLayout title="আমার প্রোফাইল" description="আপনার প্রকাশ্য পরিচয় ও ব্যক্তিগত প্রোফাইল সম্পাদনা করুন।" canonicalPath="/profile/me/">
+  <section class="account-page-shell profile-page-shell"><a class="back-link" href="/account/">← অ্যাকাউন্টে ফিরুন</a><div class="account-page-heading"><span class="section-kicker">নিজের পরিচয়, নিজের নিয়ন্ত্রণে</span><h1>আমার প্রোফাইল</h1><p>প্রকাশ্য তথ্য আপনার পাঠকরা দেখতে পাবেন। রেজিস্ট্রেশন ও যোগাযোগের তথ্য ব্যক্তিগত থাকবে।</p></div>
+    <div class="profile-page-card"><div class="profile-page-card__top"><span class="account-avatar account-avatar--large" aria-hidden="true" data-profile-page-avatar><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/></svg></span><div><span class="section-kicker">প্রকাশ্য পরিচয়</span><h2 data-profile-page-name>আপনার নাম</h2><p data-profile-page-handle>@username</p></div><a class="outline-button" href="/u/me/" data-profile-public-link>প্রকাশ্য প্রোফাইল <span aria-hidden="true">↗</span></a></div>
+      <div class="profile-page-fields"><label class="field-label">প্রদর্শিত নাম<input name="display_name" maxlength="80" data-profile-field="display_name" /></label><label class="field-label">ইউজারনেম<input name="username" maxlength="24" pattern="[a-zA-Z][a-zA-Z0-9_]{2,23}" data-profile-field="username" /><small>ইংরেজি অক্ষর দিয়ে শুরু; অক্ষর, সংখ্যা, আন্ডারস্কোর</small></label><label class="field-label profile-bio-field">নিজের পরিচিতি<textarea name="bio" rows="3" maxlength="280" data-profile-field="bio" placeholder="নিজের সম্পর্কে লিখুন…"></textarea></label><label class="field-label">বিভাগ<input name="department" maxlength="100" data-profile-field="department" /></label><label class="field-label">শিক্ষাবর্ষ / সেশন<input name="session" maxlength="24" data-profile-field="session" /></label></div>
+      <div class="profile-privacy-callout"><span aria-hidden="true">🔒</span><p>রেজিস্ট্রেশন নম্বর, হল/আবাসন, হোয়াটসঅ্যাপ ও বিকাশ/নগদ নম্বর কখনোই প্রকাশ্য প্রোফাইলে দেখানো হয় না।</p></div><p class="form-error" role="alert" data-profile-page-error hidden></p><button class="read-button" type="button" data-save-profile-page><span>পরিবর্তন সংরক্ষণ করুন</span><span aria-hidden="true">→</span></button>
+    </div>
+  </section>
+</BaseLayout>

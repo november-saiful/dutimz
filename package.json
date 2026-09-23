@@ -1,0 +1,30 @@
+{
+  "name": "dutimz",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "workspaces": ["worker"],
+  "scripts": {
+    "dev": "astro dev",
+    "check": "astro check",
+    "build": "astro build && node scripts/build-client.mjs",
+    "preview": "wrangler pages dev dist",
+    "check:worker": "tsc --noEmit -p worker/tsconfig.json",
+    "deploy:pages": "wrangler pages deploy dist --project-name=dutimz",
+    "deploy": "npm run deploy:media && npm run deploy:pages",
+    "deploy:media": "wrangler deploy --config worker/wrangler.jsonc",
+    "test:db": "supabase test db",
+    "test": "npm run check && npm run check:worker && npm run test:db"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.5",
+    "astro": "^7.3.3",
+    "typescript": "^5.9.3",
+    "esbuild": "^0.25.10",
+    "wrangler": "^4.135.0",
+    "@cloudflare/workers-types": "^5.20260911.1"
+  }
+}

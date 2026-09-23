@@ -1,0 +1,2 @@
+-- Editorial categories are provisioned by the versioned initial migration.
+-- Add only non-sensitive local fixtures here; never seed real reader data.

@@ -1,0 +1,33 @@
+---
+import type { Story } from '../data/stories';
+interface Props { story: Story; compact?: boolean; rank?: number; }
+const { story, compact = false, rank } = Astro.props;
+---
+<article class:list={['story-card', compact && 'story-card--compact']} data-story-card data-story-id={story.slug}>
+  {rank && <span class="story-rank" aria-hidden="true">{String(rank).padStart(2, '০')}</span>}
+  <a class="story-card__art story-art" href={`/news/${story.slug}/`} aria-label={`পড়ুন: ${story.title}`}>
+    <span class:list={['story-art__visual', story.imageClass]} aria-hidden="true">
+      <span class="story-art__halo"></span>
+      <span class="story-art__line story-art__line--one"></span>
+      <span class="story-art__line story-art__line--two"></span>
+      <span class="story-art__seal">ঢা<br /><i>বি</i></span>
+      <span class="story-art__pill">ঢাকা বিশ্ববিদ্যালয়</span>
+    </span>
+    <span class="story-card__category">{story.category}</span>
+  </a>
+  <div class="story-card__body">
+    <div class="story-meta">
+      <a href={`/category/${story.categorySlug}/`}>{story.category}</a>
+      <span aria-hidden="true">·</span>
+      <time>{story.time}</time>
+    </div>
+    <h3><a href={`/news/${story.slug}/`}>{story.title}</a></h3>
+    {!compact && <p>{story.excerpt}</p>}
+    <div class="story-card__footer">
+      <span class="story-byline">{story.author}</span>
+      <a class="round-arrow" href={`/news/${story.slug}/`} aria-label={`পড়ুন: ${story.title}`}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M12 5l7 7-7 7" /></svg>
+      </a>
+    </div>
+  </div>
+</article>

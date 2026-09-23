@@ -1,0 +1,144 @@
+name: DUTIMZ CI and release
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dutimz-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+  PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+  PUBLIC_MEDIA_URL: ${{ vars.MEDIA_URL }}
+  PUBLIC_DEMO_MODE: "false"
+
+jobs:
+  verify:
+    name: Typecheck, database tests, and production build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install application dependencies
+        run: npm ci
+      - name: Install media worker dependencies
+        run: npm ci --prefix worker
+      - name: Verify Astro pages and types
+        run: npm run check
+      - name: Verify media worker types
+        run: npm run check --prefix worker
+      - name: Build production portal
+        run: npm run build
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start the local database and run policy tests
+        run: |
+          supabase start
+          supabase test db
+      - name: Stop the local database
+        if: always()
+        run: supabase stop --no-backup
+
+  preview:
+    name: Deploy pull-request preview
+    if: github.event_name == 'pull_request'
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build preview portal
+        run: npm run build
+        env:
+          PUBLIC_DEMO_MODE: "true"
+      - name: Deploy Pages preview
+        run: npx wrangler pages deploy dist --project-name=dutimz
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          PUBLIC_MEDIA_URL: ${{ vars.MEDIA_URL }}
+          PUBLIC_DEMO_MODE: "true"
+
+  release:
+    name: Apply database migrations and deploy Cloudflare
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install application dependencies
+        run: npm ci
+      - name: Install media worker dependencies
+        run: npm ci --prefix worker
+      - name: Build the production portal
+        run: npm run build
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Link the production Supabase project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      - name: Review pending database migrations
+        run: supabase db push --dry-run
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      - name: Apply committed production database migrations
+        run: supabase db push
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      - name: Deploy media Worker
+        run: npx wrangler deploy --config worker/wrangler.jsonc
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Deploy the Pages production build
+        run: npx wrangler pages deploy dist --project-name=dutimz --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Verify production endpoints
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --output /dev/null --write-out 'Portal HTTP %{http_code}\n' https://dutimz.com/
+          curl --fail --silent --show-error --output /dev/null --write-out 'Public config HTTP %{http_code}\n' https://dutimz.com/api/config.json
+        shell: bash

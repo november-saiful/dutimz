@@ -1,0 +1,24 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+<BaseLayout title="লেখার আয় ও উত্তোলন" description="আপনার প্রতিবেদন থেকে পাওয়া আয় ও উত্তোলনের তথ্য দেখুন।" canonicalPath="/account/balance/">
+  <section class="account-page-shell dashboard-shell">
+    <a class="back-link" href="/account/">← অ্যাকাউন্টে ফিরুন</a>
+    <div class="account-page-heading"><span class="section-kicker">স্বচ্ছ আয় হিসাব</span><h1>লেখার আয়</h1><p>প্রতিবেদন প্রকাশিত হলে আয় জমা হয়। প্রোফাইল সম্পূর্ণ না হওয়া পর্যন্ত আয় নিরাপদে আটকে থাকবে।</p></div>
+    <div class="wallet-grid">
+      <article class="wallet-card wallet-card--available"><span>উত্তোলনযোগ্য</span><strong data-wallet-available>৳০</strong><small>সর্বনিম্ন উত্তোলন ৳৩,০০০</small></article>
+      <article class="wallet-card"><span>প্রোফাইল সম্পূর্ণ না হওয়া পর্যন্ত জমা</span><strong data-wallet-held>৳০</strong><small>প্রোফাইল ১০০% হলে ছাড় হবে</small></article>
+      <article class="wallet-card"><span>উত্তোলনের অপেক্ষায়</span><strong data-wallet-reserved>৳০</strong><small>অনুমোদনের অপেক্ষায় থাকা অনুরোধ</small></article>
+    </div>
+    <section class="withdrawal-panel"><div><span class="section-kicker">নগদ উত্তোলন</span><h2>বিকাশ বা নগদে উত্তোলনের অনুরোধ</h2><p>নিজের নামে নিবন্ধিত নম্বর ব্যবহার করুন। প্রশাসক অনুরোধ যাচাই করে হাতে পেমেন্ট দেবেন।</p></div>
+      <form class="withdrawal-form" data-withdrawal-form>
+        <label class="field-label">টাকার পরিমাণ<input name="amount_tk" type="number" inputmode="numeric" min="3000" step="1" placeholder="কমপক্ষে ৩০০০" required /></label>
+        <label class="field-label">পেমেন্ট পদ্ধতি<select name="method" required><option value="">নির্বাচন করুন</option><option value="bkash">বিকাশ</option><option value="nagad">নগদ</option></select></label>
+        <label class="field-label">যে নম্বরে পেমেন্ট চান<input name="payout_number" inputmode="tel" maxlength="24" placeholder="+৮৮০…" required /></label>
+        <button class="read-button" type="submit"><span>উত্তোলনের অনুরোধ</span><span aria-hidden="true">→</span></button><p class="form-error" role="alert" data-withdrawal-error hidden></p>
+      </form>
+      <ul class="withdrawal-rules"><li>প্রোফাইল সম্পূর্ণ ১০০% হতে হবে।</li><li>প্রথম সফল উত্তোলনের আগে অন্তত ৩৫টি প্রকাশিত প্রতিবেদন প্রয়োজন।</li><li>অনুরোধের সময় টাকাটি সাময়িকভাবে সংরক্ষিত হবে।</li></ul>
+    </section>
+    <section class="ledger-section"><div class="feed-heading"><div><span class="section-kicker">স্বচ্ছ লেনদেন</span><h2>আয়ের ইতিহাস</h2></div></div><div class="ledger-list" data-ledger-list><div class="feed-empty"><span class="feed-empty__icon" aria-hidden="true">৳</span><strong>এখনো কোনো লেনদেন নেই</strong><p>আপনার প্রতিবেদন প্রকাশিত হলে আয় এখানে দেখা যাবে।</p></div></div></section>
+  </section>
+</BaseLayout>

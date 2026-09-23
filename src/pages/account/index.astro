@@ -1,0 +1,20 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+<BaseLayout title="আমার অ্যাকাউন্ট" description="আপনার ডুটিমজ প্রোফাইল ও অ্যাকাউন্টের সারসংক্ষেপ।" canonicalPath="/account/">
+  <section class="account-page-shell dashboard-shell">
+    <div class="account-page-heading"><span class="section-kicker">ব্যক্তিগত পরিসর</span><h1>আমার অ্যাকাউন্ট</h1><p>প্রোফাইল, সংরক্ষিত খবর ও লেখালেখির সবকিছু এক জায়গায়।</p></div>
+    <div class="dashboard-grid">
+      <article class="dashboard-profile-card"><span class="account-avatar account-avatar--large" aria-hidden="true" data-dashboard-avatar><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/></svg></span><span class="section-kicker">আপনার পরিচয়</span><h2 data-dashboard-name>আপনার নাম</h2><p data-dashboard-handle>@username</p><a class="outline-button" href="/profile/me/">প্রোফাইল দেখুন <span aria-hidden="true">→</span></a></article>
+      <article class="dashboard-stat-card"><span class="stat-card__icon" aria-hidden="true">৳</span><span class="section-kicker">মোট জমা আয়</span><strong data-dashboard-balance>৳০</strong><p>প্রোফাইল সম্পূর্ণ না হওয়া পর্যন্ত জমা আয় আটকে থাকবে।</p><a href="/account/balance/" class="text-link">বিস্তারিত দেখুন →</a></article>
+      <article class="dashboard-stat-card dashboard-stat-card--soft"><span class="stat-card__icon" aria-hidden="true">✦</span><span class="section-kicker">প্রোফাইল সম্পূর্ণ</span><strong data-dashboard-percent>০%</strong><p data-dashboard-profile-tip>তথ্য পূরণ করলে আপনার লেখার আয়ের সুবিধা চালু হবে।</p><button class="text-link-button" type="button" data-open-profile>প্রোফাইল হালনাগাদ করুন →</button></article>
+    </div>
+    <div class="dashboard-actions" data-dashboard-actions>
+      <a class="dashboard-action-card" href="/saved/"><span aria-hidden="true">▱</span><div><strong>সংরক্ষিত প্রতিবেদন</strong><span>পরে পড়ার জন্য রাখা খবর দেখুন</span></div><span aria-hidden="true">→</span></a>
+      <a class="dashboard-action-card" href="/account/write/"><span aria-hidden="true">✎</span><div><strong data-write-action-title>প্রতিবেদক হিসেবে আবেদন</strong><span data-write-action-subtitle>নিজের লেখা ও প্রস্তাবনা পাঠান</span></div><span aria-hidden="true">→</span></a>
+      <a class="dashboard-action-card" href="/account/moderation/" data-dashboard-moderation hidden><span aria-hidden="true">✓</span><div><strong>মডারেশন ডেস্ক</strong><span>অপেক্ষমাণ প্রতিবেদন পর্যালোচনা করুন</span></div><span aria-hidden="true">→</span></a>
+      <a class="dashboard-action-card" href="/account/admin/" data-dashboard-admin hidden><span aria-hidden="true">⚙</span><div><strong>প্রশাসনিক নিয়ন্ত্রণ</strong><span>ব্যবহারকারী ও অর্থপরিশোধ পরিচালনা করুন</span></div><span aria-hidden="true">→</span></a>
+    </div>
+    <p class="form-error dashboard-auth-message" role="status" data-dashboard-message hidden></p>
+  </section>
+</BaseLayout>

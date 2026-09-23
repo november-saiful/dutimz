@@ -1,0 +1,9 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { categories } from '../../data/stories';
+export function getStaticPaths() { return categories.filter((category) => category.slug !== 'all').map((category) => ({ params: { slug: category.slug }, props: { category } })); }
+const { category } = Astro.props;
+---
+<BaseLayout title={category.label} description={`ঢাকা বিশ্ববিদ্যালয় ${category.label} বিভাগের সর্বশেষ খবর।`} canonicalPath={`/category/${category.slug}/`}>
+  <section class="content-page dashboard-shell"><a class="back-link" href="/">← মূলপাতা</a><div class="account-page-heading"><span class="section-kicker">ডুটিমজ সংবাদ বিভাগ</span><h1>{category.label}</h1><p>ঢাকা বিশ্ববিদ্যালয় থেকে যাচাই করা প্রতিবেদন, মতামত ও ক্যাম্পাসের গল্প।</p></div><div class="story-grid category-story-grid" id="story-feed"></div></section>
+</BaseLayout>

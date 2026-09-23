@@ -1,0 +1,21 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { categories } from '../../data/stories';
+---
+<BaseLayout title="প্রতিবেদন লিখুন" description="ডুটিমজে প্রতিবেদন পাঠান অথবা রিপোর্টার হিসেবে আবেদন করুন।" canonicalPath="/account/write/">
+  <section class="account-page-shell writer-shell">
+    <a class="back-link" href="/account/">← অ্যাকাউন্টে ফিরুন</a>
+    <div class="account-page-heading"><span class="section-kicker">ক্যাম্পাসের কণ্ঠ হয়ে উঠুন</span><h1>প্রতিবেদন লিখুন</h1><p>সঠিক তথ্য, নিরপেক্ষ ভাষা ও প্রকাশের দায়িত্ববোধ নিয়ে আপনার গল্পটি পাঠান।</p></div>
+    <div class="writer-state" data-writer-state hidden></div>
+    <form class="article-editor" data-article-form>
+      <div class="editor-note"><span aria-hidden="true">✦</span><p>প্রকাশিত প্রতিবেদনের জন্য নির্ধারিত হার অনুযায়ী পারিশ্রমিক জমা হবে। আয় তুলতে প্রোফাইল ১০০% সম্পূর্ণ হতে হবে।</p></div>
+      <label class="field-label">প্রতিবেদনের শিরোনাম<input name="title" maxlength="180" placeholder="আপনার প্রতিবেদনের শিরোনাম" required /></label>
+      <div class="editor-two-col"><label class="field-label">বিভাগ<select name="category_slug" required>{categories.filter((category) => category.slug !== 'all').map((category) => <option value={category.slug}>{category.label}</option>)}</select></label><label class="field-label">ইংরেজি URL slug<input name="slug" maxlength="120" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="campus-story-title" required /><small>শুধু ছোট হাতের ইংরেজি অক্ষর, সংখ্যা ও হাইফেন</small></label></div>
+      <label class="field-label">সংক্ষিপ্ত পরিচিতি<textarea name="excerpt" rows="3" maxlength="280" placeholder="প্রতিবেদনটি কী নিয়ে—২৮০ অক্ষরের মধ্যে" required></textarea></label>
+      <label class="field-label">পূর্ণ প্রতিবেদন<textarea name="body" rows="12" minlength="100" maxlength="30000" placeholder="যাচাই করা তথ্য ও প্রাসঙ্গিক সূত্রসহ প্রতিবেদন লিখুন…" required></textarea><small>কমপক্ষে ১০০ অক্ষর। ব্যক্তিগত আক্রমণ, গুজব বা অনুমতিহীন ব্যক্তিগত তথ্য প্রকাশ করবেন না।</small></label>
+      <p class="form-error" role="alert" data-article-error hidden></p>
+      <div class="editor-submit-row"><button class="read-button" type="submit"><span>প্রতিবেদন পাঠান</span><span aria-hidden="true">→</span></button><span data-editor-status>জুনিয়র রিপোর্টারের প্রতিবেদন অনুমোদনের অপেক্ষায় থাকবে।</span></div>
+    </form>
+    <section class="reporter-application" data-application-section><div><span class="section-kicker">এখনো রিপোর্টার নন?</span><h2>রিপোর্টার হিসেবে আবেদন করুন</h2><p>সম্পাদকীয় দল আপনার আবেদন পর্যালোচনা করে উপযুক্ত রিপোর্টার স্তর নির্ধারণ করবে। স্তর অনুমোদনের পর পারিশ্রমিক কার্যকর হবে।</p></div><form data-application-form><label class="field-label">লেখার অভিজ্ঞতা ও আগ্রহ<textarea name="motivation" rows="4" maxlength="1500" placeholder="আপনি কী ধরনের প্রতিবেদন করতে চান? আগের কাজ থাকলে সংক্ষেপে লিখুন।" required></textarea></label><p class="form-error" role="alert" data-application-error hidden></p><button class="outline-button" type="submit">আবেদন পাঠান <span aria-hidden="true">→</span></button></form></section>
+  </section>
+</BaseLayout>

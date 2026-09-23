@@ -1,0 +1,158 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import StoryCard from '../components/StoryCard.astro';
+import { previewStories } from '../data/stories';
+const demoMode = import.meta.env.PUBLIC_DEMO_MODE !== 'false';
+const featured = demoMode ? previewStories[0] : null;
+const sideStories = demoMode ? previewStories.slice(1) : [];
+---
+<BaseLayout
+  title="ঢাকা বিশ্ববিদ্যালয়ের সংবাদমাধ্যম"
+  description="ঢাকা বিশ্ববিদ্যালয়ের ক্যাম্পাস সংবাদ, শিক্ষার্থী জীবন, সংস্কৃতি, মতামত ও বিশ্ববিদ্যালয়ের গল্প—ডুটিমজে।"
+  canonicalPath="/"
+  demoMode={demoMode}
+  featured={featured}
+>
+  <div class="portal-frame">
+    <div class="portal-grid">
+      <section class="editorial-main" aria-labelledby="featured-title">
+        <div class="section-eyebrow"><span class="eyebrow-dot"></span> ক্যাম্পাসের খবর, ক্যাম্পাসের কণ্ঠে</div>
+        {featured ? (
+          <article class="lead-story" data-featured-story data-story-id={featured.slug}>
+            <div class="lead-story__copy">
+              <span class="lead-label"><span class="lead-label__mark">ঢা</span> আজকের মুখ্য প্রতিবেদন</span>
+              <div class="lead-story__meta">
+                <a href={`/category/${featured.categorySlug}/`}>{featured.category}</a>
+                <span aria-hidden="true">·</span>
+                <time>{featured.time}</time>
+              </div>
+              <h1 id="featured-title"><a href={`/news/${featured.slug}/`}>{featured.title}</a></h1>
+              <p>{featured.excerpt}</p>
+              <div class="lead-story__tags"><span>#ঢাকাবিশ্ববিদ্যালয়</span><span>#ক্যাম্পাস</span></div>
+              <a class="read-button" href={`/news/${featured.slug}/`}>
+                <span>প্রতিবেদন পড়ুন</span>
+                <span class="read-button__arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h13M12 5l7 7-7 7" /></svg></span>
+              </a>
+            </div>
+            <a class="lead-art story-art" href={`/news/${featured.slug}/`} aria-label={`পড়ুন: ${featured.title}`}>
+              <span class:list={['story-art__visual story-art__visual--lead', featured.imageClass]} aria-hidden="true">
+                <span class="story-art__halo"></span>
+                <span class="story-art__line story-art__line--one"></span>
+                <span class="story-art__line story-art__line--two"></span>
+                <span class="story-art__seal story-art__seal--lead">ঢা<br /><i>বি</i></span>
+                <span class="lead-art__caption"><span class="lead-art__live-dot"></span> ঢাকা বিশ্ববিদ্যালয়ের কথা</span>
+              </span>
+              <span class="lead-art__stamp">ঢাকা<br />বিশ্ববিদ্যালয়</span>
+            </a>
+          </article>
+        ) : (
+          <section class="lead-story lead-story--empty" aria-live="polite">
+            <div class="lead-story__copy">
+              <span class="lead-label"><span class="lead-label__mark">ঢা</span> পাঠকের জন্য, ক্যাম্পাসের কাছ থেকে</span>
+              <h1 id="featured-title">ঢাকা বিশ্ববিদ্যালয়ের প্রতিটি গল্পের নিজস্ব একটি মঞ্চ।</h1>
+              <p>ক্যাম্পাসের খবর, শিক্ষার্থীদের কণ্ঠ, সংস্কৃতি ও মতামত—সম্পাদিত ও যাচাই করা প্রতিবেদন পড়ুন ডুটিমজে।</p>
+              <a class="read-button" href="/account/write/"><span>আপনার প্রতিবেদন পাঠান</span><span class="read-button__arrow" aria-hidden="true">→</span></a>
+            </div>
+            <div class="lead-art lead-art--placeholder" aria-hidden="true">
+              <span class="placeholder-seal">ঢা<br /><i>বি</i></span>
+              <span class="placeholder-ring placeholder-ring--one"></span>
+              <span class="placeholder-ring placeholder-ring--two"></span>
+              <span class="placeholder-caption">ক্যাম্পাসের কণ্ঠস্বর</span>
+            </div>
+          </section>
+        )}
+        <div class="feed-heading">
+          <div>
+            <span class="section-kicker">সাম্প্রতিক</span>
+            <h2>ক্যাম্পাসের খবর</h2>
+          </div>
+          <a class="text-link" href="/search/">সব খবর দেখুন <span aria-hidden="true">→</span></a>
+        </div>
+        <div class="story-grid" id="story-feed" aria-live="polite">
+          {sideStories.length > 0 ? sideStories.map((story, index) => <StoryCard story={story} rank={index + 1} />) : (
+            <div class="feed-empty">
+              <span class="feed-empty__icon" aria-hidden="true">ঢা</span>
+              <strong>প্রথম প্রতিবেদনটি আসছে</strong>
+              <p>সম্পাদকীয় ডেস্কের যাচাই করা খবর এখানে দেখানো হবে।</p>
+            </div>
+          )}
+        </div>
+        <div class="load-more-wrap" data-feed-more hidden>
+          <button class="outline-button" type="button" data-load-more>আরও খবর দেখুন <span aria-hidden="true">↓</span></button>
+        </div>
+        <section class="contribute-card" aria-labelledby="contribute-title">
+          <div class="contribute-card__symbol" aria-hidden="true">✳</div>
+          <div>
+            <span class="section-kicker">ক্যাম্পাসের খবর আপনার চোখেও?</span>
+            <h2 id="contribute-title">আপনার গল্পটিও বলুন।</h2>
+            <p>ঢাকা বিশ্ববিদ্যালয়ের যেকোনো শিক্ষার্থী বা পাঠক নিজের প্রতিবেদন পাঠাতে পারেন।</p>
+          </div>
+          <a href="/account/write/" class="contribute-link">প্রতিবেদন পাঠান <span aria-hidden="true">↗</span></a>
+        </section>
+      </section>
+      <aside class="recommendation-panel" aria-labelledby="recommend-title">
+        <div class="sidebar-search">
+          <label class="sr-only" for="sidebar-search-input">প্রতিবেদন খুঁজুন</label>
+          <input id="sidebar-search-input" type="search" placeholder="নাম, বিষয় বা বিভাগ খুঁজুন…" data-search-input />
+          <button type="button" aria-label="খুঁজুন" data-sidebar-search>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></svg>
+          </button>
+        </div>
+        <div class="sidebar-heading">
+          <div><span class="section-kicker">পাঠকের পছন্দ</span><h2 id="recommend-title">আরও পড়ুন</h2></div>
+          <a href="/search/" aria-label="সব খবর দেখুন">সব <span aria-hidden="true">›</span></a>
+        </div>
+        <div class="recommended-feature" data-recommended-feature>
+          {demoMode && sideStories[0] && (
+            <a class="recommended-feature__art story-art" href={`/news/${sideStories[0].slug}/`} aria-label={`পড়ুন: ${sideStories[0].title}`}>
+              <span class:list={['story-art__visual', sideStories[0].imageClass]} aria-hidden="true">
+                <span class="story-art__halo"></span><span class="story-art__seal">ঢা<br /><i>বি</i></span>
+                <span class="recommended-feature__copy"><span>{sideStories[0].category} · প্রিভিউ</span><strong>{sideStories[0].title}</strong></span>
+              </span>
+            </a>
+          )}
+        </div>
+        <div class="recommended-list" id="recommended-list">
+          {demoMode && sideStories.slice(1).map((story, index) => (
+            <article class="recommended-item" data-story-id={story.slug}>
+              <a href={`/news/${story.slug}/`} class="recommended-item__copy">
+                <span class="story-meta"><span>{story.category}</span><span aria-hidden="true">·</span><time>প্রিভিউ</time></span>
+                <h3>{story.title}</h3>
+              </a>
+              <a class:list={['recommended-thumb', 'story-art__visual', story.imageClass]} href={`/news/${story.slug}/`} aria-label={`পড়ুন: ${story.title}`}>
+                <span class="story-art__seal" aria-hidden="true">ঢা</span>
+              </a>
+            </article>
+          ))}
+        </div>
+        <div class="sidebar-live-state" data-sidebar-empty hidden>
+          <span aria-hidden="true">✦</span>
+          <p>নতুন প্রতিবেদন এলে এখানে দেখানো হবে।</p>
+        </div>
+        <section class="sidebar-topics" aria-labelledby="topic-title">
+          <div class="sidebar-heading"><div><span class="section-kicker">আলোচনায়</span><h2 id="topic-title">আজকের বিষয়</h2></div></div>
+          <a href="/category/campus/" class="topic-chip"><span>#</span> ক্যাম্পাস জীবন</a>
+          <a href="/category/university/" class="topic-chip"><span>#</span> বিশ্ববিদ্যালয়</a>
+          <a href="/category/culture/" class="topic-chip"><span>#</span> সংস্কৃতি</a>
+        </section>
+        <section class="newsletter-card">
+          <span class="newsletter-icon" aria-hidden="true">✦</span>
+          <span class="section-kicker">ক্যাম্পাসের খবর</span>
+          <h2>গুরুত্বপূর্ণ গল্পগুলো পড়ুন একসাথে।</h2>
+          <p>আপনার ইমেইল দিয়ে প্রবেশ করুন; সংরক্ষিত খবর থাকবে নিজের প্রোফাইলে।</p>
+          <a class="newsletter-button" href="/auth/sign-in/">গুগল দিয়ে প্রবেশ <span aria-hidden="true">→</span></a>
+        </section>
+        {featured && (
+          <section class="balance-teaser" data-signed-in-only hidden>
+            <div><span class="section-kicker">লেখক আয়</span><h2>আপনার লেখার মূল্য</h2><p>সম্পূর্ণ প্রোফাইল থাকলে প্রতিবেদনের আয় উত্তোলনযোগ্য হবে।</p></div>
+            <a href="/account/balance/" aria-label="আয়ের বিস্তারিত">→</a>
+          </section>
+        )}
+      </aside>
+    </div>
+  </div>
+  <div class="search-results-panel" data-search-results hidden>
+    <div class="feed-heading"><div><span class="section-kicker">খুঁজুন</span><h2 data-search-heading>খবরের ফলাফল</h2></div><button class="icon-button" type="button" aria-label="বন্ধ করুন" data-close-search>×</button></div>
+    <div class="search-result-list" id="search-results-list"></div>
+  </div>
+</BaseLayout>

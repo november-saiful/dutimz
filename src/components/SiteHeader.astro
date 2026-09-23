@@ -1,0 +1,99 @@
+---
+import { categories } from '../data/stories';
+---
+<header class="site-header">
+  <div class="masthead">
+    <a class="brand" href="/" aria-label="ডুটিমজ মূলপাতা">
+      <span class="brand-mark" aria-hidden="true">ঢা</span>
+      <span class="brand-copy">
+        <strong>ডুটিমজ</strong>
+        <span>ঢাকা বিশ্ববিদ্যালয়ের সংবাদমাধ্যম</span>
+      </span>
+    </a>
+    <div class="masthead-right">
+      <span class="masthead-date" data-bengali-date>ঢাকা বিশ্ববিদ্যালয়ের প্রতিদিন</span>
+      <button class="icon-button mobile-search-trigger" type="button" aria-label="খুঁজুন" data-open-search>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></svg>
+      </button>
+      <div class="account-menu" data-account-menu>
+        <button
+          class="account-button"
+          id="account-menu-button"
+          type="button"
+          aria-haspopup="true"
+          aria-expanded="false"
+          aria-controls="account-menu-panel"
+          data-account-toggle
+        >
+          <span class="account-avatar" aria-hidden="true" data-account-avatar>
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M4.5 21a7.5 7.5 0 0 1 15 0" /></svg>
+          </span>
+          <span class="account-button-label" data-account-label>অ্যাকাউন্ট</span>
+          <svg class="account-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+        </button>
+        <section class="account-panel" id="account-menu-panel" aria-labelledby="account-menu-button" hidden data-account-panel>
+          <div class="account-panel__heading">
+            <span class="account-avatar account-avatar--panel" aria-hidden="true" data-panel-avatar>
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M4.5 21a7.5 7.5 0 0 1 15 0" /></svg>
+            </span>
+            <div class="account-panel__identity">
+              <strong data-account-name>স্বাগতম</strong>
+              <span data-account-email>পাঠক হিসেবে পড়ুন</span>
+            </div>
+          </div>
+          <div class="account-balance" data-signed-in-only hidden>
+            <div>
+              <span>মোট আয়</span>
+              <strong data-balance-value>৳০</strong>
+            </div>
+            <a href="/account/balance/">বিস্তারিত <span aria-hidden="true">↗</span></a>
+          </div>
+          <div class="profile-completion" data-signed-in-only hidden>
+            <div class="profile-completion__row"><span>প্রোফাইল সম্পূর্ণ</span><strong data-profile-percent>০%</strong></div>
+            <div class="completion-track"><span data-profile-progress style="width: 0%"></span></div>
+          </div>
+          <nav class="account-links" aria-label="অ্যাকাউন্ট মেনু">
+            <div data-dynamic-account-links></div>
+            <a href="/auth/sign-in/" data-signed-out-only data-google-sign-in>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.35 12.24c0-.72-.06-1.42-.19-2.09H12v3.96h5.24a4.48 4.48 0 0 1-1.94 2.94v2.56h3.14c1.84-1.69 2.91-4.18 2.91-7.37ZM12 21.6c2.63 0 4.84-.87 6.45-2.35l-3.14-2.56c-.87.58-1.98.92-3.31.92-2.55 0-4.72-1.72-5.5-4.04H3.25v2.64A9.74 9.74 0 0 0 12 21.6Z" /><path d="M6.5 13.57A5.85 5.85 0 0 1 6.2 12c0-.55.1-1.08.3-1.57V7.79H3.25A9.6 9.6 0 0 0 2.2 12c0 1.53.37 2.98 1.05 4.21z" /><path d="M12 6.4c1.43 0 2.71.49 3.72 1.46l2.8-2.8C16.83 3.49 14.62 2.4 12 2.4a9.74 9.74 0 0 0-8.75 5.39l3.25 2.64c.78-2.32 2.95-4.03 5.5-4.03Z" /></svg>
+              গুগল দিয়ে প্রবেশ করুন
+            </a>
+            <a href="/profile/me/" data-signed-in-only hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4" /><path d="M4.5 21a7.5 7.5 0 0 1 15 0" /></svg>
+              আমার প্রোফাইল
+            </a>
+            <a href="/saved/" data-signed-in-only hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.8L6 21z" /></svg>
+              সংরক্ষিত খবর
+            </a>
+          </nav>
+          <button class="account-signout" type="button" data-sign-out hidden>সাইন আউট</button>
+        </section>
+      </div>
+    </div>
+  </div>
+  <div class="header-tools">
+    <nav class="category-chips" aria-label="সংবাদ বিভাগ">
+      {categories.map((category) => (
+        <a class:list={['category-chip', category.slug === 'all' && 'is-active']} href={category.slug === 'all' ? '/' : `/category/${category.slug}/`}>
+          {category.label}
+          {category.slug === 'all' && <span aria-hidden="true">＋</span>}
+        </a>
+      ))}
+    </nav>
+    <form class="header-search" action="/search/" role="search" data-search-form>
+      <label class="sr-only" for="header-search-input">খবর, বিষয় বা বিভাগ খুঁজুন</label>
+      <input id="header-search-input" name="q" type="search" placeholder="খবর, বিষয় বা বিভাগ খুঁজুন…" autocomplete="off" data-search-input />
+      <button type="submit" aria-label="খুঁজুন">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 5 5" /></svg>
+      </button>
+    </form>
+  </div>
+  <div class="mobile-categories" aria-label="সংবাদ বিভাগ">
+    {categories.map((category) => (
+      <a class:list={['category-chip', category.slug === 'all' && 'is-active']} href={category.slug === 'all' ? '/' : `/category/${category.slug}/`}>
+        {category.label}
+      </a>
+    ))}
+  </div>
+</header>

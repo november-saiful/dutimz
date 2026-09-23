@@ -1,0 +1,20 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+---
+<BaseLayout title="প্রবেশ করুন" description="গুগল অ্যাকাউন্ট দিয়ে ডুটিমজে প্রবেশ করুন।" canonicalPath="/auth/sign-in/">
+  <section class="account-page-shell sign-in-shell">
+    <div class="auth-card">
+      <a class="brand auth-card__brand" href="/" aria-label="ডুটিমজ মূলপাতা"><span class="brand-mark" aria-hidden="true">ঢা</span><span class="brand-copy"><strong>ডুটিমজ</strong><span>ঢাকা বিশ্ববিদ্যালয়ের সংবাদমাধ্যম</span></span></a>
+      <span class="section-kicker">আপনার ক্যাম্পাস, আপনার কণ্ঠ</span>
+      <h1>ডুটিমজে স্বাগতম।</h1>
+      <p>প্রতিবেদনে মন্তব্য করুন, খবর সংরক্ষণ করুন, আর ঢাকা বিশ্ববিদ্যালয়ের গল্পের সঙ্গে থাকুন।</p>
+      <button type="button" class="google-login-button" data-google-sign-in>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285f4" d="M21.35 12.24c0-.72-.06-1.42-.19-2.09H12v3.96h5.24a4.48 4.48 0 0 1-1.94 2.94v2.56h3.14c1.84-1.69 2.91-4.18 2.91-7.37ZM12 21.6c2.63 0 4.84-.87 6.45-2.35l-3.14-2.56c-.87.58-1.98.92-3.31.92-2.55 0-4.72-1.72-5.5-4.04H3.25v2.64A9.74 9.74 0 0 0 12 21.6Z"/><path fill="#34a853" d="M6.5 13.57A5.85 5.85 0 0 1 6.2 12c0-.55.1-1.08.3-1.57V7.79H3.25A9.6 9.6 0 0 0 2.2 12c0 1.53.37 2.98 1.05 4.21z"/><path fill="#fbbc05" d="M12 6.4c1.43 0 2.71.49 3.72 1.46l2.8-2.8C16.83 3.49 14.62 2.4 12 2.4a9.74 9.74 0 0 0-8.75 5.39l3.25 2.64c.78-2.32 2.95-4.03 5.5-4.03Z"/><path fill="#ea4335" d="m3.25 16.21 3.25-2.64"/></svg>
+        গুগল দিয়ে প্রবেশ করুন
+      </button>
+      <p class="auth-note">প্রবেশ করলে আপনি আমাদের <a href="/guidelines/">সম্পাদকীয় নীতিমালা</a> ও কমিউনিটি নিয়মে সম্মত হচ্ছেন। অন্য কোনো লগইন পদ্ধতি চালু নেই।</p>
+      <p class="form-error" role="alert" data-auth-error hidden></p>
+      <a class="auth-back-link" href="/">← মূলপাতায় ফিরে যান</a>
+    </div>
+  </section>
+</BaseLayout>
