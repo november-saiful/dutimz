@@ -335,6 +335,7 @@ svg { display: block; width: 21px; height: 21px; fill: none; stroke: currentColo
 .editor-note > span { color: #856fd0; }
 .editor-note > p { margin: 0; font-size: 11px; }
 .editor-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+.editor-two-col .slug-preview { display: block; padding: 11px 13px; border: 1px dashed var(--line); border-radius: 12px; background: rgba(255,255,255,.6); color: var(--blue-deep); font-size: 12px; word-break: break-all; }
 .editor-submit-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .editor-submit-row > span { color: #8c93a1; font-size: 10px; }
 .reporter-application { display: grid; grid-template-columns: minmax(0,1fr) minmax(250px,.85fr); gap: 24px; margin-top: 18px; }
@@ -358,6 +359,11 @@ svg { display: block; width: 21px; height: 21px; fill: none; stroke: currentColo
 .history-entry strong { font-size: 13px; }
 .history-entry p { margin: 5px 0; color: #737c8e; font-size: 12px; }
 .history-entry time { color: #98a0ae; font-size: 10px; }
+.corrections-list { display: grid; gap: 12px; }
+.corrections-list .history-entry a { color: var(--blue); text-decoration: none; }
+.corrections-list .history-entry a:hover { text-decoration: underline; }
+.corrections-list .history-entry .section-kicker { display: block; margin: 4px 0 3px; }
+.corrections-policy { margin-top: 36px; }
 .account-page-heading .section-kicker, .content-page__intro .section-kicker { margin-bottom: 5px; }
 .content-page { width: min(850px,100%); }
 .content-page__intro { margin-bottom: 32px; }

@@ -54,4 +54,6 @@ Configure GitHub Actions environment variables `SUPABASE_URL`, `SUPABASE_ANON_KE
 - Profile details below ১০০% create held fees; completing every applicable field releases held money.
 - Minimum withdrawal ৳৩,০০০; the first successful withdrawal also requires at least ৩৫ distinctly published articles. A pending request reserves balance; admin rejection refunds the reserve.
 - Every moderation, role assignment, withdrawal review, and administrative money adjustment requires a logged reason.
+- Slugs are generated from the Bengali headline by phonetic transliteration (`slugify_title`), so reporters never type one: `ঢাকা` becomes `dhaka`, `সংবাদ` becomes `songbad`. A headline already in use claims the next numeric suffix. A published address never changes, so links keep working after a correction.
+- Corrections transparency: every edit to a published story is public at `/corrections/` with its reason, editor label, and whether the headline or body changed. The raw revision history stays private and is exposed only through the `list_corrections` function.
 - R2 originals are never replaced, renamed, or overwritten. A derivative is stored only when `OPTIMIZE_IMAGES=true` and the transformed output is verified smaller; unsupported media stays unchanged.

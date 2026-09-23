@@ -6,6 +6,8 @@ type Tier = 'junior' | 'general' | 'executive' | null;
 type Profile = { id: string; username: string; display_name: string; avatar_url: string | null; bio?: string };
 type Article = { id: string; slug: string; title: string; excerpt: string; body: string; published_at: string | null; created_at: string; status: string; author_id: string; hero_media_key: string | null; category: { slug: string; title_bn: string } | { slug: string; title_bn: string }[]; profiles: { username: string; display_name: string; avatar_url: string | null } | { username: string; display_name: string; avatar_url: string | null }[] };
 
+type Correction = { article_id: string; slug: string; title: string; revision: number; reason: string; editor_label: string; headline_changed: boolean; body_changed: boolean; edited_at: string };
+
 const digits = new Intl.NumberFormat('bn-BD', { maximumFractionDigits: 0 });
 const money = (amount: number) => `৳${digits.format(amount)}`;
 const strings = {
@@ -126,7 +128,7 @@ function setCompletion(percent: number) {
   const accountPanel = document.querySelector<HTMLElement>('[data-account-panel]');
   if (accountPanel) accountPanel.setAttribute('aria-label', `প্রোফাইল সম্পূর্ণ ${digits.format(profileCompletion)} শতাংশ`);
   for (const selector of ['[data-profile-percent]', '[data-modal-percent]', '[data-dashboard-percent]']) {
-    const element = document.querySelector<HTMLElement>(selector); if (element) element.textContent = `${digits.format(profileCompletion)}٪`;
+    const element = document.querySelector<HTMLElement>(selector); if (element) element.textContent = `${digits.format(profileCompletion)}%`;
   }
   for (const selector of ['[data-profile-progress]', '[data-modal-progress]']) {
     const bar = document.querySelector<HTMLElement>(selector); if (bar) bar.style.width = `${profileCompletion}%`;
@@ -513,17 +515,27 @@ async function uploadEditorMedia(file: File) {
 function initArticleEditor() {
   const form = document.querySelector<HTMLFormElement>('[data-article-form]');
   if (!form) return;
-  const slug = form.elements.namedItem('slug') as HTMLInputElement | null;
   const title = form.elements.namedItem('title') as HTMLInputElement | null;
+  const preview = document.querySelector<HTMLElement>('[data-slug-preview]');
+  let previewTimer = 0;
   const upload = form.elements.namedItem('hero_image') as HTMLInputElement | null;
   const status = document.querySelector<HTMLElement>('[data-editor-status]');
   let mediaId: string | null = null;
-  title?.addEventListener('input', () => {
-    if (!slug || slug.dataset.edited === 'true') return;
-    const generated = title.value.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 110);
-    if (generated) slug.value = generated;
-  });
-  slug?.addEventListener('input', () => { if (slug) slug.dataset.edited = 'true'; });
+  // The server derives the address from the headline (public.slugify_title), so
+  // the editor only previews it — and previews it through that same function
+  // rather than through a second implementation that could drift from it.
+  const refreshSlugPreview = () => {
+    window.clearTimeout(previewTimer);
+    previewTimer = window.setTimeout(async () => {
+      if (!preview) return;
+      const value = title?.value.trim() ?? '';
+      if (!value || !supabase) { preview.textContent = '/news/…'; return; }
+      const result = await supabase.rpc('slugify_title', { p_title: value });
+      const slugPreview = typeof result.data === 'string' ? result.data : '';
+      preview.textContent = `/news/${slugPreview || '…'}/`;
+    }, 400);
+  };
+  title?.addEventListener('input', refreshSlugPreview);
   upload?.addEventListener('change', async () => {
     const file = upload.files?.[0]; if (!file) { mediaId = null; return; }
     if (!file.type.startsWith('image/')) { upload.value = ''; toast('প্রচ্ছদের জন্য JPEG, PNG, WebP, GIF অথবা AVIF ছবি দিন।', true); return; }
@@ -541,14 +553,20 @@ function initArticleEditor() {
     const values = formDataObject(form);
     const button = form.querySelector<HTMLButtonElement>('button[type="submit"]'); if (button) button.disabled = true;
     const result = await supabase.rpc('submit_article', {
-      p_category_slug: values.category_slug, p_slug: values.slug, p_title: values.title,
+      p_category_slug: values.category_slug, p_title: values.title,
       p_excerpt: values.excerpt, p_body: values.body, p_hero_media_key: mediaId,
     });
     if (button) button.disabled = false;
     if (result.error) return setMessage(error, result.error.message);
+    const createdSlug = (result.data as { slug?: string } | null)?.slug ?? '';
     const state = document.querySelector<HTMLElement>('[data-writer-state]');
     if (state) { state.hidden = false; state.textContent = result.data?.status === 'pending' ? 'আপনার প্রতিবেদনটি অনুমোদনের অপেক্ষায় জমা হয়েছে।' : 'আপনার প্রতিবেদন প্রকাশিত হয়েছে।'; }
     form.reset(); mediaId = null; setMessage(error, '', false);
+    if (state && createdSlug) {
+      const url = `/news/${encodeURIComponent(createdSlug)}/`;
+      state.insertAdjacentHTML('beforeend', ` <a class="text-link" href="${attr(url)}">${escapeHtml(url)}</a>`);
+    }
+    if (preview) preview.textContent = '/news/…';
   });
 }
 function initRoleForms() {
@@ -763,6 +781,34 @@ async function loadOwnArticles() {
   }));
 }
 
+// Public corrections log: the revision history itself stays private, so this
+// reads the audited list_corrections view of it (reason, editor label and what
+// changed) for published stories only.
+async function initCorrections() {
+  const list = document.querySelector<HTMLElement>('[data-corrections-list]');
+  if (!list) return;
+  const empty = document.querySelector<HTMLElement>('[data-corrections-empty]');
+  const count = document.querySelector<HTMLElement>('[data-corrections-count]');
+  const showEmpty = (message: string) => {
+    list.replaceChildren();
+    if (!empty) return;
+    empty.hidden = false;
+    const paragraph = empty.querySelector('p');
+    if (paragraph) paragraph.textContent = message;
+  };
+  if (!supabase || demoMode) { showEmpty('সংবাদ আর্কাইভ চালু হলে সংশোধনের নথি এখানে দেখা যাবে।'); return; }
+  const result = await supabase.rpc('list_corrections', { p_limit: 60 });
+  if (result.error) { if (empty) empty.hidden = true; list.innerHTML = `<p class="form-error">${escapeHtml(result.error.message)}</p>`; return; }
+  const rows = (result.data ?? []) as Correction[];
+  if (count) count.textContent = `${digits.format(rows.length)}টি সংশোধন নথিভুক্ত`;
+  if (!rows.length) { showEmpty('এখনো প্রকাশিত কোনো প্রতিবেদনে সংশোধন নথিভুক্ত হয়নি।'); return; }
+  if (empty) empty.hidden = true;
+  list.innerHTML = rows.map((row) => {
+    const badges = [row.headline_changed ? 'শিরোনাম পরিবর্তিত' : '', row.body_changed ? 'বিবরণ পরিবর্তিত' : ''].filter(Boolean).map((label) => ` · ${label}`).join('');
+    return `<article class="history-entry" data-correction="${attr(row.article_id)}"><strong><a href="/news/${encodeURIComponent(row.slug)}/">${escapeHtml(row.title)}</a></strong><p>${escapeHtml(row.reason)}</p><span class="section-kicker">${escapeHtml(row.editor_label)} · সংশোধন সংস্করণ ${digits.format(row.revision)}${badges}</span><time datetime="${attr(row.edited_at)}">${escapeHtml(timestamp(row.edited_at))}</time></article>`;
+  }).join('');
+}
+
 async function initIdentity() {
   if (!supabase) { paintAuthState(); return; }
   const { data } = await supabase.auth.getSession(); authUser = data.session?.user ?? null;
@@ -798,7 +844,7 @@ async function boot() {
   initAccountMenu(); initProfileForm(); initLiveSearch(); initProfileEditor();
   initWithdrawals(); initArticleEditor();
   await initOAuth(); await initIdentity();
-  await loadArticles(); initSearchPage(); initModeration();
+  await loadArticles(); initSearchPage(); initModeration(); initCorrections();
   initRoleForms(); initAdminWorkflows(); initAdminHistory();
   document.querySelectorAll<HTMLElement>('[data-google-sign-in]').forEach((button) => { (button as HTMLButtonElement).disabled = false; });
   const path = location.pathname; document.querySelectorAll('.mobile-dock__link.is-active').forEach((link) => link.classList.remove('is-active'));

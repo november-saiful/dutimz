@@ -1,0 +1,39 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+---
+<BaseLayout
+  title="সংশোধন ও তথ্য যাচাই"
+  description="প্রকাশের পর ডুটিমজের প্রতিবেদনে কী বদলেছে এবং কেন—প্রতিটি সম্পাদনার কারণ পাঠকের সামনে খোলা।"
+  canonicalPath="/corrections/"
+>
+  <section class="content-page corrections-page">
+    <div class="content-page__intro">
+      <span class="section-kicker">স্বচ্ছ সম্পাদনা</span>
+      <h1>সংশোধন ও তথ্য যাচাই</h1>
+      <p>ভুল হলে আমরা লুকাই না। প্রকাশিত প্রতিবেদনে যখনই কিছু পরিবর্তিত হয়, তার কারণ, সময় ও কে সম্পাদনা করেছেন তা নিচের তালিকায় নথিভুক্ত থাকে। পাঠকের আস্থাই আমাদের সবচেয়ে বড় সম্পদ।</p>
+    </div>
+    <div class="feed-heading">
+      <div><span class="section-kicker" data-corrections-count>সংশোধনের নথি</span><h2>সাম্প্রতিক সংশোধন</h2></div>
+      <a class="text-link" href="/guidelines/">সম্পাদকীয় নীতিমালা <span aria-hidden="true">→</span></a>
+    </div>
+    <div class="moderation-history corrections-list" data-corrections-list aria-live="polite"></div>
+    <div class="feed-empty" data-corrections-empty hidden>
+      <span class="feed-empty__icon" aria-hidden="true">✓</span>
+      <strong>নথিভুক্ত কোনো সংশোধন নেই</strong>
+      <p>প্রকাশিত প্রতিবেদনে সম্পাদনা হলে তার কারণ এখানে দেখা যাবে।</p>
+    </div>
+    <section class="reporter-application corrections-policy">
+      <div>
+        <span class="section-kicker">আমরা কীভাবে সংশোধন করি</span>
+        <h2>প্রতিটি পরিবর্তন কারণসহ সংরক্ষিত</h2>
+        <p>মডারেটর, সম্পাদক কিংবা লেখক—যে কেউ প্রকাশিত প্রতিবেদন সম্পাদনা করলে কারণ লেখা বাধ্যতামূলক। সেই কারণসহ প্রতিটি সংস্করণ ইতিহাসে সংরক্ষিত থাকে এবং এখানে প্রকাশ্যে দেখা যায়। বানান বা বিন্যাসের ছোট সংশোধনও এর বাইরে নয়।</p>
+      </div>
+      <div>
+        <span class="section-kicker">ভুল চোখে পড়লে</span>
+        <h2>সংশোধনের অনুরোধ পাঠান</h2>
+        <p>তথ্য ভুল মনে হলে নথি বা সূত্রসহ জানান। সম্পাদকীয় ডেস্ক যাচাই করে সংশোধন করবে এবং সেই কারণও এই তালিকায় যুক্ত হবে।</p>
+        <a class="outline-button" href="mailto:corrections@dutimz.com?subject=সংশোধনের অনুরোধ">সংশোধন জানান <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+  </section>
+</BaseLayout>

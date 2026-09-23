@@ -1,5 +1,5 @@
 begin;
-select plan(18);
+select plan(36);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -28,6 +28,27 @@ select results_eq($$select public.reporter_fee_for_tier('general')$$, $$values (
 select results_eq($$select public.reporter_fee_for_tier('executive')$$, $$values (140)$$, 'Executive reporters earn ৳140 per published article');
 select results_eq($$select public.profile_completion_for('10000000-0000-4000-8000-000000000001')$$, $$values (0)$$, 'An unfilled profile starts below the completion thresholds');
 
+-- Slugs come from the Bengali headline, never from the reporter.
+select results_eq($$select public.slugify_title('ঢাকা')$$, $$values ('dhaka')$$, 'A Bengali headline transliterates into a Latin slug');
+select results_eq($$select public.slugify_title('সংবাদ')$$, $$values ('songbad')$$, 'Inherent vowels and the anusvara romanise readably');
+select results_eq($$select public.slugify_title('DU Campus News 2026')$$, $$values ('du-campus-news-2026')$$, 'Latin words in a headline are preserved');
+select ok(public.bengali_to_latin('ঢাকা বিশ্ববিদ্যালয়: ২০২৬!') ~ '^[[:ascii:]]+$', 'Transliteration emits ASCII only');
+select ok(public.slugify_title('ঢাকা বিশ্ববিদ্যালয়ে সাংবাদিকতা ও ক্যাম্পাস জীবন') ~ '^[a-z0-9]+(-[a-z0-9]+)*$', 'Generated slugs satisfy the articles.slug format');
+
+insert into public.categories (slug, title_bn, description_bn, sort_order)
+  values ('porikkha', 'পরীক্ষা', 'পরীক্ষার বিভাগ', 90)
+  on conflict (slug) do nothing;
+insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, published_at)
+  select '10000000-0000-4000-8000-000000000002', c.id, 'songbad', 'পরীক্ষামূলক সংবাদ শিরোনাম',
+         'পরীক্ষার জন্য লেখা সংক্ষিপ্ত পরিচিতি', repeat('পরীক্ষামূলক প্রতিবেদনের অংশ। ', 6), 'published', now()
+    from public.categories c where c.slug = 'porikkha';
+select results_eq($$select public.allocate_article_slug('সংবাদ')$$, $$values ('songbad-2')$$, 'A repeated headline claims the next free suffix');
+
+set local role anon;
+select set_config('request.jwt.claim.role', 'anon', true);
+select lives_ok($$select * from public.list_corrections(5)$$, 'Anyone can read the public corrections feed');
+select throws_ok($$select id from public.article_revisions$$, '42501', null, 'Anonymous readers cannot read the raw revision history');
+
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000001', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
@@ -36,6 +57,75 @@ select is_empty($$select user_id from public.user_roles where user_id = '1000000
 select throws_ok(
   $$insert into public.user_roles (user_id, role, reporter_tier) values ('10000000-0000-4000-8000-000000000001','admin',null)$$,
   '42501', null, 'Readers cannot self-promote via direct table writes'
+);
+
+-- Earnings, withdrawal, and moderation rules from the launch plan. These run
+-- against the fixtures above: article 'songbad' belongs to the junior reporter
+-- (10000000-...-0002), 'porikkha-mod' belongs to the moderator (...-0003).
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+select public.add_article_earning((select id from public.articles where slug = 'songbad'), '10000000-0000-4000-8000-000000000002');
+select public.add_article_earning((select id from public.articles where slug = 'songbad'), '10000000-0000-4000-8000-000000000002');
+select results_eq(
+  $$select count(*)::int, coalesce(sum(amount_tk), 0)::int from public.earnings_ledger where article_id = (select id from public.articles where slug = 'songbad') and entry_type in ('article_earning_held', 'article_earning_available')$$,
+  $$values (1, 90)$$,
+  'A published article earns its junior fee exactly once and is held while the profile is incomplete'
+);
+
+update public.profile_details set
+  department = 'পরীক্ষামূলক বিভাগ', session = '২০২০-২১', du_registration_number = '২০২০-১২৩৪৫',
+  residency_status = 'off_campus', whatsapp_na = true, payout_method = 'bkash', payout_number = '01700000000'
+  where user_id = '10000000-0000-4000-8000-000000000002';
+select results_eq(
+  $$select public.profile_completion_for('10000000-0000-4000-8000-000000000002')$$, $$values (100)$$,
+  'Every applicable field filled reaches 100% without a hall or a WhatsApp number'
+);
+select results_eq(
+  $$select count(*)::int, coalesce(sum(amount_tk), 0)::int from public.earnings_ledger where article_id = (select id from public.articles where slug = 'songbad') and entry_type = 'profile_release'$$,
+  $$values (1, 90)$$,
+  'Completing the profile releases the held fee once, as its own append-only ledger entry'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000002', true);
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select throws_ok($$select public.request_withdrawal(2500, 'bkash', '01700000000')$$, 'P0001', null, 'A withdrawal below the ৳3,000 minimum is refused');
+select throws_ok($$select public.request_withdrawal(3500, 'bkash', '01700000000')$$, 'P0001', null, 'A first withdrawal is refused below 35 published articles');
+
+reset role;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000004', true);
+select public.admin_adjust_balance('10000000-0000-4000-8000-000000000002', 5000, 'পরীক্ষামূলক ব্যালেন্স সমন্বয়');
+insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, published_at)
+  select '10000000-0000-4000-8000-000000000002', c.id, 'porikkha-' || g, 'পরীক্ষামূলক সংবাদ ' || g,
+         'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি ' || g, repeat('পরীক্ষামূলক প্রতিবেদনের অংশ। ', 6), 'published', now()
+    from public.categories c cross join generate_series(1, 34) as g
+   where c.slug = 'porikkha';
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000002', true);
+select lives_ok($$select public.request_withdrawal(3000, 'bkash', '01700000000')$$, 'A reporter with a complete profile, 35 published articles and enough balance may withdraw');
+select results_eq($$select (public.get_my_wallet() ->> 'reserved')::int$$, $$values (3000)$$, 'A pending request reserves exactly the requested amount');
+
+reset role;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000004', true);
+select public.review_withdrawal((select id from public.withdrawals where user_id = '10000000-0000-4000-8000-000000000002' and status = 'pending'), 'rejected', 'পরীক্ষামূলক প্রত্যাখ্যান');
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000002', true);
+select results_eq($$select (public.get_my_wallet() ->> 'reserved')::int$$, $$values (0)$$, 'Rejecting a request gives the reserved money back to the reporter');
+
+reset role;
+insert into public.articles (author_id, category_id, slug, title, excerpt, body, status)
+  select '10000000-0000-4000-8000-000000000003', c.id, 'porikkha-mod', 'মডারেটরের নিজের অপেক্ষমাণ প্রতিবেদন',
+         'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('পরীক্ষামূলক প্রতিবেদনের অংশ। ', 6), 'pending'
+    from public.categories c where c.slug = 'porikkha';
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000003', true);
+select throws_ok(
+  $$select public.moderate_article((select id from public.articles where slug = 'porikkha-mod'), 'approve', 'নিজের প্রতিবেদন অনুমোদনের চেষ্টা')$$,
+  '42501', null, 'A moderator cannot approve their own submission'
+);
+select throws_ok(
+  $$select public.moderate_article((select id from public.articles where slug = 'porikkha-mod'), 'approve', 'ab')$$,
+  'P0001', null, 'A moderation decision without a real reason is refused'
 );
 
 select * from finish();

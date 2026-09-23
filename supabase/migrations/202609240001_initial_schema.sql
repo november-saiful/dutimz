@@ -335,7 +335,10 @@ as $$
        + (residency_status is not null)::int
        + ((whatsapp_na or nullif(trim(whatsapp_number), '') is not null)::int)
        + ((payout_method is not null and nullif(trim(payout_number), '') is not null)::int)
-       + ((residency_status = 'off_campus' or (residency_status = 'hall_resident' and nullif(trim(hall_name), '') is not null))::int)) as completed,
+       -- coalesce: an unanswered residency question must score zero for this
+       -- field, not null the whole sum (which reported 0% for a user who had
+       -- filled in everything else).
+       + (coalesce(residency_status = 'off_campus' or (residency_status = 'hall_resident' and nullif(trim(hall_name), '') is not null), false))::int) as completed,
       8 as total
     from joined
   )
@@ -434,7 +437,7 @@ declare
   category uuid;
   created public.articles;
 begin
-  if actor is null then raise exception 'يجب প্রবেশ করতে হবে' using errcode = '42501'; end if;
+  if actor is null then raise exception 'প্রবেশ করতে হবে' using errcode = '42501'; end if;
   select role, reporter_tier into actor_role, actor_tier from public.user_roles where user_id = actor;
   if actor_role not in ('reporter', 'moderator', 'admin') then raise exception 'প্রতিবেদন জমা দিতে রিপোর্টার অনুমতি প্রয়োজন' using errcode = '42501'; end if;
   select id into category from public.categories where slug = p_category_slug and active;
@@ -461,9 +464,9 @@ declare
   updated public.articles;
   logged_action text;
 begin
-  if not public.is_moderator_or_admin() then raise exception 'மோடரேட்டர் அனுமதி প্রয়োজন' using errcode = '42501'; end if;
-  if char_length(trim(coalesce(p_reason, ''))) < 3 or char_length(p_reason) > 500 then raise exception 'செயல் காரணம் ৩–৫০০ எழுத்துகளாக இருக்க வேண்டும்'; end if;
-  if p_decision not in ('approve', 'reject') then raise exception 'தீர்மானம் অনুমোদন বা প্রত্যাখ্যান হতে হবে'; end if;
+  if not public.is_moderator_or_admin() then raise exception 'মডারেটর অনুমতি প্রয়োজন' using errcode = '42501'; end if;
+  if char_length(trim(coalesce(p_reason, ''))) < 3 or char_length(p_reason) > 500 then raise exception 'সিদ্ধান্তের কারণ ৩–৫০০ অক্ষরের মধ্যে লিখুন'; end if;
+  if p_decision not in ('approve', 'reject') then raise exception 'সিদ্ধান্ত অনুমোদন অথবা প্রত্যাখ্যান হতে হবে'; end if;
   select * into target from public.articles where id = p_article_id for update;
   if target.id is null or target.status <> 'pending' then raise exception 'প্রতিবেদনটি আর অপেক্ষমাণ অবস্থায় নেই'; end if;
   if target.author_id = actor and p_decision = 'approve' then raise exception 'নিজের প্রতিবেদন নিজে অনুমোদন করা যাবে না' using errcode = '42501'; end if;
@@ -520,12 +523,12 @@ declare
   next_status public.comment_status;
   logged_action text;
 begin
-  if not public.is_moderator_or_admin() then raise exception 'மோடரேட்டர் அனுமதி প্রয়োজন' using errcode = '42501'; end if;
-  if char_length(trim(coalesce(p_reason, ''))) < 3 or char_length(p_reason) > 500 then raise exception 'மோடரேஷன் காரணம் আবশ্যক'; end if;
+  if not public.is_moderator_or_admin() then raise exception 'মডারেটর অনুমতি প্রয়োজন' using errcode = '42501'; end if;
+  if char_length(trim(coalesce(p_reason, ''))) < 3 or char_length(p_reason) > 500 then raise exception 'মডারেশনের কারণ ৩–৫০০ অক্ষরের মধ্যে লিখুন'; end if;
   next_status := case p_decision when 'restore' then 'visible'::public.comment_status when 'hide' then 'hidden'::public.comment_status when 'remove' then 'removed'::public.comment_status else null end;
-  if next_status is null then raise exception 'தீர்மானம் செல்லாது'; end if;
+  if next_status is null then raise exception 'সিদ্ধান্তটি সঠিক নয়'; end if;
   select * into target from public.comments where id = p_comment_id for update;
-  if target.id is null then raise exception 'கருத்து கிடைக்கவில்லை'; end if;
+  if target.id is null then raise exception 'মন্তব্যটি পাওয়া যায়নি'; end if;
   logged_action := case p_decision when 'restore' then 'restore_comment' when 'hide' then 'hide_comment' else 'remove_comment' end;
   update public.comments set status = next_status where id = p_comment_id returning * into result;
   insert into public.moderation_actions (actor_id, action, comment_id, target_user_id, reason)
@@ -538,8 +541,8 @@ create or replace function public.apply_reporter(p_motivation text)
 returns public.reporter_applications language plpgsql security definer set search_path = '' as $$
 declare result public.reporter_applications;
 begin
-  if (select auth.uid()) is null then raise exception 'தயவுசெய்து முதலில் உள்நுழையவும்' using errcode = '42501'; end if;
-  if public.current_app_role() <> 'reader' then raise exception 'இந்தக் கணக்கின் தற்போதைய பதவி விண்ணப்பிக்க அனுமதிக்காது'; end if;
+  if (select auth.uid()) is null then raise exception 'আগে গুগল দিয়ে প্রবেশ করুন' using errcode = '42501'; end if;
+  if public.current_app_role() <> 'reader' then raise exception 'এই অ্যাকাউন্টের ভূমিকা রিপোর্টার আবেদন করার অনুমতি দেয় না'; end if;
   insert into public.reporter_applications (applicant_id, motivation)
     values ((select auth.uid()), trim(p_motivation)) returning * into result;
   return result;
@@ -552,13 +555,13 @@ declare
   old public.user_roles;
   result public.user_roles;
 begin
-  if not public.is_admin() then raise exception 'நிர்வாக அனுமதி தேவை' using errcode = '42501'; end if;
-  if char_length(trim(coalesce(p_reason, ''))) < 3 or char_length(p_reason) > 500 then raise exception 'பதவி மாற்றத்தின் காரணம் கட்டாயம் (৩–৫০০ எழுத்துகள்)'; end if;
-  if p_role = 'reporter' and p_tier is null then raise exception 'ரிப்போர்ட்டருக்கு ஒரு அடுக்கு தேர்ந்தெடுக்கவும்'; end if;
-  if p_role = 'reader' and p_tier is not null then raise exception 'ரீடருக்கு ரிப்போர்டர் அடுக்கு வழங்க முடியாது'; end if;
+  if not public.is_admin() then raise exception 'প্রশাসক অনুমতি প্রয়োজন' using errcode = '42501'; end if;
+  if char_length(trim(coalesce(p_reason, ''))) < 3 or char_length(p_reason) > 500 then raise exception 'ভূমিকা পরিবর্তনের কারণ ৩–৫০০ অক্ষরের মধ্যে লিখুন'; end if;
+  if p_role = 'reporter' and p_tier is null then raise exception 'রিপোর্টারের জন্য একটি স্তর নির্বাচন করুন'; end if;
+  if p_role = 'reader' and p_tier is not null then raise exception 'পাঠককে রিপোর্টার স্তর দেওয়া যাবে না'; end if;
   select * into old from public.user_roles where user_id = p_user_id for update;
-  if old.user_id is null then raise exception 'பயனர் கிடைக்கவில்லை'; end if;
-  if old.role = 'admin' and p_role <> 'admin' and (select count(*) from public.user_roles where role = 'admin') <= 1 then raise exception 'கடைசி நிர்வாகியை பதவிநீக்கம் செய்ய முடியாது'; end if;
+  if old.user_id is null then raise exception 'ব্যবহারকারী পাওয়া যায়নি'; end if;
+  if old.role = 'admin' and p_role <> 'admin' and (select count(*) from public.user_roles where role = 'admin') <= 1 then raise exception 'শেষ প্রশাসককে পদ থেকে সরানো যাবে না'; end if;
   update public.user_roles set role = p_role, reporter_tier = p_tier, assigned_by = (select auth.uid()), updated_at = now()
     where user_id = p_user_id returning * into result;
   insert into public.moderation_actions (actor_id, action, target_user_id, reason, details)
@@ -580,26 +583,26 @@ declare
   published_count integer;
   result public.withdrawals;
 begin
-  if actor is null then raise exception 'உள்நுழைய வேண்டும்' using errcode = '42501'; end if;
-  if p_amount_tk < 3000 then raise exception 'குறைந்தபட்ச பணத்திருப்பம் ৳৩,০০০'; end if;
+  if actor is null then raise exception 'প্রবেশ করতে হবে' using errcode = '42501'; end if;
+  if p_amount_tk < 3000 then raise exception 'সর্বনিম্ন উত্তোলন ৳৩,০০০'; end if;
   if p_method not in ('bkash', 'nagad') then raise exception 'বিকাশ বা নগদ নির্বাচন করুন'; end if;
   select * into details from public.profile_details where user_id = actor for update;
   completion := public.profile_completion_for(actor);
-  if completion <> 100 then raise exception 'பணம் எடுக்க ১০০% சுயவிவர நிறைவு அவசியம்'; end if;
-  if details.payout_method <> p_method or details.payout_number <> trim(p_payout_number) then raise exception 'பணம் பெறும் விபரம் உங்கள் தனிப்பட்ட சுயவிவர விவரங்களுடன் பொருந்த வேண்டும்'; end if;
-  if exists (select 1 from public.withdrawals where user_id = actor and status = 'pending') then raise exception 'முந்தைய பணத்திருப்பம் முடியும் வரை காத்திருக்கவும்'; end if;
+  if completion <> 100 then raise exception 'টাকা তুলতে প্রোফাইল ১০০% সম্পূর্ণ হতে হবে'; end if;
+  if details.payout_method <> p_method or details.payout_number <> trim(p_payout_number) then raise exception 'পেমেন্টের তথ্য আপনার প্রোফাইলে সংরক্ষিত তথ্যের সঙ্গে মিলতে হবে'; end if;
+  if exists (select 1 from public.withdrawals where user_id = actor and status = 'pending') then raise exception 'আগের উত্তোলনের অনুরোধ নিষ্পত্তি হওয়া পর্যন্ত অপেক্ষা করুন'; end if;
   select count(*) into prior_paid from public.withdrawals where user_id = actor and status = 'paid';
   if prior_paid = 0 then
     select count(*) into published_count from public.articles where author_id = actor and status = 'published';
-    if published_count < 35 then raise exception 'முதல் பணத்திருப்பத்திற்கு ৩৫ பிரசுரமான செய்திகள் தேவை (தற்போது %)', published_count; end if;
+    if published_count < 35 then raise exception 'প্রথম উত্তোলনের আগে অন্তত ৩৫টি প্রকাশিত প্রতিবেদন প্রয়োজন (এখন %)', published_count; end if;
   end if;
   select coalesce(sum(amount_tk), 0)::integer into available from public.earnings_ledger
     where user_id = actor and entry_type in ('article_earning_available', 'profile_release', 'withdrawal_reserve', 'withdrawal_refund', 'manual_adjustment');
-  if available < p_amount_tk then raise exception 'உங்களின் উত্তোলনযোগ্য இருப்பு போதாது'; end if;
+  if available < p_amount_tk then raise exception 'আপনার উত্তোলনযোগ্য ব্যালেন্স যথেষ্ট নয়'; end if;
   insert into public.withdrawals (user_id, amount_tk, method, payout_number_snapshot)
     values (actor, p_amount_tk, p_method, trim(p_payout_number)) returning * into result;
   insert into public.earnings_ledger (user_id, withdrawal_id, entry_type, amount_tk, reason)
-    values (actor, result.id, 'withdrawal_reserve', -p_amount_tk, 'பணத்திருப்ப கோரிக்கை');
+    values (actor, result.id, 'withdrawal_reserve', -p_amount_tk, 'উত্তোলনের অনুরোধের জন্য সংরক্ষিত');
   return result;
 end;
 $$;
@@ -608,11 +611,11 @@ create or replace function public.review_withdrawal(p_withdrawal_id uuid, p_deci
 returns public.withdrawals language plpgsql security definer set search_path = '' as $$
 declare target public.withdrawals; result public.withdrawals;
 begin
-  if not public.is_admin() then raise exception 'நிர்வாக அனுமதி தேவை' using errcode = '42501'; end if;
-  if p_decision not in ('paid', 'rejected') then raise exception 'தீர்மானம் அனுமதி அல்லது நிராகரிப்பு ஆக வேண்டும்'; end if;
-  if char_length(trim(coalesce(p_reason, ''))) < 3 or char_length(p_reason) > 500 then raise exception 'ஒவ்வொரு பணத்திருப்ப முடிவுக்கும் காரணம் தேவை'; end if;
+  if not public.is_admin() then raise exception 'প্রশাসক অনুমতি প্রয়োজন' using errcode = '42501'; end if;
+  if p_decision not in ('paid', 'rejected') then raise exception 'সিদ্ধান্ত পরিশোধ অথবা প্রত্যাখ্যান হতে হবে'; end if;
+  if char_length(trim(coalesce(p_reason, ''))) < 3 or char_length(p_reason) > 500 then raise exception 'প্রতিটি উত্তোলন সিদ্ধান্তের কারণ লেখা বাধ্যতামূলক'; end if;
   select * into target from public.withdrawals where id = p_withdrawal_id for update;
-  if target.id is null or target.status <> 'pending' then raise exception 'இந்த கோரிக்கை நிலுவையில் இல்லை'; end if;
+  if target.id is null or target.status <> 'pending' then raise exception 'এই অনুরোধটি আর অপেক্ষমাণ অবস্থায় নেই'; end if;
   update public.withdrawals set status = p_decision::public.withdrawal_status, review_reason = trim(p_reason), reviewed_by = (select auth.uid()), reviewed_at = now()
     where id = p_withdrawal_id returning * into result;
   if p_decision = 'rejected' then
@@ -631,8 +634,8 @@ create or replace function public.admin_adjust_balance(p_user_id uuid, p_amount_
 returns public.earnings_ledger language plpgsql security definer set search_path = '' as $$
 declare result public.earnings_ledger;
 begin
-  if not public.is_admin() then raise exception 'நிர்வாக அனுமதி தேவை' using errcode = '42501'; end if;
-  if p_amount_tk = 0 or char_length(trim(coalesce(p_reason, ''))) < 3 or char_length(p_reason) > 500 then raise exception 'தொகையும் சரியான காரணமும் தேவை'; end if;
+  if not public.is_admin() then raise exception 'প্রশাসক অনুমতি প্রয়োজন' using errcode = '42501'; end if;
+  if p_amount_tk = 0 or char_length(trim(coalesce(p_reason, ''))) < 3 or char_length(p_reason) > 500 then raise exception 'সমন্বয়ের পরিমাণ ও কারণ সঠিকভাবে লিখুন'; end if;
   insert into public.earnings_ledger (user_id, entry_type, amount_tk, reason, created_by)
     values (p_user_id, 'manual_adjustment', p_amount_tk, trim(p_reason), (select auth.uid())) returning * into result;
   insert into public.moderation_actions (actor_id, action, target_user_id, reason, details)
@@ -661,7 +664,7 @@ begin
   update public.user_roles set role = 'admin', reporter_tier = null, assigned_by = target, updated_at = now() where user_id = target;
   update public.app_settings set value = 'true', updated_at = now() where key = 'initial_admin_claimed';
   insert into public.admin_audit_log (actor_id, action, target_id, reason, details)
-    values (target, 'bootstrap_first_admin', target, 'ஒற்றை நிறுவல் நிர்வாகி துவக்கம்', jsonb_build_object('email', current_email));
+    values (target, 'bootstrap_first_admin', target, 'একক প্রশাসক হিসাবে চালু করা হয়েছে', jsonb_build_object('email', current_email));
   return true;
 end;
 $$;
