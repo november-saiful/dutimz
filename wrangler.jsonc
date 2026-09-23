@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "dutimz",
   "pages_build_output_dir": "./dist",
-  "compatibility_date": "2026-09-24",
+  "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
   "r2_buckets": [
     {
