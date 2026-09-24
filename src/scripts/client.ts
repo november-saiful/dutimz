@@ -813,7 +813,9 @@ async function initIdentity() {
   if (!supabase) { paintAuthState(); return; }
   const { data } = await supabase.auth.getSession(); authUser = data.session?.user ?? null;
   if (authUser) {
-    if (!demoMode) { const bootstrap = await supabase.rpc('bootstrap_first_admin'); if (bootstrap.data === true) toast('প্রাথমিক অ্যাডমিন হিসেবে সক্রিয় হয়েছেন।'); }
+    // The administrator list is applied when an account is created, so this only has work to do for
+    // an account that signed in before the configured list reached the database.
+    if (!demoMode) { const bootstrap = await supabase.rpc('bootstrap_admin_accounts'); if (Number(bootstrap.data) > 0) toast('প্রাথমিক অ্যাডমিন হিসেবে সক্রিয় হয়েছেন।'); }
     await loadIdentity(authUser);
   }
   paintAuthState();

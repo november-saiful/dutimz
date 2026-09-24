@@ -1,5 +1,5 @@
 begin;
-select plan(41);
+select plan(55);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -12,6 +12,84 @@ on conflict (id) do nothing;
 update public.user_roles set role = 'reporter', reporter_tier = 'junior' where user_id = '22000000-0000-4000-8000-000000000002';
 update public.user_roles set role = 'moderator' where user_id = '33000000-0000-4000-8000-000000000003';
 update public.user_roles set role = 'admin' where user_id = '44000000-0000-4000-8000-000000000004';
+
+-- Administrator bootstrap. The administrator role is policy-driven data, so the portal can
+-- have more than one owner instead of racing for a single claim.
+select results_eq($$select cardinality(public.bootstrap_admin_list())$$, $$values (0)$$, 'No administrator is configured until the list is set');
+
+-- Two accounts sign in before any list exists: both are ordinary readers.
+insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
+values
+  ('77000000-0000-4000-8000-000000000007', 'authenticated', 'authenticated', 'late-admin@test.dutimz.com', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"দেরিতে যোগ দেওয়া প্রশাসক"}', false, false),
+  ('88000000-0000-4000-8000-000000000008', 'authenticated', 'authenticated', 'reconciled-admin@test.dutimz.com', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"পুনর্মিলিত প্রশাসক"}', false, false)
+on conflict (id) do nothing;
+select results_eq(
+  $$select role from public.user_roles where user_id = '77000000-0000-4000-8000-000000000007'$$,
+  $$values ('reader'::public.app_role)$$,
+  'An address that is not listed yet signs in as a reader'
+);
+
+-- Both sources of the list, including the legacy single-address key.
+update public.app_settings set value = 'du-admin@test.dutimz.com, late-admin@test.dutimz.com, reconciled-admin@test.dutimz.com' where key = 'bootstrap_admin_emails';
+update public.app_settings set value = 'legacy-admin@test.dutimz.com' where key = 'initial_admin_email';
+insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
+values
+  ('55000000-0000-4000-8000-000000000005', 'authenticated', 'authenticated', 'du-admin@test.dutimz.com', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"প্রথম প্রশাসক"}', false, false),
+  ('66000000-0000-4000-8000-000000000006', 'authenticated', 'authenticated', 'plain-reader@test.dutimz.com', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"সাধারণ পাঠক"}', false, false)
+on conflict (id) do nothing;
+select results_eq(
+  $$select role from public.user_roles where user_id = '55000000-0000-4000-8000-000000000005'$$,
+  $$values ('admin'::public.app_role)$$,
+  'A listed address holds the administrator role from its first sign-in'
+);
+select results_eq(
+  $$select role from public.user_roles where user_id = '66000000-0000-4000-8000-000000000006'$$,
+  $$values ('reader'::public.app_role)$$,
+  'An address outside the list still signs in as a reader'
+);
+select ok(
+  public.bootstrap_admin_list() @> array['legacy-admin@test.dutimz.com', 'reconciled-admin@test.dutimz.com'],
+  'The legacy initial_admin_email setting still contributes addresses to the list'
+);
+
+-- A listed administrator whose account predates the configuration can still recover the role.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '77000000-0000-4000-8000-000000000007', true);
+select results_eq($$select public.bootstrap_admin_accounts()$$, $$values (1)$$, 'A listed account promotes itself when its role predates the configuration');
+select results_eq(
+  $$select role from public.user_roles where user_id = '77000000-0000-4000-8000-000000000007'$$,
+  $$values ('admin'::public.app_role)$$,
+  'The self-promoted account is an administrator'
+);
+select results_eq($$select public.bootstrap_admin_accounts()$$, $$values (0)$$, 'An administrator calling the bootstrap again changes nothing');
+select set_config('request.jwt.claim.sub', '66000000-0000-4000-8000-000000000006', true);
+select results_eq($$select public.bootstrap_admin_accounts()$$, $$values (0)$$, 'A reader outside the list cannot promote anyone through the bootstrap');
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+
+-- Out of band (SQL editor or the release workflow) every configured address is reconciled.
+select results_eq($$select public.bootstrap_admin_accounts()$$, $$values (1)$$, 'Reconciliation promotes the configured account that already existed');
+select results_eq(
+  $$select role from public.user_roles where user_id = '88000000-0000-4000-8000-000000000008'$$,
+  $$values ('admin'::public.app_role)$$,
+  'The reconciled account holds the administrator role'
+);
+select results_eq(
+  $$select count(*)::int from public.admin_audit_log where action = 'bootstrap_admin'$$,
+  $$values (3)$$,
+  'Every administrator granted by the bootstrap is audited'
+);
+select hasnt_function('public', 'bootstrap_first_admin', 'The single-shot administrator claim is retired');
+
+-- Normalisation: an entry without an address is dropped and a repeated address collapses.
+update public.app_settings set value = 'du-admin@test.dutimz.com, not-an-address, DU-ADMIN@test.dutimz.com' where key = 'bootstrap_admin_emails';
+update public.app_settings set value = '' where key = 'initial_admin_email';
+select results_eq(
+  $$select public.bootstrap_admin_list()$$,
+  $$select array['du-admin@test.dutimz.com']::text[]$$,
+  'A malformed entry is ignored and a repeated address collapses into one'
+);
 
 select has_table('public', 'profiles', 'Profiles table exists');
 select has_table('public', 'profile_details', 'Private student profile table exists');
