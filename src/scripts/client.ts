@@ -10,6 +10,8 @@ type Correction = { article_id: string; slug: string; title: string; revision: n
 
 const digits = new Intl.NumberFormat('bn-BD', { maximumFractionDigits: 0 });
 const money = (amount: number) => `৳${digits.format(amount)}`;
+const roleLabels: Record<string, string> = { reader: 'রিডার', reporter: 'রিপোর্টার', moderator: 'মডারেটর', admin: 'অ্যাডমিন' };
+const tierLabels: Record<string, string> = { junior: 'জুনিয়র', general: 'জেনারেল', executive: 'এক্সিকিউটিভ' };
 const strings = {
   login: 'এই সুবিধাটি ব্যবহার করতে গুগল দিয়ে প্রবেশ করুন।',
   required: 'সিদ্ধান্তের কারণ লিখুন (অন্তত ৩ অক্ষর)।',
@@ -747,6 +749,64 @@ function initAdminHistory() {
     history.innerHTML = data.map((entry) => `<article class="history-entry"><strong>${escapeHtml(labels[entry.action] ?? 'প্রশাসনিক পদক্ষেপ')} · ${escapeHtml(publicName(single(entry.profiles)))}</strong><p>কারণ: ${escapeHtml(entry.reason)}</p><time datetime="${attr(entry.created_at)}">${escapeHtml(timestamp(entry.created_at))}</time></article>`).join('');
   });
 }
+// The roster answers the governance question the audit log alone cannot: which accounts hold the
+// administrator role, who handed it to them, and which addresses are administrators by policy
+// even before they sign in. Only an admin can read any of it — the role policy allows it, and
+// admin_bootstrap_addresses() returns an empty list to anybody else.
+function initAdminRoster() {
+  const roster = document.querySelector<HTMLElement>('[data-admin-roster]');
+  const policy = document.querySelector<HTMLElement>('[data-admin-policy-addresses]');
+  const history = document.querySelector<HTMLElement>('[data-role-history]');
+  if (!roster && !policy && !history) return;
+  if (!supabase || !authUser || authRole !== 'admin') {
+    const denied = '<div class="feed-empty"><strong>এই তালিকা কেবল প্রশাসক দেখতে পারেন।</strong></div>';
+    if (roster) roster.innerHTML = denied;
+    if (history) history.innerHTML = denied;
+    if (policy) policy.innerHTML = '';
+    return;
+  }
+  if (policy) void supabase.rpc('admin_bootstrap_addresses').then(({ data, error }) => {
+    if (error) { policy.innerHTML = `<p class="form-error">${escapeHtml(error.message)}</p>`; return; }
+    const addresses = (data as string[] | null) ?? [];
+    policy.innerHTML = addresses.length
+      ? addresses.map((address) => `<article class="history-entry"><strong>${escapeHtml(address)}</strong><p>নীতি অনুযায়ী প্রশাসক · এই ঠিকানায় গুগল দিয়ে প্রবেশ করলেই ভূমিকা চালু হয়। তালিকাটি রিলিজ সিক্রেট থেকে আসে; এই পাতা থেকে বদলানো যায় না।</p></article>`).join('')
+      : '<div class="feed-empty"><strong>নীতি অনুযায়ী নির্ধারিত কোনো প্রশাসক ঠিকানা নেই।</strong></div>';
+  });
+  if (roster) void supabase.from('user_roles').select('user_id,updated_at,owner:profiles!user_roles_user_id_fkey(username,display_name),assigner:profiles!user_roles_assigned_by_fkey(username,display_name)').eq('role', 'admin').order('updated_at', { ascending: false }).limit(50).then(({ data, error }) => {
+    if (error) { roster.innerHTML = `<p class="form-error">${escapeHtml(error.message)}</p>`; return; }
+    if (!data?.length) { roster.innerHTML = '<div class="feed-empty"><strong>এখনো কোনো অ্যাকাউন্টে প্রশাসক ভূমিকা দেওয়া হয়নি।</strong></div>'; return; }
+    roster.innerHTML = data.map((row) => {
+      const owner = single(row.owner); const assigner = single(row.assigner);
+      const username = owner?.username ?? '';
+      return `<article class="history-entry"><strong>${escapeHtml(publicName(owner))} · @${escapeHtml(username)}</strong><p>ভূমিকা হালনাগাদ: ${escapeHtml(timestamp(row.updated_at))} · ${assigner ? `দিয়েছেন ${escapeHtml(publicName(assigner))}` : 'প্রাথমিক অ্যাডমিন তালিকা থেকে স্বয়ংক্রিয়ভাবে'}</p><a class="text-link" href="/u/${encodeURIComponent(username)}/">প্রোফাইল দেখুন ↗</a></article>`;
+    }).join('');
+  });
+  if (history) void (async () => {
+    const result = await supabase!.from('admin_audit_log').select('id,action,reason,details,created_at,target_id,actor:profiles!admin_audit_log_actor_id_fkey(username,display_name)').in('action', ['assign_role', 'review_application', 'bootstrap_admin']).order('created_at', { ascending: false }).limit(60);
+    if (result.error) { history.innerHTML = `<p class="form-error">${escapeHtml(result.error.message)}</p>`; return; }
+    const entries = result.data ?? [];
+    if (!entries.length) { history.innerHTML = '<div class="feed-empty"><strong>এখনো কোনো ভূমিকা পরিবর্তন নথিভুক্ত হয়নি।</strong></div>'; return; }
+    // admin_audit_log.target_id is polymorphic — a profile, an article, or an application — so the
+    // names are resolved from profiles instead of a join.
+    const people = new Map<string, string>();
+    const ids = [...new Set(entries.map((entry) => entry.target_id).filter(Boolean))];
+    if (ids.length) {
+      const found = await supabase!.from('profiles').select('id,username,display_name').in('id', ids);
+      for (const person of found.data ?? []) people.set(person.id, publicName(person));
+    }
+    const labels: Record<string, string> = { assign_role: 'ভূমিকা পরিবর্তন', review_application: 'রিপোর্টার আবেদন পর্যালোচনা', bootstrap_admin: 'প্রাথমিক অ্যাডমিন তালিকা' };
+    history.innerHTML = entries.map((entry) => {
+      const details = (entry.details ?? {}) as Record<string, unknown>;
+      const parts: string[] = [];
+      if (entry.action === 'assign_role') parts.push(`নতুন ভূমিকা: ${roleLabels[String(details.role)] ?? 'অজানা'}${details.tier ? ` (${tierLabels[String(details.tier)] ?? String(details.tier)})` : ''}`);
+      if (entry.action === 'bootstrap_admin') parts.push(`ঠিকানা: ${escapeHtml(details.email ?? '')} · ${details.stage === 'signup' ? 'প্রথম প্রবেশে প্রদত্ত' : 'পুনর্মিলনে প্রদত্ত'}`);
+      if (entry.action === 'review_application') parts.push(`${details.decision === 'approve' ? 'অনুমোদিত' : 'প্রত্যাখ্যাত'}${details.tier ? ` · ${tierLabels[String(details.tier)] ?? String(details.tier)}` : ''}`);
+      const actor = single(entry.actor);
+      const target = people.get(entry.target_id as string) ?? publicName(actor);
+      return `<article class="history-entry"><strong>${escapeHtml(labels[entry.action] ?? 'প্রশাসনিক পদক্ষেপ')} · ${escapeHtml(target)}</strong><p>${parts.join(' · ')}</p><p>কারণ: ${escapeHtml(entry.reason)}</p><span class="section-kicker">${escapeHtml(publicName(actor))} · ${escapeHtml(timestamp(entry.created_at))}</span></article>`;
+    }).join('');
+  })();
+}
 function initSearchPage() {
   const term = new URLSearchParams(location.search).get('q');
   if (!term && document.querySelector('[data-page-search-input]')) {
@@ -835,7 +895,7 @@ async function initIdentity() {
       const user = authUser;
       window.setTimeout(() => {
         void loadIdentity(user).then(() => {
-          paintAuthState(); initRoleForms(); initModeration(); initAdminWorkflows(); initAdminHistory();
+          paintAuthState(); initRoleForms(); initModeration(); initAdminWorkflows(); initAdminHistory(); initAdminRoster();
         }).finally(() => { refreshBusy = false; });
       }, 0);
     }
@@ -847,7 +907,7 @@ async function boot() {
   initWithdrawals(); initArticleEditor();
   await initOAuth(); await initIdentity();
   await loadArticles(); initSearchPage(); initModeration(); initCorrections();
-  initRoleForms(); initAdminWorkflows(); initAdminHistory();
+  initRoleForms(); initAdminWorkflows(); initAdminHistory(); initAdminRoster();
   document.querySelectorAll<HTMLElement>('[data-google-sign-in]').forEach((button) => { (button as HTMLButtonElement).disabled = false; });
   const path = location.pathname; document.querySelectorAll('.mobile-dock__link.is-active').forEach((link) => link.classList.remove('is-active'));
   const active = path === '/' ? '.mobile-dock__link[href="/"]' : path === '/search/' ? '.mobile-dock__link[href="/search/"]' : path === '/saved/' ? '.mobile-dock__link[href="/saved/"]' : '';

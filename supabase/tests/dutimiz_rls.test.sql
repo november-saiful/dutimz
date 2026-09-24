@@ -1,5 +1,5 @@
 begin;
-select plan(57);
+select plan(59);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -98,6 +98,23 @@ select results_eq(
   $$select array['du-admin@test.dutimz.com']::text[]$$,
   'A stray legacy address cannot smuggle an administrator into the list'
 );
+
+-- The panel shows the configured addresses, but only to administrators.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select results_eq(
+  $$select public.admin_bootstrap_addresses()$$,
+  $$select array['du-admin@test.dutimz.com']::text[]$$,
+  'An administrator can read the configured administrator addresses'
+);
+select set_config('request.jwt.claim.sub', '11000000-0000-4000-8000-000000000001', true);
+select is_empty(
+  $$select unnest(public.admin_bootstrap_addresses())$$,
+  'A reader cannot enumerate the configured administrator addresses'
+);
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
 
 select has_table('public', 'profiles', 'Profiles table exists');
 select has_table('public', 'profile_details', 'Private student profile table exists');
