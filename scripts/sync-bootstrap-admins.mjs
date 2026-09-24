@@ -84,6 +84,8 @@ const accounts = await runQuery(
      left join public.user_roles r on r.user_id = u.id
     where lower(u.email) in (${quoted})`,
 );
+const totals = await runQuery("select count(*)::int as admins from public.user_roles where role = 'admin'");
+console.log(`Administrator accounts in the portal: ${totals?.[0]?.admins ?? 'unknown'}`);
 const roleByEmail = new Map((Array.isArray(accounts) ? accounts : []).map((row) => [row.email, row.role]));
 const failures = [];
 

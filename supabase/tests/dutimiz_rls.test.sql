@@ -1,5 +1,5 @@
 begin;
-select plan(55);
+select plan(57);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -29,9 +29,8 @@ select results_eq(
   'An address that is not listed yet signs in as a reader'
 );
 
--- Both sources of the list, including the legacy single-address key.
+-- A configured list is parsed, normalised and applied.
 update public.app_settings set value = 'du-admin@test.dutimz.com, late-admin@test.dutimz.com, reconciled-admin@test.dutimz.com' where key = 'bootstrap_admin_emails';
-update public.app_settings set value = 'legacy-admin@test.dutimz.com' where key = 'initial_admin_email';
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
   ('55000000-0000-4000-8000-000000000005', 'authenticated', 'authenticated', 'du-admin@test.dutimz.com', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"প্রথম প্রশাসক"}', false, false),
@@ -48,8 +47,8 @@ select results_eq(
   'An address outside the list still signs in as a reader'
 );
 select ok(
-  public.bootstrap_admin_list() @> array['legacy-admin@test.dutimz.com', 'reconciled-admin@test.dutimz.com'],
-  'The legacy initial_admin_email setting still contributes addresses to the list'
+  public.bootstrap_admin_list() @> array['late-admin@test.dutimz.com', 'reconciled-admin@test.dutimz.com'],
+  'Every address in the configured list is recognised, including the last one'
 );
 
 -- A listed administrator whose account predates the configuration can still recover the role.
@@ -82,13 +81,22 @@ select results_eq(
 );
 select hasnt_function('public', 'bootstrap_first_admin', 'The single-shot administrator claim is retired');
 
--- Normalisation: an entry without an address is dropped and a repeated address collapses.
+-- Normalisation, and the list as the single source of administrators.
 update public.app_settings set value = 'du-admin@test.dutimz.com, not-an-address, DU-ADMIN@test.dutimz.com' where key = 'bootstrap_admin_emails';
-update public.app_settings set value = '' where key = 'initial_admin_email';
 select results_eq(
   $$select public.bootstrap_admin_list()$$,
   $$select array['du-admin@test.dutimz.com']::text[]$$,
   'A malformed entry is ignored and a repeated address collapses into one'
+);
+select is_empty(
+  $$select key from public.app_settings where key in ('initial_admin_email', 'initial_admin_claimed')$$,
+  'The retired single-address settings are gone, so the list is the only administrator source'
+);
+insert into public.app_settings (key, value) values ('initial_admin_email', 'stray@test.dutimz.com');
+select results_eq(
+  $$select public.bootstrap_admin_list()$$,
+  $$select array['du-admin@test.dutimz.com']::text[]$$,
+  'A stray legacy address cannot smuggle an administrator into the list'
 );
 
 select has_table('public', 'profiles', 'Profiles table exists');
