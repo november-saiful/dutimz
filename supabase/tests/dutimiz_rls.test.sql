@@ -1,5 +1,5 @@
 begin;
-select plan(72);
+select plan(73);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -288,11 +288,17 @@ select results_eq(
   $$values (1::bigint)$$,
   'The submitted gallery is attached to the new story'
 );
+select is_empty(
+  $$select article_id from public.article_questionnaire_responses r join public.articles a on a.id = r.article_id where a.title = 'গ্যালারি সহ নতুন প্রতিবেদন'$$,
+  'A reporter cannot read private questionnaire responses through the table'
+);
+reset role;
 select results_eq(
   $$select count(*) from public.article_questionnaire_responses r join public.articles a on a.id = r.article_id where a.title = 'গ্যালারি সহ নতুন প্রতিবেদন' and r.answers->>'activity_type' = 'প্রতিবাদ'$$,
   $$values (1::bigint)$$,
   'The submission saves its validated questionnaire answers'
 );
+set local role authenticated;
 select throws_ok(
   $$select * from public.get_article_questionnaire_responses(10)$$,
   '42501', null,
