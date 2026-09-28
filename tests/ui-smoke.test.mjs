@@ -18,29 +18,35 @@ test('Astro dev serves its client module and production emits the client bundle'
   assert.ok(clientBundle.length > 0, 'production client bundle must not be empty');
 });
 
-test('mobile sticky header stays expanded at page top and collapses only after scrolling', async () => {
+test('responsive DUTIMZ header keeps its routes and accessible mobile navigation', async () => {
   const classes = new Set();
   const topbar = { classList: { toggle(name, enabled) { enabled ? classes.add(name) : classes.delete(name); } } };
-
   syncTopbarState(topbar, 0);
-  assert.equal(classes.has('is-stuck'), false, 'header starts expanded at the top');
+  assert.equal(classes.has('is-stuck'), false, 'header starts at the top');
   syncTopbarState(topbar, 1);
-  assert.equal(classes.has('is-stuck'), true, 'header collapses after scrolling');
+  assert.equal(classes.has('is-stuck'), true, 'sticky state follows scroll');
   syncTopbarState(topbar, 0);
-  assert.equal(classes.has('is-stuck'), false, 'header expands again when returned to top');
+  assert.equal(classes.has('is-stuck'), false, 'sticky state clears on return to top');
+
+  const header = await readProjectFile('src/components/SiteHeader.astro');
+  for (const route of ['/statistics/', '/about/', '/guidelines/', '/corrections/', '/category/${category.slug}/']) {
+    assert.ok(header.includes(route), `header should retain ${route}`);
+  }
+  assert.match(header, /data-open-search-popup/);
+  assert.match(header, /data-account-toggle/);
+  assert.match(header, /data-breaking-bar/);
+  assert.match(header, /aria-controls="mobile-menu"/);
+  assert.match(header, /data-mobile-menu-backdrop/);
 
   const client = await readProjectFile('src/scripts/client.ts');
   assert.match(client, /syncTopbarState\(topbar, window\.scrollY\)/);
-  assert.match(client, /addEventListener\('scroll'/);
-  assert.match(client, /requestAnimationFrame\(sync\)/);
+  assert.match(client, /data-header-dropdown-toggle/);
+  assert.match(client, /data-mobile-menu-toggle/);
+  assert.match(client, /event\.key === 'Escape'/);
+  assert.match(client, /document\.body\.style\.overflow = 'hidden'/);
 
   const css = await readProjectFile('public/site.css');
-  const mobileRulesStart = css.indexOf('@media (max-width: 860px)');
-  const mobileRulesEnd = css.indexOf('@media (max-width: 560px)', mobileRulesStart);
-  assert.notEqual(mobileRulesStart, -1, 'mobile header breakpoint must exist');
-  assert.notEqual(mobileRulesEnd, -1, 'small-phone breakpoint must follow the mobile rules');
-  const mobileRules = css.slice(mobileRulesStart, mobileRulesEnd);
-  assert.match(css, /\.header-tools\s*\{[^}]*display:\s*flex/s);
-  assert.match(mobileRules, /\.site-topbar \.header-tools\s*\{[^}]*max-height:\s*140px/s, 'mobile tools stay visible before scrolling');
-  assert.match(mobileRules, /\.site-topbar\.is-stuck \.header-tools\s*\{[^}]*max-height:\s*0[^}]*opacity:\s*0/s, 'mobile tools collapse only in the stuck state');
+  assert.match(css, /\.primary-navigation\s*\{[^}]*justify-content:\s*center/s);
+  assert.match(css, /\.mobile-menu-backdrop\s*\{[^}]*position:\s*fixed/s);
+  assert.match(css, /\.mobile-menu-toggle\s*\{[^}]*display:\s*grid/s);
 });

@@ -559,25 +559,93 @@ function initProfileForm() {
     await loadIdentity(authUser);
   });
 }
-// Category dropdown toggle
-function initCategoryDropdown() {
-  document.querySelectorAll<HTMLElement>('[data-category-dropdown-toggle]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const expanded = button.getAttribute('aria-expanded') === 'true';
-      button.setAttribute('aria-expanded', String(!expanded));
-      const dropdown = document.querySelector<HTMLElement>('[data-category-dropdown]');
-      if (dropdown) dropdown.hidden = expanded;
+// Desktop disclosure menus and the full-height responsive menu share native links.
+function initHeaderNavigation() {
+  const dropdowns = [...document.querySelectorAll<HTMLButtonElement>('[data-header-dropdown-toggle]')];
+  const closeDropdowns = (except?: HTMLButtonElement) => dropdowns.forEach((button) => {
+    if (button === except) return;
+    button.setAttribute('aria-expanded', 'false');
+    const panel = document.getElementById(button.getAttribute('aria-controls') ?? '');
+    if (panel) panel.hidden = true;
+  });
+  dropdowns.forEach((button) => button.addEventListener('click', () => {
+    const panel = document.getElementById(button.getAttribute('aria-controls') ?? '');
+    if (!panel) return;
+    const open = button.getAttribute('aria-expanded') !== 'true';
+    closeDropdowns(button);
+    button.setAttribute('aria-expanded', String(open));
+    panel.hidden = !open;
+  }));
+
+  const toggle = document.querySelector<HTMLButtonElement>('[data-mobile-menu-toggle]');
+  const backdrop = document.querySelector<HTMLElement>('[data-mobile-menu-backdrop]');
+  const menu = document.querySelector<HTMLElement>('[data-mobile-menu]');
+  if (!toggle || !backdrop || !menu) return;
+  let previousOverflow = '';
+  const closeMenu = (restoreFocus = false) => {
+    if (toggle.getAttribute('aria-expanded') !== 'true') return;
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', 'মেনু খুলুন');
+    backdrop.hidden = true;
+    menu.hidden = true;
+    document.body.style.overflow = previousOverflow;
+    if (restoreFocus) toggle.focus({ preventScroll: true });
+  };
+  const openMenu = () => {
+    closeDropdowns();
+    toggle.setAttribute('aria-expanded', 'true');
+    toggle.setAttribute('aria-label', 'মেনু বন্ধ করুন');
+    backdrop.hidden = false;
+    menu.hidden = false;
+    previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    menu.querySelector<HTMLElement>('a[href]')?.focus({ preventScroll: true });
+  };
+  toggle.addEventListener('click', () => {
+    if (toggle.getAttribute('aria-expanded') === 'true') closeMenu(true);
+    else openMenu();
+  });
+  backdrop.addEventListener('click', (event) => {
+    if (event.target === backdrop) closeMenu(true);
+  });
+  menu.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => closeMenu()));
+  document.addEventListener('click', (event) => {
+    const target = event.target as Node;
+    dropdowns.forEach((button) => {
+      const panel = document.getElementById(button.getAttribute('aria-controls') ?? '');
+      if (panel && !button.contains(target) && !panel.contains(target)) {
+        button.setAttribute('aria-expanded', 'false');
+        panel.hidden = true;
+      }
     });
   });
-  document.addEventListener('click', (event) => {
-    const dropdownTrigger = document.querySelector<HTMLElement>('[data-category-dropdown-toggle]');
-    const dropdown = document.querySelector<HTMLElement>('[data-category-dropdown]');
-    if (dropdownTrigger && dropdown && !dropdownTrigger.contains(event.target as Node) && !dropdown.contains(event.target as Node)) {
-      dropdownTrigger.setAttribute('aria-expanded', 'false');
-      dropdown.hidden = true;
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      const openDropdown = dropdowns.find((button) => button.getAttribute('aria-expanded') === 'true');
+      closeDropdowns();
+      closeMenu(true);
+      openDropdown?.focus({ preventScroll: true });
+      return;
+    }
+    if (event.key !== 'Tab' || toggle.getAttribute('aria-expanded') !== 'true') return;
+    const focusable = [...menu.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      .filter((element) => !element.hidden && element.getClientRects().length > 0);
+    const first = focusable[0];
+    const last = focusable.at(-1);
+    if (!first || !last) return;
+    if (event.shiftKey && (document.activeElement === first || !menu.contains(document.activeElement))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (document.activeElement === last || !menu.contains(document.activeElement))) {
+      event.preventDefault();
+      first.focus();
     }
   });
+  window.addEventListener('resize', () => {
+    if (window.matchMedia('(min-width: 861px)').matches) closeMenu();
+  });
 }
+
 function initAccountMenu() {
   const button = menuButton();
   const panel = menuPanel();
@@ -1153,7 +1221,7 @@ async function initIdentity() {
 async function boot() {
   await loadConfig();
   initStickyTopbar(); initBreaking();
-  initCategoryDropdown(); initAccountMenu(); initProfileForm(); initLiveSearch(); initProfileEditor();
+  initHeaderNavigation(); initAccountMenu(); initProfileForm(); initLiveSearch(); initProfileEditor();
   initWithdrawals(); initArticleEditor();
   await initOAuth(); await initIdentity();
   await loadArticles(); await loadBreaking(); initSearchPage(); initModeration(); initCorrections();
