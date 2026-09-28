@@ -68,3 +68,26 @@ test('responsive DUTIMZ header keeps its routes and accessible mobile navigation
   const migration = await readProjectFile('supabase/migrations/202609280003_public_user_profiles.sql');
   assert.match(migration, /from auth\.users u\s+on conflict \(id\) do nothing/s);
 });
+
+test('admin dashboard groups protected tools into accessible, useful tabs', async () => {
+  const admin = await readProjectFile('src/pages/account/admin.astro');
+  for (const tab of ['overview', 'people', 'content', 'finance', 'community', 'audit']) {
+    assert.match(admin, new RegExp(`data-admin-tab="${tab}"`), `admin dashboard should provide the ${tab} tab`);
+    assert.match(admin, new RegExp(`data-admin-panel="${tab}"`), `admin dashboard should provide the ${tab} panel`);
+  }
+  assert.match(admin, /data-admin-dashboard hidden/);
+  assert.match(admin, /data-admin-access-message/);
+  assert.match(admin, /data-admin-user-search/);
+  assert.match(admin, /data-admin-article-search/);
+  assert.match(admin, /data-admin-balance-form/);
+  assert.match(admin, /data-admin-comment-filter/);
+  const client = await readProjectFile('src/scripts/client.ts');
+  assert.match(client, /event\.key === 'ArrowRight'/);
+  assert.match(client, /event\.key === 'ArrowLeft'/);
+  assert.match(client, /initAdminUserSearch\(\)/);
+  assert.match(client, /ilike\('username'/);
+  assert.match(client, /data-admin-select-user/);
+  const css = await readProjectFile('public/site.css');
+  assert.match(css, /\.admin-dashboard \[hidden\].*display:\s*none\s*!important/);
+  assert.match(css, /\.admin-tabs\s*\{[^}]*overflow-x:\s*auto/s);
+});
