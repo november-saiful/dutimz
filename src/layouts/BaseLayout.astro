@@ -158,6 +158,6 @@ const BRAND_WORDMARK = `${ORIGIN}/dutimz-text-logo.svg`;
       </form>
     </dialog>
     <div class="toast-region" aria-live="polite" aria-atomic="true" data-toast-region></div>
-    <script is:inline src="/client.js" defer>    </script>
+    <script is:inline src={import.meta.env.DEV ? '/src/scripts/client.ts' : '/client.js'} type="module"></script>
   </body>
 </html>
