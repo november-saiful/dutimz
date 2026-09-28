@@ -2,7 +2,7 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { categories } from '../../data/stories';
 ---
-<BaseLayout title="প্রতিবেদন লিখুন" description="ডুটিমজে প্রতিবেদন পাঠান অথবা রিপোর্টার হিসেবে আবেদন করুন।" canonicalPath="/account/write/">
+<BaseLayout title="প্রতিবেদন লিখুন" description="DUTIMZ-এ প্রতিবেদন পাঠান অথবা রিপোর্টার হিসেবে আবেদন করুন।" canonicalPath="/account/write/">
   <section class="account-page-shell writer-shell">
     <a class="back-link" href="/account/">← অ্যাকাউন্টে ফিরুন</a>
     <div class="account-page-heading"><span class="section-kicker">ক্যাম্পাসের কণ্ঠ হয়ে উঠুন</span><h1>প্রতিবেদন লিখুন</h1><p>সঠিক তথ্য, নিরপেক্ষ ভাষা ও প্রকাশের দায়িত্ববোধ নিয়ে আপনার গল্পটি পাঠান।</p></div>
@@ -13,6 +13,10 @@ import { categories } from '../../data/stories';
       <div class="editor-two-col"><label class="field-label">বিভাগ<select name="category_slug" required>{categories.filter((category) => category.slug !== 'all').map((category) => <option value={category.slug}>{category.label}</option>)}</select></label><div class="field-label">প্রতিবেদনের ঠিকানা<span class="slug-preview" data-slug-preview>/news/…</span><small>শিরোনাম থেকে ইংরেজি ঠিকানা স্বয়ংক্রিয়ভাবে তৈরি হবে—কিছু লিখতে হবে না।</small></div></div>
       <label class="field-label">সংক্ষিপ্ত পরিচিতি<textarea name="excerpt" rows="3" maxlength="280" placeholder="প্রতিবেদনটি কী নিয়ে—২৮০ অক্ষরের মধ্যে" required></textarea></label>
       <label class="field-label">পূর্ণ প্রতিবেদন<textarea name="body" rows="12" minlength="100" maxlength="30000" placeholder="যাচাই করা তথ্য ও প্রাসঙ্গিক সূত্রসহ প্রতিবেদন লিখুন…" required></textarea><small>কমপক্ষে ১০০ অক্ষর। ব্যক্তিগত আক্রমণ, গুজব বা অনুমতিহীন ব্যক্তিগত তথ্য প্রকাশ করবেন না।</small></label>
+      <div class="editor-media">
+        <label class="field-label">ছবি (ঐচ্ছিক)<input type="file" name="gallery_images" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif" data-gallery-input /><small>একসাথে একাধিক ছবি যুক্ত করুন—প্রথম ছবিটিই প্রচ্ছদ হবে। সর্বোচ্চ ১০টি, প্রতিটি সর্বোচ্চ ২০ MB (JPEG, PNG, WebP, GIF, AVIF)। ছবি যুক্ত হলে নিচে গ্যালারিতে দেখাবে; ক্রম বদলাতে বা সরাতে পারবেন।</small></label>
+        <div class="gallery-strip" data-gallery-strip hidden></div>
+      </div>
       <p class="form-error" role="alert" data-article-error hidden></p>
       <div class="editor-submit-row"><button class="read-button" type="submit"><span>প্রতিবেদন পাঠান</span><span aria-hidden="true">→</span></button><span data-editor-status>জুনিয়র রিপোর্টারের প্রতিবেদন অনুমোদনের অপেক্ষায় থাকবে।</span></div>
     </form>

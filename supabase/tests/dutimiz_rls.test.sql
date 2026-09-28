@@ -1,5 +1,5 @@
 begin;
-select plan(59);
+select plan(66);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -244,6 +244,65 @@ select throws_ok(
   $$select public.moderate_article((select id from public.articles where slug = 'porikkha-mod'), 'approve', 'ab')$$,
   'P0001', null, 'A moderation decision without a real reason is refused'
 );
+
+-- Photo galleries: R2 images attach to a story in submission order, a reader only
+-- ever sees the gallery of a published story, and only the uploader's own images
+-- can be pinned to their submission.
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+select has_table('public', 'article_media', 'A story gallery of R2 images is modeled');
+insert into public.media_assets (id, owner_id, original_key, mime_type, original_bytes) values
+  ('91000000-0000-4000-8000-000000000001', '22000000-0000-4000-8000-000000000002', 'originals/reporter/gallery-songbad.jpg', 'image/jpeg', 123456),
+  ('91000000-0000-4000-8000-000000000002', '33000000-0000-4000-8000-000000000003', 'originals/mod/gallery-pending.jpg', 'image/jpeg', 234567)
+on conflict (id) do nothing;
+insert into public.article_media (article_id, media_id, position)
+  select a.id, '91000000-0000-4000-8000-000000000001', 0 from public.articles a where a.slug = 'songbad'
+on conflict do nothing;
+insert into public.article_media (article_id, media_id, position)
+  select a.id, '91000000-0000-4000-8000-000000000002', 0 from public.articles a where a.slug = 'porikkha-mod'
+on conflict do nothing;
+
+set local role anon;
+select set_config('request.jwt.claim.role', 'anon', true);
+select results_eq(
+  $$select count(*) from public.article_media$$,
+  $$values (1::bigint)$$,
+  'A signed-out reader sees only the published story gallery'
+);
+select throws_ok(
+  $$insert into public.article_media (article_id, media_id, position) select a.id, '91000000-0000-4000-8000-000000000001', 3 from public.articles a where a.slug = 'songbad'$$,
+  '42501', null,
+  'Readers cannot write gallery rows directly'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select lives_ok(
+  $$select public.submit_article('porikkha', 'গ্যালারি সহ নতুন প্রতিবেদন', 'গ্যালারি সহ প্রতিবেদনের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, array['91000000-0000-4000-8000-000000000001'])$$,
+  'A reporter submits a story with an ordered photo gallery'
+);
+select results_eq(
+  $$select count(*) from public.article_media am join public.articles a on a.id = am.article_id where a.title = 'গ্যালারি সহ নতুন প্রতিবেদন'$$,
+  $$values (1::bigint)$$,
+  'The submitted gallery is attached to the new story'
+);
+select throws_ok(
+  $$select public.submit_article('porikkha', 'অন্যের ছবি পিন করার চেষ্টা', 'অন্যের ছবি পিন করার চেষ্টার সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, array['91000000-0000-4000-8000-000000000002'])$$,
+  'P0001', null,
+  'A reporter cannot pin another author upload to a story'
+);
+
+set local role anon;
+select set_config('request.jwt.claim.role', 'anon', true);
+select set_config('request.jwt.claim.sub', '', true);
+select results_eq(
+  $$select count(*) from public.article_media$$,
+  $$values (1::bigint)$$,
+  'The pending story gallery stays hidden from readers'
+);
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
 
 select * from finish();
 rollback;

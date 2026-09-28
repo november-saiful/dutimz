@@ -4,7 +4,7 @@ type PublicConfig = { supabaseUrl: string; supabaseAnonKey: string; mediaUrl: st
 type Role = 'reader' | 'reporter' | 'moderator' | 'admin';
 type Tier = 'junior' | 'general' | 'executive' | null;
 type Profile = { id: string; username: string; display_name: string; avatar_url: string | null; bio?: string };
-type Article = { id: string; slug: string; title: string; excerpt: string; body: string; published_at: string | null; created_at: string; status: string; author_id: string; hero_media_key: string | null; category: { slug: string; title_bn: string } | { slug: string; title_bn: string }[]; profiles: { username: string; display_name: string; avatar_url: string | null } | { username: string; display_name: string; avatar_url: string | null }[] };
+type Article = { id: string; slug: string; title: string; excerpt: string; body: string; published_at: string | null; created_at: string; status: string; author_id: string; hero_media_key: string | null; article_media?: { media_id: string; position: number }[] | null; category: { slug: string; title_bn: string } | { slug: string; title_bn: string }[]; profiles: { username: string; display_name: string; avatar_url: string | null } | { username: string; display_name: string; avatar_url: string | null }[] };
 
 type Correction = { article_id: string; slug: string; title: string; revision: number; reason: string; editor_label: string; headline_changed: boolean; body_changed: boolean; edited_at: string };
 
@@ -81,8 +81,29 @@ function setMenuOpen(open: boolean) {
   const button = menuButton(); const panel = menuPanel();
   button?.setAttribute('aria-expanded', String(open));
   if (panel) panel.hidden = !open;
+  // Add blur to body when menu is open, but keep the trigger button unblurred
+  if (open && button) {
+    document.body.style.backdropFilter = 'blur(4px)';
+    document.body.style.backgroundColor = 'rgba(35, 16, 37, 0.5)';
+    button.style.backdropFilter = 'none';
+    button.style.backgroundColor = '';
+  } else {
+    document.body.style.backdropFilter = '';
+    document.body.style.backgroundColor = '';
+  }
 }
 function setSelectorHidden(selector: string, hidden: boolean) { document.querySelectorAll<HTMLElement>(selector).forEach((element) => { element.hidden = hidden; }); }
+function applyPopupBlur(triggerElement: HTMLElement | null) {
+  if (!triggerElement) return;
+  document.body.style.backdropFilter = 'blur(4px)';
+  document.body.style.backgroundColor = 'rgba(35, 16, 37, 0.5)';
+  triggerElement.style.backdropFilter = 'none';
+  triggerElement.style.backgroundColor = '';
+}
+function removePopupBlur() {
+  document.body.style.backdropFilter = '';
+  document.body.style.backgroundColor = '';
+}
 function roleName() { return authRole === 'admin' ? 'অ্যাডমিন' : authRole === 'moderator' ? 'মডারেটর' : authRole === 'reporter' ? `${reporterTier === 'junior' ? 'জুনিয়র' : reporterTier === 'general' ? 'জেনারেল' : 'এক্সিকিউটিভ'} রিপোর্টার` : 'রিডার'; }
 function renderAccountLinks() {
   const links = document.querySelector<HTMLElement>('[data-dynamic-account-links]');
@@ -240,9 +261,9 @@ function renderSearch(article: Article) {
 function renderSearchEmpty() { return '<div class="feed-empty"><span class="feed-empty__icon">⌕</span><strong>কোনো প্রতিবেদন পাওয়া যায়নি</strong><p>অন্য শব্দ লিখে আবার চেষ্টা করুন।</p></div>'; }
 function initLiveSearch() {
   const globalResults = document.querySelector<HTMLElement>('[data-search-results]'); const globalList = document.querySelector<HTMLElement>('#search-results-list'); const globalHeading = document.querySelector<HTMLElement>('[data-search-heading]');
-  const submitSearch = async (raw: string, onPage: boolean) => {
+  const submitSearch = async (raw: string, onPage: boolean, popupOpts?: { heading?: HTMLElement | null; list?: HTMLElement | null; resultsContainer?: HTMLElement | null; isPopup?: boolean }) => {
     const query = raw.trim(); const version = ++searchAbort;
-    if (!query) { if (onPage) renderCurrentFeed(); else if (globalResults) globalResults.hidden = true; return; }
+    if (!query) { if (onPage) renderCurrentFeed(); else if (globalResults) globalResults.hidden = true; if (popupOpts?.resultsContainer) popupOpts.resultsContainer.hidden = true; return; }
     if (onPage) history.replaceState({}, '', `/search/?q=${encodeURIComponent(query)}`);
     let found: Article[] = [];
     if (supabase && !demoMode) {
@@ -260,6 +281,10 @@ function initLiveSearch() {
       const empty = document.querySelector<HTMLElement>('[data-search-no-results]'); if (empty) empty.hidden = found.length > 0;
       const heading = document.querySelector<HTMLElement>('[data-search-heading]'); if (heading) heading.textContent = `“${query}” খোঁজার ফলাফল`;
       const count = document.querySelector<HTMLElement>('[data-search-count]'); if (count) count.textContent = `${digits.format(found.length)}টি প্রতিবেদন পাওয়া গেছে`;
+    } else if (popupOpts?.isPopup && popupOpts.resultsContainer) {
+      popupOpts.resultsContainer.hidden = false;
+      if (popupOpts.heading) popupOpts.heading.textContent = `“${query}” খোঁজার ফলাফল`;
+      if (popupOpts.list) popupOpts.list.innerHTML = found.length ? found.map(renderSearch).join('') : renderSearchEmpty();
     } else {
       if (globalResults) globalResults.hidden = false; if (globalHeading) globalHeading.textContent = `“${query}” খোঁজার ফলাফল`;
       if (globalList) globalList.innerHTML = found.length ? found.map(renderSearch).join('') : renderSearchEmpty();
@@ -276,6 +301,51 @@ function initLiveSearch() {
   if (query) { const input = document.querySelector<HTMLInputElement>('[data-page-search-input]'); if (input) input.value = query; submitSearch(query, true); }
   document.querySelectorAll<HTMLElement>('[data-open-search]').forEach((button) => button.addEventListener('click', () => { const input = document.querySelector<HTMLInputElement>('#sidebar-search-input, #header-search-input'); input?.focus({ preventScroll: true }); input?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }));
   document.querySelectorAll<HTMLElement>('[data-close-search]').forEach((button) => button.addEventListener('click', () => { if (globalResults) globalResults.hidden = true; }));
+  // Mobile search popup
+  const searchPopup = document.querySelector<HTMLDialogElement>('[data-search-popup]');
+  const searchPopupForm = document.querySelector<HTMLFormElement>('[data-search-popup-form]');
+  const searchPopupInput = document.querySelector<HTMLInputElement>('[data-search-popup-input]');
+  const searchPopupResults = document.querySelector<HTMLElement>('[data-search-popup-results]');
+  const searchPopupHeading = document.querySelector<HTMLElement>('[data-search-popup-heading]');
+  const searchPopupList = document.querySelector<HTMLElement>('#search-popup-list');
+  if (searchPopup) {
+    document.querySelectorAll<HTMLElement>('[data-open-search-popup]').forEach((button) => button.addEventListener('click', () => {
+      searchPopup.showModal();
+      applyPopupBlur(button as HTMLElement);
+      window.setTimeout(() => searchPopupInput?.focus({ preventScroll: true }), 50);
+    }));
+    document.querySelectorAll<HTMLElement>('[data-close-search-popup]').forEach((button) => button.addEventListener('click', () => {
+      searchPopup.close();
+      removePopupBlur();
+      if (searchPopupResults) searchPopupResults.hidden = true;
+    }));
+    searchPopup.addEventListener('click', (event) => {
+      if (event.target === searchPopup) {
+        searchPopup.close();
+        removePopupBlur();
+        if (searchPopupResults) searchPopupResults.hidden = true;
+      }
+    });
+    if (searchPopupForm) {
+      searchPopupForm.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const query = searchPopupInput?.value.trim() ?? '';
+        if (!query) return;
+        submitSearch(query, false, { heading: searchPopupHeading, list: searchPopupList, resultsContainer: searchPopupResults, isPopup: true });
+      });
+    }
+    if (searchPopupInput) {
+      searchPopupInput.addEventListener('input', () => {
+        window.clearTimeout(Number(searchPopupInput.dataset.searchTimer));
+        const timer = window.setTimeout(() => {
+          const value = searchPopupInput?.value.trim() ?? '';
+          if (value.length >= 2) submitSearch(value, false, { heading: searchPopupHeading, list: searchPopupList, resultsContainer: searchPopupResults, isPopup: true });
+          else if (!value.trim() && searchPopupResults) searchPopupResults.hidden = true;
+        }, 220);
+        searchPopupInput.dataset.searchTimer = String(timer);
+      });
+    }
+  }
 }
 function renderCurrentFeed() {
   const pathParts = location.pathname.split('/').filter(Boolean); const categorySlug = pathParts[0] === 'category' ? pathParts[1] : '';
@@ -290,7 +360,7 @@ async function loadArticles() {
   const publicProfile = location.pathname.split('/').filter(Boolean);
   const categorySlug = document.querySelector<HTMLElement>('[data-category-slug]')?.dataset.categorySlug;
   if (!supabase || demoMode) return;
-  const select = 'id,slug,title,excerpt,body,published_at,created_at,status,author_id,hero_media_key,category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url)';
+  const select = `id,slug,title,excerpt,body,published_at,created_at,status,author_id,hero_media_key,category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url)${articleSlug ? ',article_media(media_id,position)' : ''}`;
   let query = supabase.from('articles').select(select).eq('status', 'published').order('published_at', { ascending: false }).limit(40);
   if (articleSlug) query = supabase.from('articles').select(select).eq('status', 'published').eq('slug', articleSlug).limit(1);
   if (categorySlug) query = supabase.from('articles').select(select).eq('status', 'published').eq('category.slug', categorySlug).order('published_at', { ascending: false }).limit(40);
@@ -301,6 +371,49 @@ async function loadArticles() {
   if (feed || categorySlug) renderCurrentFeed();
   if (publicProfile[0] === 'u' && publicProfile[1]) await loadPublicProfile();
 }
+// A fixed duration would race through two headlines and crawl through ten, so hold the
+// reading speed steady and let the length of the strip decide how long a lap takes.
+function measureBreaking(track: HTMLElement) {
+  const group = track.firstElementChild as HTMLElement | null;
+  if (!group || !group.children.length) return;
+  track.style.animationDuration = `${Math.min(80, Math.max(18, Math.round(group.scrollWidth / 55)))}s`;
+}
+function paintBreaking(items: { title: string; href: string }[]) {
+  const bar = document.querySelector<HTMLElement>('[data-breaking-bar]');
+  const track = document.querySelector<HTMLElement>('[data-breaking-track]');
+  if (!bar || !track || !items.length) return;
+  const links = items.map((item) => `<a class="breaking-bar__item" href="${attr(item.href)}">${escapeHtml(item.title)}</a>`).join('');
+  // Two identical groups, so sliding the track by exactly one group width loops seamlessly.
+  track.innerHTML = `<div class="breaking-bar__group">${links}</div><div class="breaking-bar__group" aria-hidden="true">${links}</div>`;
+  bar.hidden = false;
+  measureBreaking(track);
+}
+function initBreaking() {
+  const track = document.querySelector<HTMLElement>('[data-breaking-track]');
+  if (!track || !track.firstElementChild?.children.length) return;
+  measureBreaking(track);
+  // Bengali text is wider once the webfont lands; the strip is longer than it measured.
+  void document.fonts?.ready.then(() => measureBreaking(track));
+}
+async function loadBreaking() {
+  const bar = document.querySelector<HTMLElement>('[data-breaking-bar]');
+  const track = document.querySelector<HTMLElement>('[data-breaking-track]');
+  if (!bar || !track || !supabase || demoMode) return;
+  const result = await supabase.from('articles').select('slug,title').eq('status', 'published').order('published_at', { ascending: false }).limit(6);
+  const rows = (result.data ?? []) as { slug: string; title: string }[];
+  if (result.error || !rows.length) return;
+  paintBreaking(rows.map((row) => ({ title: row.title, href: `/news/${encodeURIComponent(row.slug)}/` })));
+}
+// The topbar pins itself with position: sticky; this only reports that it has, so the
+// phone layout can fold its search row away once the header no longer scrolls off.
+function initStickyTopbar() {
+  const topbar = document.querySelector<HTMLElement>('[data-site-topbar]');
+  if (!topbar) return;
+  let queued = false;
+  const sync = () => { queued = false; topbar.classList.toggle('is-stuck', topbar.getBoundingClientRect().top <= 0); };
+  window.addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(sync); } }, { passive: true });
+  sync();
+}
 function renderNotFound() { const root = document.querySelector<HTMLElement>('[data-article-root]'); if (root) root.innerHTML = '<div class="article-not-found"><div class="feed-empty__icon">⌕</div><h1>প্রতিবেদনটি পাওয়া যায়নি</h1><p>লিংকটি ভুল হতে পারে বা প্রতিবেদনটি প্রকাশিত নেই।</p><a class="read-button" href="/"><span>মূলপাতায় ফিরুন</span><span>→</span></a></div>'; }
 async function mediaUrlFor(key: string) { return config.mediaUrl ? `${config.mediaUrl.replace(/\/$/, '')}/media/${encodeURIComponent(key)}` : ''; }
 async function renderArticlePage(article: Article) {
@@ -308,9 +421,19 @@ async function renderArticlePage(article: Article) {
   const category = categoryInfo(article); const author = authorInfo(article);
   const body = article.body.split(/\n{2,}/).map((paragraph) => `<p>${escapeHtml(paragraph.trim())}</p>`).join('');
   const hero = article.hero_media_key ? `<figure class="article-hero-art"><img src="${attr(await mediaUrlFor(article.hero_media_key))}" alt="" loading="eager"></figure>` : `<div class="article-hero-art"><span class="story-art__visual ${storyImageClass(category.slug)}"><span class="story-art__halo"></span><span class="story-art__seal">ঢা<br><i>বি</i></span></span></div>`;
-  root.innerHTML = `<nav class="article-breadcrumbs" aria-label="অবস্থান"><a href="/">মূলপাতা</a><span>›</span><a href="/category/${attr(category.slug)}/">${escapeHtml(category.title_bn)}</a></nav><header class="article-header"><div class="story-meta"><a href="/category/${attr(category.slug)}/">${escapeHtml(category.title_bn)}</a><span>·</span><time datetime="${attr(article.published_at)}">${escapeHtml(timestamp(article.published_at))}</time></div><h1>${escapeHtml(article.title)}</h1><p class="article-excerpt">${escapeHtml(article.excerpt)}</p><div class="article-author-row"><span class="article-author-avatar">ঢা</span><div class="article-author-info"><a href="/u/${encodeURIComponent(author.username)}/"><strong>${escapeHtml(publicName(author))}</strong></a><time datetime="${attr(article.published_at)}">প্রকাশিত ${escapeHtml(timestamp(article.published_at))}</time></div></div></header>${hero}<article class="article-body">${body}</article><div class="article-actions"><div class="article-actions__group"><button class="action-pill" type="button" data-reaction-button><svg viewBox="0 0 24 24"><path d="M20.8 8.9c0 5.1-8.8 11.1-8.8 11.1S3.2 14 3.2 8.9a4.3 4.3 0 0 1 8.1-2 4.3 4.3 0 0 1 9.5 2Z"/></svg><span data-reaction-count>০</span><span>ভালো লেগেছে</span></button><button class="action-pill" type="button" data-bookmark-button><svg viewBox="0 0 24 24"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.8L6 21z"/></svg><span data-bookmark-label>সংরক্ষণ</span></button></div><div class="article-actions__group"><button class="action-pill" type="button" data-share-button>শেয়ার করুন ↗</button><a class="action-pill" href="mailto:corrections@dutimz.com?subject=${encodeURIComponent(`সংশোধন: ${article.title}`)}">সংশোধন জানান</a></div></div><section class="comments-section"><div class="feed-heading"><div><span class="section-kicker">পাঠকের আলোচনা</span><h2>মন্তব্য</h2></div><span data-comment-total>০টি</span></div><form class="comment-form" data-comment-form><label class="sr-only" for="comment-body">আপনার মন্তব্য</label><textarea id="comment-body" name="body" maxlength="2000" placeholder="শ্রদ্ধাশীল ভাষায় আপনার মতামত লিখুন…" required></textarea><button class="read-button" type="submit"><span>মন্তব্য করুন</span><span>→</span></button></form><p class="form-error" role="alert" data-comment-error hidden></p><div class="comment-list" data-comment-list></div></section>`;
+  const galleryItems = (article.article_media ?? []).slice().sort((a, b) => a.position - b.position).filter((item) => item.media_id !== article.hero_media_key);
+  let gallery = '';
+  if (galleryItems.length) {
+    const figures: string[] = [];
+    for (let index = 0; index < galleryItems.length; index += 1) {
+      const item = galleryItems[index];
+      figures.push(`<figure class="article-gallery__item"><img src="${attr(await mediaUrlFor(item.media_id))}" alt="${attr(`${article.title} — ছবি ${index + 1}`)}" loading="lazy"></figure>`);
+    }
+    gallery = `<section class="article-gallery" aria-label="ছবির গ্যালারি"><div class="feed-heading"><div><span class="section-kicker">প্রতিবেদনের ছবি</span><h2>ছবির গ্যালারি</h2></div><span>${digits.format(galleryItems.length)}টি</span></div><div class="article-gallery__grid">${figures.join('')}</div></section>`;
+  }
+  root.innerHTML = `<nav class="article-breadcrumbs" aria-label="অবস্থান"><a href="/">মূলপাতা</a><span>›</span><a href="/category/${attr(category.slug)}/">${escapeHtml(category.title_bn)}</a></nav><header class="article-header"><div class="story-meta"><a href="/category/${attr(category.slug)}/">${escapeHtml(category.title_bn)}</a><span>·</span><time datetime="${attr(article.published_at)}">${escapeHtml(timestamp(article.published_at))}</time></div><h1>${escapeHtml(article.title)}</h1><p class="article-excerpt">${escapeHtml(article.excerpt)}</p><div class="article-author-row"><span class="article-author-avatar">ঢা</span><div class="article-author-info"><a href="/u/${encodeURIComponent(author.username)}/"><strong>${escapeHtml(publicName(author))}</strong></a><time datetime="${attr(article.published_at)}">প্রকাশিত ${escapeHtml(timestamp(article.published_at))}</time></div></div></header>${hero}<article class="article-body">${body}</article>${gallery}<div class="article-actions"><div class="article-actions__group"><button class="action-pill" type="button" data-reaction-button><svg viewBox="0 0 24 24"><path d="M20.8 8.9c0 5.1-8.8 11.1-8.8 11.1S3.2 14 3.2 8.9a4.3 4.3 0 0 1 8.1-2 4.3 4.3 0 0 1 9.5 2Z"/></svg><span data-reaction-count>০</span><span>ভালো লেগেছে</span></button><button class="action-pill" type="button" data-bookmark-button><svg viewBox="0 0 24 24"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.8L6 21z"/></svg><span data-bookmark-label>সংরক্ষণ</span></button></div><div class="article-actions__group"><button class="action-pill" type="button" data-share-button>শেয়ার করুন ↗</button><a class="action-pill" href="mailto:corrections@dutimz.com?subject=${encodeURIComponent(`সংশোধন: ${article.title}`)}">সংশোধন জানান</a></div></div><section class="comments-section"><div class="feed-heading"><div><span class="section-kicker">পাঠকের আলোচনা</span><h2>মন্তব্য</h2></div><span data-comment-total>০টি</span></div><form class="comment-form" data-comment-form><label class="sr-only" for="comment-body">আপনার মন্তব্য</label><textarea id="comment-body" name="body" maxlength="2000" placeholder="শ্রদ্ধাশীল ভাষায় আপনার মতামত লিখুন…" required></textarea><button class="read-button" type="submit"><span>মন্তব্য করুন</span><span>→</span></button></form><p class="form-error" role="alert" data-comment-error hidden></p><div class="comment-list" data-comment-list></div></section>`;
   const metaDescription = document.querySelector<HTMLMetaElement>('meta[name="description"]'); if (metaDescription) metaDescription.content = article.excerpt;
-  const title = document.querySelector<HTMLTitleElement>('title'); if (title) title.textContent = `${article.title} | ডুটিমজ`;
+  const title = document.querySelector<HTMLTitleElement>('title'); if (title) title.textContent = `${article.title} | DUTIMZ`;
   await initArticleActions(article); await loadComments(article.id);
 }
 function requireLogin() { sessionStorage.setItem('dutimz-after-auth', `${location.pathname}${location.search}`); toast(strings.login, true); window.setTimeout(() => window.location.assign('/auth/sign-in/'), 550); }
@@ -361,7 +484,7 @@ async function loadPublicProfile() {
   const username = decodeURIComponent(path[1]); const result = await supabase.from('profiles').select('id,username,display_name,bio,avatar_url').eq('username', username).maybeSingle();
   const name = document.querySelector<HTMLElement>('[data-public-name]'); const bio = document.querySelector<HTMLElement>('[data-public-bio]'); const handle = document.querySelector<HTMLElement>('[data-public-handle]'); const list = document.querySelector<HTMLElement>('[data-public-stories]');
   if (result.error || !result.data) { if (name) name.textContent = 'এই প্রোফাইলটি পাওয়া যায়নি'; if (bio) bio.textContent = 'ইউজারনেমটি পরীক্ষা করে আবার চেষ্টা করুন।'; return; }
-  const profile = result.data as Profile; document.title = `${publicName(profile)} | ডুটিমজ`; if (name) name.textContent = publicName(profile); if (bio) bio.textContent = profile.bio || 'ঢাকা বিশ্ববিদ্যালয়ের পাঠক ও লেখক।'; if (handle) handle.textContent = `@${profile.username}`;
+  const profile = result.data as Profile; document.title = `${publicName(profile)} | DUTIMZ`; if (name) name.textContent = publicName(profile); if (bio) bio.textContent = profile.bio || 'ঢাকা বিশ্ববিদ্যালয়ের পাঠক ও লেখক।'; if (handle) handle.textContent = `@${profile.username}`;
   const stories = await supabase.from('articles').select('id,slug,title,excerpt,body,published_at,created_at,status,author_id,hero_media_key,category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url)').eq('author_id', profile.id).eq('status', 'published').order('published_at', { ascending: false }).limit(30);
   if (list) list.innerHTML = (stories.data as unknown as Article[] ?? []).map((article) => renderStoryCard(article)).join('') || '<div class="feed-empty"><strong>এখনো প্রকাশিত প্রতিবেদন নেই</strong></div>';
 }
@@ -395,9 +518,9 @@ async function maybeOpenProfilePrompt() {
 function initProfileForm() {
   const form = document.querySelector<HTMLFormElement>('[data-profile-form]');
   const dialog = document.querySelector<HTMLDialogElement>('[data-profile-modal]');
-  const close = () => { if (dialog?.open) dialog.close(); };
-  document.querySelectorAll<HTMLElement>('[data-close-profile]').forEach((button) => button.addEventListener('click', close));
-  document.querySelectorAll<HTMLElement>('[data-open-profile]').forEach((button) => button.addEventListener('click', () => dialog?.showModal()));
+  const close = () => { if (dialog?.open) { dialog.close(); removePopupBlur(); } };
+  document.querySelectorAll<HTMLElement>('[data-close-profile]').forEach((button) => button.addEventListener('click', () => { close(); }));
+  document.querySelectorAll<HTMLElement>('[data-open-profile]').forEach((button) => button.addEventListener('click', () => { dialog?.showModal(); applyPopupBlur(button as HTMLElement); }));
   dialog?.addEventListener('click', (event) => { if (event.target === dialog) close(); });
   (form?.elements.namedItem('residency_status') as HTMLSelectElement | null)?.addEventListener('change', (event) => {
     const choice = (event.currentTarget as HTMLSelectElement).value;
@@ -443,6 +566,25 @@ function initProfileForm() {
     profilePromptShown = false;
     toast(strings.done);
     await loadIdentity(authUser);
+  });
+}
+// Category dropdown toggle
+function initCategoryDropdown() {
+  document.querySelectorAll<HTMLElement>('[data-category-dropdown-toggle]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const expanded = button.getAttribute('aria-expanded') === 'true';
+      button.setAttribute('aria-expanded', String(!expanded));
+      const dropdown = document.querySelector<HTMLElement>('[data-category-dropdown]');
+      if (dropdown) dropdown.hidden = expanded;
+    });
+  });
+  document.addEventListener('click', (event) => {
+    const dropdownTrigger = document.querySelector<HTMLElement>('[data-category-dropdown-toggle]');
+    const dropdown = document.querySelector<HTMLElement>('[data-category-dropdown]');
+    if (dropdownTrigger && dropdown && !dropdownTrigger.contains(event.target as Node) && !dropdown.contains(event.target as Node)) {
+      dropdownTrigger.setAttribute('aria-expanded', 'false');
+      dropdown.hidden = true;
+    }
   });
 }
 function initAccountMenu() {
@@ -514,15 +656,92 @@ async function uploadEditorMedia(file: File) {
   if (!response.ok || !payload.id) throw new Error(payload.error || 'ফাইল পাঠানো যায়নি।');
   return payload.id;
 }
+// Each selected photo uploads straight to the R2-backed media worker and keeps a
+// local preview, so the gallery beside the writing surface fills in while the
+// reporter keeps writing. The array order is the published order: entry zero is
+// the cover the feeds and the article hero render.
+type GalleryItem = { file: File; preview: string; mediaId: string | null; failed: boolean; uploading: boolean };
+const MAX_GALLERY_IMAGES = 10;
 function initArticleEditor() {
   const form = document.querySelector<HTMLFormElement>('[data-article-form]');
   if (!form) return;
   const title = form.elements.namedItem('title') as HTMLInputElement | null;
   const preview = document.querySelector<HTMLElement>('[data-slug-preview]');
   let previewTimer = 0;
-  const upload = form.elements.namedItem('hero_image') as HTMLInputElement | null;
+  const upload = form.elements.namedItem('gallery_images') as HTMLInputElement | null;
   const status = document.querySelector<HTMLElement>('[data-editor-status]');
-  let mediaId: string | null = null;
+  const strip = document.querySelector<HTMLElement>('[data-gallery-strip]');
+  const gallery: GalleryItem[] = [];
+  let draggedItem: GalleryItem | null = null;
+  const renderGallery = () => {
+    if (!strip) return;
+    strip.hidden = gallery.length === 0;
+    strip.innerHTML = gallery.map((item, index) => `<figure class="gallery-strip__item${index === 0 ? ' is-cover' : ''}" data-gallery-index="${index}" draggable="true" role="group" aria-label="${attr(item.file.name)}"><img src="${attr(item.preview)}" alt="">${index === 0 ? '<span class="gallery-strip__cover">প্রচ্ছদ</span>' : ''}<figcaption>${item.uploading ? 'আপলোড হচ্ছে…' : item.failed ? '<span class="is-failed">ব্যর্থ</span>' : escapeHtml(item.file.name)}</figcaption><div class="gallery-strip__tools"><button type="button" data-gallery-move="-1" ${index === 0 ? 'disabled' : ''} aria-label="আগে নিন">←</button><button type="button" data-gallery-move="1" ${index === gallery.length - 1 ? 'disabled' : ''} aria-label="পরে নিন">→</button><button type="button" data-gallery-remove aria-label="ছবি সরান">✕</button></div></figure>`).join('');
+    strip.querySelectorAll<HTMLElement>('[data-gallery-index]').forEach((node) => {
+      const index = Number(node.dataset.galleryIndex);
+      const item = gallery[index];
+      if (!item) return;
+      node.querySelector<HTMLButtonElement>('[data-gallery-remove]')?.addEventListener('click', () => {
+        if (draggedItem === item) draggedItem = null;
+        URL.revokeObjectURL(item.preview);
+        gallery.splice(index, 1);
+        renderGallery();
+      });
+      node.querySelectorAll<HTMLButtonElement>('[data-gallery-move]').forEach((button) => button.addEventListener('click', () => {
+        const target = index + Number(button.dataset.galleryMove);
+        if (target < 0 || target >= gallery.length) return;
+        gallery.splice(index, 1);
+        gallery.splice(target, 0, item);
+        renderGallery();
+      }));
+      node.addEventListener('dragstart', (event) => {
+        if (!event.dataTransfer) return;
+        draggedItem = item;
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(index));
+        node.classList.add('is-dragging');
+      });
+      node.addEventListener('dragover', (event) => {
+        if (!draggedItem) return;
+        event.preventDefault();
+        if (draggedItem === item) return;
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+        strip.querySelectorAll('.is-drop-before, .is-drop-after').forEach((target) => target.classList.remove('is-drop-before', 'is-drop-after'));
+        const bounds = node.getBoundingClientRect();
+        const sameRow = event.clientY >= bounds.top && event.clientY <= bounds.bottom;
+        const after = sameRow ? event.clientX >= bounds.left + bounds.width / 2 : event.clientY > bounds.top + bounds.height / 2;
+        node.classList.add(after ? 'is-drop-after' : 'is-drop-before');
+      });
+      node.addEventListener('drop', (event) => {
+        if (!draggedItem) return;
+        event.preventDefault();
+        const moving = draggedItem;
+        draggedItem = null;
+        if (moving === item) { renderGallery(); return; }
+        const after = node.classList.contains('is-drop-after');
+        gallery.splice(gallery.indexOf(moving), 1);
+        const targetIndex = gallery.indexOf(item);
+        gallery.splice(targetIndex + (after ? 1 : 0), 0, moving);
+        renderGallery();
+      });
+      node.addEventListener('dragend', () => {
+        draggedItem = null;
+        strip.querySelectorAll('.is-dragging, .is-drop-before, .is-drop-after').forEach((target) => target.classList.remove('is-dragging', 'is-drop-before', 'is-drop-after'));
+      });
+    });
+  };
+  const settleItem = async (item: GalleryItem) => {
+    try {
+      item.mediaId = await uploadEditorMedia(item.file);
+      if (status) status.textContent = `${digits.format(gallery.filter((entry) => entry.mediaId).length)}টি ছবি সংরক্ষিত।`;
+    } catch (error) {
+      item.failed = true;
+      toast(error instanceof Error ? error.message : 'ছবি আপলোড হয়নি।', true);
+    } finally {
+      item.uploading = false;
+      renderGallery();
+    }
+  };
   // The server derives the address from the headline (public.slugify_title), so
   // the editor only previews it — and previews it through that same function
   // rather than through a second implementation that could drift from it.
@@ -538,32 +757,47 @@ function initArticleEditor() {
     }, 400);
   };
   title?.addEventListener('input', refreshSlugPreview);
-  upload?.addEventListener('change', async () => {
-    const file = upload.files?.[0]; if (!file) { mediaId = null; return; }
-    if (!file.type.startsWith('image/')) { upload.value = ''; toast('প্রচ্ছদের জন্য JPEG, PNG, WebP, GIF অথবা AVIF ছবি দিন।', true); return; }
-    upload.disabled = true; if (status) status.textContent = 'ছবি নিরাপদে আপলোড হচ্ছে…';
-    try { mediaId = await uploadEditorMedia(file); if (status) status.textContent = 'ছবি সংরক্ষিত। এখন প্রতিবেদন জমা দিন।'; }
-    catch (error) { mediaId = null; upload.value = ''; if (status) status.textContent = 'ছবি আপলোড হয়নি।'; toast(error instanceof Error ? error.message : 'ছবি আপলোড হয়নি।', true); }
-    finally { upload.disabled = false; }
+  upload?.addEventListener('change', () => {
+    const files = Array.from(upload.files ?? []);
+    upload.value = '';
+    if (!files.length) return;
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) { toast('শুধুমাত্র JPEG, PNG, WebP, GIF অথবা AVIF ছবি যুক্ত করা যায়।', true); continue; }
+      if (file.size > 20 * 1024 * 1024) { toast('প্রতিটি ছবি সর্বোচ্চ ২০ মেগাবাইট হতে পারে।', true); continue; }
+      if (gallery.length >= MAX_GALLERY_IMAGES) { toast(`সর্বোচ্চ ${digits.format(MAX_GALLERY_IMAGES)}টি ছবি যুক্ত করা যায়।`, true); break; }
+      const item: GalleryItem = { file, preview: URL.createObjectURL(file), mediaId: null, failed: false, uploading: true };
+      gallery.push(item);
+      void settleItem(item);
+    }
+    renderGallery();
+    if (status) status.textContent = 'ছবি আপলোড হচ্ছে…';
   });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     const error = document.querySelector<HTMLElement>('[data-article-error]');
     if (!authUser || !supabase) return requireLogin();
     if (authRole === 'reader') return setMessage(error, 'রিপোর্টার অনুমতি ছাড়া প্রতিবেদন পাঠানো যাবে না।');
-    if (upload?.files?.length && !mediaId) return setMessage(error, 'প্রচ্ছদের ছবি আপলোড সম্পন্ন হওয়া পর্যন্ত অপেক্ষা করুন।');
+    if (gallery.some((item) => item.uploading)) return setMessage(error, 'ছবি আপলোড সম্পন্ন হওয়া পর্যন্ত অপেক্ষা করুন।');
+    const broken = gallery.find((item) => item.failed || !item.mediaId);
+    if (broken) return setMessage(error, `“${broken.file.name}” আপলোড হয়নি; ছবিটি সরিয়ে আবার চেষ্টা করুন।`);
+    const mediaKeys = gallery.map((item) => item.mediaId).filter((key): key is string => Boolean(key));
     const values = formDataObject(form);
     const button = form.querySelector<HTMLButtonElement>('button[type="submit"]'); if (button) button.disabled = true;
     const result = await supabase.rpc('submit_article', {
       p_category_slug: values.category_slug, p_title: values.title,
-      p_excerpt: values.excerpt, p_body: values.body, p_hero_media_key: mediaId,
+      p_excerpt: values.excerpt, p_body: values.body,
+      p_hero_media_key: mediaKeys[0] ?? null, p_media_keys: mediaKeys.length ? mediaKeys : null,
     });
     if (button) button.disabled = false;
     if (result.error) return setMessage(error, result.error.message);
     const createdSlug = (result.data as { slug?: string } | null)?.slug ?? '';
     const state = document.querySelector<HTMLElement>('[data-writer-state]');
     if (state) { state.hidden = false; state.textContent = result.data?.status === 'pending' ? 'আপনার প্রতিবেদনটি অনুমোদনের অপেক্ষায় জমা হয়েছে।' : 'আপনার প্রতিবেদন প্রকাশিত হয়েছে।'; }
-    form.reset(); mediaId = null; setMessage(error, '', false);
+    form.reset();
+    gallery.forEach((item) => URL.revokeObjectURL(item.preview));
+    gallery.length = 0;
+    renderGallery();
+    setMessage(error, '', false);
     if (state && createdSlug) {
       const url = `/news/${encodeURIComponent(createdSlug)}/`;
       state.insertAdjacentHTML('beforeend', ` <a class="text-link" href="${attr(url)}">${escapeHtml(url)}</a>`);
@@ -903,10 +1137,11 @@ async function initIdentity() {
 }
 async function boot() {
   await loadConfig();
-  initAccountMenu(); initProfileForm(); initLiveSearch(); initProfileEditor();
+  initStickyTopbar(); initBreaking();
+  initCategoryDropdown(); initAccountMenu(); initProfileForm(); initLiveSearch(); initProfileEditor();
   initWithdrawals(); initArticleEditor();
   await initOAuth(); await initIdentity();
-  await loadArticles(); initSearchPage(); initModeration(); initCorrections();
+  await loadArticles(); await loadBreaking(); initSearchPage(); initModeration(); initCorrections();
   initRoleForms(); initAdminWorkflows(); initAdminHistory(); initAdminRoster();
   document.querySelectorAll<HTMLElement>('[data-google-sign-in]').forEach((button) => { (button as HTMLButtonElement).disabled = false; });
   const path = location.pathname; document.querySelectorAll('.mobile-dock__link.is-active').forEach((link) => link.classList.remove('is-active'));

@@ -4,6 +4,14 @@
   Cache-Control: public, max-age=86400
 /client.js
   Cache-Control: public, max-age=3600
+/brand-*.svg
+  Cache-Control: public, max-age=86400
+/dutimz-text-logo.svg
+  Cache-Control: public, max-age=86400
+/favicon.svg
+  Cache-Control: public, max-age=86400
+/og-banner.png
+  Cache-Control: public, max-age=86400
 
 /*
   X-Content-Type-Options: nosniff
