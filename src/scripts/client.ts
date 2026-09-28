@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import { collectQuestionnaireAnswers, initPublicQuestionnaireStats, initQuestionnaireAdmin, renderQuestionnaire, type QuestionnaireDefinition } from './questionnaire';
 
 type PublicConfig = { supabaseUrl: string; supabaseAnonKey: string; mediaUrl: string; demoMode: boolean };
 type Role = 'reader' | 'reporter' | 'moderator' | 'admin';
@@ -145,6 +146,7 @@ function paintAuthState() {
   const signOut = document.querySelector<HTMLButtonElement>('[data-sign-out]');
   if (signOut) signOut.hidden = !authUser;
   renderAccountLinks();
+  if (typeof supabase !== 'undefined') window.setTimeout(() => initQuestionnaireAdmin(supabase, () => authRole === 'admin', (message, isError) => toast(message, isError), setMessage), 0);
 }
 function setCompletion(percent: number) {
   profileCompletion = Math.max(0, Math.min(100, Math.round(percent || 0)));
@@ -673,6 +675,10 @@ function initArticleEditor() {
   const strip = document.querySelector<HTMLElement>('[data-gallery-strip]');
   const gallery: GalleryItem[] = [];
   let draggedItem: GalleryItem | null = null;
+  let questionnaire: QuestionnaireDefinition | null = null;
+  const questionnaireRoot = document.querySelector<HTMLElement>('[data-article-questionnaire]');
+  const questionnaireFields = document.querySelector<HTMLElement>('[data-questionnaire-fields]');
+  let questionnaireLoading = false;
   const renderGallery = () => {
     if (!strip) return;
     strip.hidden = gallery.length === 0;
@@ -757,6 +763,16 @@ function initArticleEditor() {
     }, 400);
   };
   title?.addEventListener('input', refreshSlugPreview);
+  if (questionnaireRoot && questionnaireFields && supabase) {
+    questionnaireLoading = true;
+    void Promise.resolve(supabase.rpc('get_active_article_questionnaire')).then(({ data, error: questionnaireError }) => {
+    const definition = single(data as QuestionnaireDefinition | QuestionnaireDefinition[] | null);
+    if (questionnaireError || !definition) { setMessage(document.querySelector('[data-article-error]'), questionnaireError?.message ?? 'প্রশ্নমালা লোড করা যায়নি।'); return; }
+    questionnaire = definition;
+    questionnaireRoot.hidden = false;
+    renderQuestionnaire(questionnaireFields, definition.schema);
+    }).finally(() => { questionnaireLoading = false; });
+  }
   upload?.addEventListener('change', () => {
     const files = Array.from(upload.files ?? []);
     upload.value = '';
@@ -776,10 +792,14 @@ function initArticleEditor() {
     event.preventDefault();
     const error = document.querySelector<HTMLElement>('[data-article-error]');
     if (!authUser || !supabase) return requireLogin();
+    if (questionnaireLoading) return setMessage(error, 'প্রশ্নমালা লোড হওয়া পর্যন্ত অপেক্ষা করুন।');
     if (authRole === 'reader') return setMessage(error, 'রিপোর্টার অনুমতি ছাড়া প্রতিবেদন পাঠানো যাবে না।');
     if (gallery.some((item) => item.uploading)) return setMessage(error, 'ছবি আপলোড সম্পন্ন হওয়া পর্যন্ত অপেক্ষা করুন।');
     const broken = gallery.find((item) => item.failed || !item.mediaId);
     if (broken) return setMessage(error, `“${broken.file.name}” আপলোড হয়নি; ছবিটি সরিয়ে আবার চেষ্টা করুন।`);
+    if (!questionnaire || !questionnaireFields) return setMessage(error, 'প্রশ্নমালা লোড হওয়া পর্যন্ত অপেক্ষা করুন।');
+    const questionnaireAnswers = collectQuestionnaireAnswers(questionnaireFields, questionnaire.schema, (message) => setMessage(error, message));
+    if (!questionnaireAnswers) return;
     const mediaKeys = gallery.map((item) => item.mediaId).filter((key): key is string => Boolean(key));
     const values = formDataObject(form);
     const button = form.querySelector<HTMLButtonElement>('button[type="submit"]'); if (button) button.disabled = true;
@@ -787,6 +807,7 @@ function initArticleEditor() {
       p_category_slug: values.category_slug, p_title: values.title,
       p_excerpt: values.excerpt, p_body: values.body,
       p_hero_media_key: mediaKeys[0] ?? null, p_media_keys: mediaKeys.length ? mediaKeys : null,
+      p_questionnaire_answers: questionnaireAnswers, p_questionnaire_version_id: questionnaire.id,
     });
     if (button) button.disabled = false;
     if (result.error) return setMessage(error, result.error.message);
@@ -794,6 +815,8 @@ function initArticleEditor() {
     const state = document.querySelector<HTMLElement>('[data-writer-state]');
     if (state) { state.hidden = false; state.textContent = result.data?.status === 'pending' ? 'আপনার প্রতিবেদনটি অনুমোদনের অপেক্ষায় জমা হয়েছে।' : 'আপনার প্রতিবেদন প্রকাশিত হয়েছে।'; }
     form.reset();
+    if (questionnaireFields) questionnaireFields.replaceChildren();
+    if (questionnaireRoot) questionnaireRoot.hidden = true;
     gallery.forEach((item) => URL.revokeObjectURL(item.preview));
     gallery.length = 0;
     renderGallery();
@@ -1143,6 +1166,9 @@ async function boot() {
   await initOAuth(); await initIdentity();
   await loadArticles(); await loadBreaking(); initSearchPage(); initModeration(); initCorrections();
   initRoleForms(); initAdminWorkflows(); initAdminHistory(); initAdminRoster();
+  initQuestionnaireAdmin(supabase, () => authRole === 'admin', (message, isError) => toast(message, isError), setMessage);
+  await initPublicQuestionnaireStats(supabase);
+
   document.querySelectorAll<HTMLElement>('[data-google-sign-in]').forEach((button) => { (button as HTMLButtonElement).disabled = false; });
   const path = location.pathname; document.querySelectorAll('.mobile-dock__link.is-active').forEach((link) => link.classList.remove('is-active'));
   const active = path === '/' ? '.mobile-dock__link[href="/"]' : path === '/search/' ? '.mobile-dock__link[href="/search/"]' : path === '/saved/' ? '.mobile-dock__link[href="/saved/"]' : '';

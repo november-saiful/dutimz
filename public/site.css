@@ -457,6 +457,33 @@ svg { display: block; width: 21px; height: 21px; fill: none; stroke: currentColo
 .article-gallery__item { margin: 0; overflow: hidden; border: 1px solid rgba(255,255,255,.94); border-radius: 17px; background: linear-gradient(145deg,#f3e9f1,#e6dae4,#c3a2bf); }
 .article-gallery__item > img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; transition: transform .35s ease; }
 .article-gallery__item:hover > img { transform: scale(1.03); }
+.article-questionnaire, .questionnaire-admin-panel { display: grid; gap: 15px; padding: clamp(19px,4vw,29px); border: 1px solid rgba(195,157,191,.55); border-radius: 21px; background: rgba(255,255,255,.72); }
+.article-questionnaire h2, .questionnaire-admin-panel h2 { margin: 3px 0 4px; font-size: clamp(19px,2.5vw,25px); }
+.article-questionnaire p, .questionnaire-admin-panel > p { margin: 0; color: #756a79; font-size: 12px; }
+.questionnaire-fields, .questionnaire-builder { display: grid; gap: 12px; }
+.questionnaire-field, .questionnaire-editor-card { display: grid; gap: 11px; padding: 14px; border: 1px solid var(--line); border-radius: 15px; background: rgba(255,255,255,.82); }
+.questionnaire-field[hidden] { display: none !important; }
+.questionnaire-field__heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; }
+.questionnaire-required, .questionnaire-optional { color: #8d718d; font-size: 10px; }
+.questionnaire-required { color: #9a3752; }
+.questionnaire-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.questionnaire-option { display: inline-flex; align-items: center; gap: 7px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; background: #fff; font-size: 12px; }
+.questionnaire-count { max-width: 220px; }
+.questionnaire-people { display: grid; gap: 10px; }
+.questionnaire-person { display: grid; grid-template-columns: repeat(auto-fit,minmax(170px,1fr)); gap: 10px; margin: 0; padding: 12px; border: 1px dashed var(--line); border-radius: 12px; }
+.questionnaire-person legend { padding: 0 6px; color: var(--brand-700); font-size: 12px; }
+.questionnaire-editor-card__top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.questionnaire-condition-editor { display: grid; gap: 10px; margin: 0; padding: 12px; border: 1px dashed var(--line); border-radius: 12px; }
+.questionnaire-condition-editor legend { padding: 0 6px; color: var(--brand-700); font-size: 12px; }
+.questionnaire-condition-editor > div { display: grid; gap: 10px; }
+.questionnaire-condition-row, .questionnaire-person-editor__row { display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); align-items: end; gap: 8px; padding: 10px; border-radius: 10px; background: rgba(246,238,245,.72); }
+.statistics-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(250px,1fr)); gap: 14px; margin-top: 20px; }
+.statistics-card { display: grid; gap: 10px; padding: 18px; border: 1px solid rgba(228,218,226,.9); border-radius: 18px; background: rgba(255,255,255,.76); }
+.statistics-card > strong { color: var(--brand-700); font-size: 32px; line-height: 1.1; }
+.statistics-card > ul { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.statistics-card > ul li { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); font-size: 12px; }
+.statistics-card > ul li strong { color: var(--brand-700); }
+.statistics-card > p { margin: 0; color: #928895; font-size: 10px; }
 .editor-submit-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 .editor-submit-row > span { color: #928895; font-size: 10px; }
 .reporter-application { display: grid; grid-template-columns: minmax(0,1fr) minmax(250px,.85fr); gap: 24px; margin-top: 18px; }

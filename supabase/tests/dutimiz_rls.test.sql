@@ -1,5 +1,5 @@
 begin;
-select plan(66);
+select plan(72);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -251,6 +251,7 @@ select throws_ok(
 reset role;
 select set_config('request.jwt.claim.sub', '', true);
 select has_table('public', 'article_media', 'A story gallery of R2 images is modeled');
+select has_table('public', 'article_questionnaire_responses', 'Sensitive questionnaire responses are stored separately from public story rows');
 insert into public.media_assets (id, owner_id, original_key, mime_type, original_bytes) values
   ('91000000-0000-4000-8000-000000000001', '22000000-0000-4000-8000-000000000002', 'originals/reporter/gallery-songbad.jpg', 'image/jpeg', 123456),
   ('91000000-0000-4000-8000-000000000002', '33000000-0000-4000-8000-000000000003', 'originals/mod/gallery-pending.jpg', 'image/jpeg', 234567)
@@ -279,7 +280,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
 select lives_ok(
-  $$select public.submit_article('porikkha', 'গ্যালারি সহ নতুন প্রতিবেদন', 'গ্যালারি সহ প্রতিবেদনের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, array['91000000-0000-4000-8000-000000000001'])$$,
+  $$select public.submit_article('porikkha', 'গ্যালারি সহ নতুন প্রতিবেদন', 'গ্যালারি সহ প্রতিবেদনের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, array['91000000-0000-4000-8000-000000000001'], '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"শিক্ষার্থীদের শান্তিপূর্ণ কর্মসূচি"}'::jsonb, (select id from public.article_questionnaire_versions where active))$$,
   'A reporter submits a story with an ordered photo gallery'
 );
 select results_eq(
@@ -287,8 +288,18 @@ select results_eq(
   $$values (1::bigint)$$,
   'The submitted gallery is attached to the new story'
 );
+select results_eq(
+  $$select count(*) from public.article_questionnaire_responses r join public.articles a on a.id = r.article_id where a.title = 'গ্যালারি সহ নতুন প্রতিবেদন' and r.answers->>'activity_type' = 'প্রতিবাদ'$$,
+  $$values (1::bigint)$$,
+  'The submission saves its validated questionnaire answers'
+);
 select throws_ok(
-  $$select public.submit_article('porikkha', 'অন্যের ছবি পিন করার চেষ্টা', 'অন্যের ছবি পিন করার চেষ্টার সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, array['91000000-0000-4000-8000-000000000002'])$$,
+  $$select * from public.get_article_questionnaire_responses(10)$$,
+  '42501', null,
+  'A reporter cannot read private questionnaire responses'
+);
+select throws_ok(
+  $$select public.submit_article('porikkha', 'অন্য의 ছবি পিন করার চেষ্টা', 'অন্যের ছবি পিন করার চেষ্টার সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, array['91000000-0000-4000-8000-000000000002'], '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active))$$,
   'P0001', null,
   'A reporter cannot pin another author upload to a story'
 );
@@ -300,6 +311,27 @@ select results_eq(
   $$select count(*) from public.article_media$$,
   $$values (1::bigint)$$,
   'The pending story gallery stays hidden from readers'
+);
+select throws_ok(
+  $$select count(*) from public.article_questionnaire_responses$$,
+  '42501', null,
+  'Readers cannot query private questionnaire responses'
+);
+select ok(
+  not (public.get_public_article_questionnaire_stats() ? 'answers')
+  and not (public.get_public_article_questionnaire_stats() ? 'responses')
+  and not (public.get_public_article_questionnaire_stats()::text like '%পরীক্ষা সাংবাদিক%')
+  and (public.get_public_article_questionnaire_stats() #>> '{fields,0,submissions}') is null,
+  'Public questionnaire statistics contain no identities and suppress small groups'
+);
+reset role;
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select results_eq(
+  $$select count(*) from public.get_article_questionnaire_responses(10)$$,
+  $$values (1::bigint)$$,
+  'Administrators can read submitted questionnaire details'
 );
 reset role;
 select set_config('request.jwt.claim.sub', '', true);
