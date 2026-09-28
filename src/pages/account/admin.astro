@@ -21,6 +21,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         <button class="admin-tab" id="admin-tab-overview" type="button" role="tab" aria-selected="true" aria-controls="admin-panel-overview" tabindex="0" data-admin-tab="overview">সারসংক্ষেপ</button>
         <button class="admin-tab" id="admin-tab-people" type="button" role="tab" aria-selected="false" aria-controls="admin-panel-people" tabindex="-1" data-admin-tab="people">ব্যবহারকারী ও দল</button>
         <button class="admin-tab" id="admin-tab-content" type="button" role="tab" aria-selected="false" aria-controls="admin-panel-content" tabindex="-1" data-admin-tab="content">প্রতিবেদন ও ফর্ম</button>
+        <button class="admin-tab" id="admin-tab-questionnaire" type="button" role="tab" aria-selected="false" aria-controls="admin-panel-questionnaire" tabindex="-1" data-admin-tab="questionnaire">প্রশ্নমালা</button>
         <button class="admin-tab" id="admin-tab-finance" type="button" role="tab" aria-selected="false" aria-controls="admin-panel-finance" tabindex="-1" data-admin-tab="finance">অর্থ ও উত্তোলন</button>
         <button class="admin-tab" id="admin-tab-community" type="button" role="tab" aria-selected="false" aria-controls="admin-panel-community" tabindex="-1" data-admin-tab="community">মন্তব্য</button>
         <button class="admin-tab" id="admin-tab-audit" type="button" role="tab" aria-selected="false" aria-controls="admin-panel-audit" tabindex="-1" data-admin-tab="audit">নিরীক্ষা ও ইতিহাস</button>
@@ -34,6 +35,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           <div class="admin-shortcuts">
             <button type="button" data-admin-jump="people"><span aria-hidden="true">♙</span><strong>অ্যাকাউন্ট ও ভূমিকা</strong><span>সদস্য খুঁজুন, ভূমিকা নির্ধারণ করুন</span></button>
             <button type="button" data-admin-jump="content"><span aria-hidden="true">▤</span><strong>প্রকাশিত প্রতিবেদন</strong><span>প্রতিবেদন খুঁজুন ও সম্পাদনা করুন</span></button>
+            <button type="button" data-admin-jump="questionnaire"><span aria-hidden="true">▦</span><strong>প্রশ্নমালা ও ফর্ম</strong><span>প্রশ্ন, শর্ত ও উত্তর-কাঠামো সম্পাদনা করুন</span></button>
             <button type="button" data-admin-jump="finance"><span aria-hidden="true">৳</span><strong>অর্থ ও উত্তোলন</strong><span>পেমেন্ট ও হিসাব সমন্বয়</span></button>
             <button type="button" data-admin-jump="community"><span aria-hidden="true">☷</span><strong>মন্তব্য পর্যালোচনা</strong><span>লুকান, অপসারণ বা পুনরুদ্ধার</span></button>
             <button type="button" data-admin-jump="audit"><span aria-hidden="true">◷</span><strong>নিরীক্ষা ইতিহাস</strong><span>কার্যক্রম ও ভূমিকা পরিবর্তন দেখুন</span></button>
@@ -71,6 +73,9 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
           <form class="admin-search-form" data-admin-article-search><label class="field-label" for="admin-article-query">শিরোনাম দিয়ে খুঁজুন<input id="admin-article-query" name="query" type="search" maxlength="120" placeholder="প্রতিবেদনের শিরোনাম" /></label><button class="outline-button" type="submit">খুঁজুন</button><button class="text-link-button" type="button" data-admin-article-clear>সাম্প্রতিক প্রতিবেদন</button></form>
           <div class="moderation-history" data-admin-articles aria-live="polite"><div class="feed-empty"><strong>প্রতিবেদন লোড হচ্ছে…</strong></div></div>
         </section>
+      </section>
+
+      <section class="admin-tab-panel" id="admin-panel-questionnaire" role="tabpanel" aria-labelledby="admin-tab-questionnaire" tabindex="0" data-admin-panel="questionnaire" hidden>
         <section class="admin-panel questionnaire-admin-panel" data-admin-only hidden><span class="section-kicker">প্রশ্নমালার দৃশ্যমান সম্পাদক</span><h2>প্রতিবেদন ফর্মের প্রশ্ন ও শর্ত</h2><p>প্রশ্ন, বিকল্প, উত্তর-নির্ভর শর্ত এবং পুনরাবৃত্ত ব্যক্তিতথ্যের ঘর সম্পাদনা করুন। সংরক্ষণ করলে নতুন সংস্করণ তৈরি হবে; আগের প্রতিবেদনের উত্তর অপরিবর্তিত থাকবে।</p><div class="questionnaire-builder" data-questionnaire-editor></div><p class="form-error" role="alert" data-questionnaire-error hidden></p><p class="field-label">শর্তে ব্যবহারের উত্তরগুলো কমা (,) দিয়ে আলাদা করুন।</p><button class="outline-button" type="button" data-questionnaire-add>＋ নতুন প্রশ্ন</button> <button class="read-button" type="button" data-questionnaire-save><span>নতুন সংস্করণ সংরক্ষণ করুন</span><span>→</span></button><div class="moderation-history" data-questionnaire-responses></div></section>
       </section>
 

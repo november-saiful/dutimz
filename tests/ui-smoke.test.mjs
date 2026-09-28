@@ -80,10 +80,14 @@ test('responsive DUTIMZ header keeps its routes and accessible mobile navigation
 
 test('admin dashboard groups protected tools into accessible, useful tabs', async () => {
   const admin = await readProjectFile('src/pages/account/admin.astro');
-  for (const tab of ['overview', 'people', 'content', 'finance', 'community', 'audit']) {
+  for (const tab of ['overview', 'people', 'content', 'questionnaire', 'finance', 'community', 'audit']) {
     assert.match(admin, new RegExp(`data-admin-tab="${tab}"`), `admin dashboard should provide the ${tab} tab`);
     assert.match(admin, new RegExp(`data-admin-panel="${tab}"`), `admin dashboard should provide the ${tab} panel`);
   }
+  const questionnairePanel = admin.slice(admin.indexOf('data-admin-panel="questionnaire"'), admin.indexOf('data-admin-panel="finance"'));
+  assert.match(questionnairePanel, /data-questionnaire-editor/, 'the questionnaire editor should live in its own tab panel');
+  assert.doesNotMatch(admin.slice(admin.indexOf('data-admin-panel="content"'), admin.indexOf('data-admin-panel="questionnaire"')), /data-questionnaire-editor/, 'the questionnaire editor should no longer be buried in the content tab');
+  assert.match(admin, /data-admin-jump="questionnaire"/, 'overview shortcuts should link to the questionnaire tab');
   assert.match(admin, /data-admin-dashboard hidden/);
   assert.match(admin, /data-admin-access-message/);
   assert.match(admin, /data-admin-user-search/);
