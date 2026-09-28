@@ -2,6 +2,27 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 export function getStaticPaths() { return []; }
 ---
-<BaseLayout title="লেখক প্রোফাইল" description="DUTIMZ লেখকের প্রকাশ্য পরিচয় ও প্রকাশিত প্রতিবেদন।">
-  <section class="account-page-shell dashboard-shell"><div class="feed-empty"><strong>লেখক প্রোফাইল পাওয়া যায়নি</strong></div></section>
+<BaseLayout title="সদস্য প্রোফাইল" description="DUTIMZ সদস্যের প্রকাশ্য পরিচয় ও প্রকাশিত প্রতিবেদন।">
+  <section class="public-profile content-page" aria-labelledby="public-profile-name">
+    <nav class="article-breadcrumbs" aria-label="অবস্থান"><a href="/">মূলপাতা</a><span aria-hidden="true">›</span><span>সদস্য প্রোফাইল</span></nav>
+    <header class="public-profile__header">
+      <span class="account-avatar account-avatar--large public-profile__avatar" aria-hidden="true" data-public-avatar>
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/></svg>
+      </span>
+      <div class="public-profile__identity">
+        <span class="section-kicker">DUTIMZ সদস্য</span>
+        <h1 id="public-profile-name" data-public-name><span class="profile-skeleton profile-skeleton--name" aria-hidden="true"></span></h1>
+        <p class="public-profile__handle" data-public-handle><span class="profile-skeleton profile-skeleton--handle" aria-hidden="true"></span></p>
+      </div>
+    </header>
+    <p class="public-profile__bio" data-public-bio><span class="profile-skeleton profile-skeleton--bio" aria-hidden="true"></span></p>
+    <section class="public-profile__stories" aria-labelledby="public-profile-stories-heading">
+      <div class="feed-heading"><div><h2 id="public-profile-stories-heading">প্রকাশিত প্রতিবেদন</h2></div></div>
+      <div class="story-grid" data-public-stories aria-live="polite">
+        <div class="profile-skeleton-card" aria-hidden="true"><span></span><i></i><i></i></div>
+        <div class="profile-skeleton-card" aria-hidden="true"><span></span><i></i><i></i></div>
+        <div class="profile-skeleton-card" aria-hidden="true"><span></span><i></i><i></i></div>
+      </div>
+    </section>
+  </section>
 </BaseLayout>

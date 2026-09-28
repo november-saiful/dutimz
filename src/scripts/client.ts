@@ -106,7 +106,10 @@ function renderAccountLinks() {
   const adminLinks = authRole === 'admin'
     ? `<a href="/account/admin/"><span class="account-link-icon">⚙</span><span>প্রশাসনিক নিয়ন্ত্রণ</span></a>`
     : '';
-  links.innerHTML = `<a href="/account/"><span class="account-link-icon">◎</span><span>আমার ড্যাশবোর্ড</span></a><a href="/profile/me/"><span class="account-link-icon">○</span><span>আমার প্রোফাইল</span></a><a href="/account/balance/"><span class="account-link-icon">৳</span><span>আয় ও উত্তোলন</span></a><a href="/saved/"><span class="account-link-icon">▱</span><span>সংরক্ষিত প্রতিবেদন</span></a>${authorLinks}${editorialLinks}${adminLinks}`;
+  const publicProfileLink = authProfile?.username
+    ? `<a href="/u/${encodeURIComponent(authProfile.username)}/"><span class="account-link-icon">↗</span><span>প্রকাশ্য প্রোফাইল</span></a>`
+    : '';
+  links.innerHTML = `<a href="/account/"><span class="account-link-icon">◎</span><span>আমার ড্যাশবোর্ড</span></a><a href="/profile/me/"><span class="account-link-icon">○</span><span>প্রোফাইল সম্পাদনা</span></a>${publicProfileLink}<a href="/account/balance/"><span class="account-link-icon">৳</span><span>আয় ও উত্তোলন</span></a><a href="/saved/"><span class="account-link-icon">▱</span><span>সংরক্ষিত প্রতিবেদন</span></a>${authorLinks}${editorialLinks}${adminLinks}`;
 }
 function paintAuthState() {
   const button = menuButton();
@@ -199,7 +202,16 @@ async function loadIdentity(user: User) {
   const username = authProfile?.username ?? '';
   for (const selector of ['[data-dashboard-name]', '[data-profile-page-name]']) { const node = document.querySelector<HTMLElement>(selector); if (node) node.textContent = displayName; }
   for (const selector of ['[data-dashboard-handle]', '[data-profile-page-handle]']) { const node = document.querySelector<HTMLElement>(selector); if (node) node.textContent = `@${username}`; }
-  const publicLink = document.querySelector<HTMLAnchorElement>('[data-profile-public-link]'); if (publicLink) publicLink.href = `/u/${encodeURIComponent(username)}/`;
+  const publicLink = document.querySelector<HTMLAnchorElement>('[data-profile-public-link]');
+  if (publicLink && username && !demoMode) {
+    publicLink.href = `/u/${encodeURIComponent(username)}/`;
+    publicLink.hidden = false;
+  }
+  const dashboardLink = document.querySelector<HTMLAnchorElement>('[data-dashboard-public-link]');
+  if (dashboardLink && username && !demoMode) {
+    dashboardLink.href = `/u/${encodeURIComponent(username)}/`;
+    dashboardLink.hidden = false;
+  }
   document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>('[data-profile-field]').forEach((field) => {
     if (field.dataset.profileField === 'display_name') field.value = authProfile?.display_name ?? '';
     if (field.dataset.profileField === 'username') field.value = authProfile?.username ?? '';
@@ -350,6 +362,7 @@ async function loadArticles() {
   const articleSlug = document.querySelector<HTMLElement>('[data-article-root]')?.dataset.articleSlug;
   const publicProfile = location.pathname.split('/').filter(Boolean);
   const categorySlug = document.querySelector<HTMLElement>('[data-category-slug]')?.dataset.categorySlug;
+  if (publicProfile[0] === 'u' && publicProfile[1]) { await loadPublicProfile(); return; }
   if (!supabase || demoMode) return;
   const select = `id,slug,title,excerpt,body,published_at,created_at,status,author_id,hero_media_key,category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url)${articleSlug ? ',article_media(media_id,position)' : ''}`;
   let query = supabase.from('articles').select(select).eq('status', 'published').order('published_at', { ascending: false }).limit(40);
@@ -360,7 +373,6 @@ async function loadArticles() {
   currentArticles = (result.data ?? []) as unknown as Article[];
   if (articleSlug) { if (currentArticles[0]) await renderArticlePage(currentArticles[0]); else renderNotFound(); return; }
   if (feed || categorySlug) renderCurrentFeed();
-  if (publicProfile[0] === 'u' && publicProfile[1]) await loadPublicProfile();
 }
 // A fixed duration would race through two headlines and crawl through ten, so hold the
 // reading speed steady and let the length of the strip decide how long a lap takes.
@@ -395,8 +407,7 @@ async function loadBreaking() {
   if (result.error || !rows.length) return;
   paintBreaking(rows.map((row) => ({ title: row.title, href: `/news/${encodeURIComponent(row.slug)}/` })));
 }
-// The topbar pins itself with position: sticky; this only reports that it has, so the
-// phone layout can fold its search row away once the header no longer scrolls off.
+// Keep the compact nav pinned and let the headline ticker make room after scroll.
 function initStickyTopbar() {
   const topbar = document.querySelector<HTMLElement>('[data-site-topbar]');
   if (!topbar) return;
@@ -471,13 +482,36 @@ async function loadSavedStories(userId: string) {
   list.innerHTML = articles.map((article) => renderStoryCard(article)).join(''); if (empty) empty.hidden = articles.length > 0;
 }
 async function loadPublicProfile() {
-  const path = location.pathname.split('/').filter(Boolean); if (path[0] !== 'u' || !path[1] || !supabase) return;
-  const username = decodeURIComponent(path[1]); const result = await supabase.from('profiles').select('id,username,display_name,bio,avatar_url').eq('username', username).maybeSingle();
-  const name = document.querySelector<HTMLElement>('[data-public-name]'); const bio = document.querySelector<HTMLElement>('[data-public-bio]'); const handle = document.querySelector<HTMLElement>('[data-public-handle]'); const list = document.querySelector<HTMLElement>('[data-public-stories]');
-  if (result.error || !result.data) { if (name) name.textContent = 'এই প্রোফাইলটি পাওয়া যায়নি'; if (bio) bio.textContent = 'ইউজারনেমটি পরীক্ষা করে আবার চেষ্টা করুন।'; return; }
-  const profile = result.data as Profile; document.title = `${publicName(profile)} | DUTIMZ`; if (name) name.textContent = publicName(profile); if (bio) bio.textContent = profile.bio || 'ঢাকা বিশ্ববিদ্যালয়ের পাঠক ও লেখক।'; if (handle) handle.textContent = `@${profile.username}`;
+  const path = location.pathname.split('/').filter(Boolean);
+  if (path[0] !== 'u' || !path[1]) return;
+  const name = document.querySelector<HTMLElement>('[data-public-name]');
+  const bio = document.querySelector<HTMLElement>('[data-public-bio]');
+  const handle = document.querySelector<HTMLElement>('[data-public-handle]');
+  const list = document.querySelector<HTMLElement>('[data-public-stories]');
+  const showUnavailable = (message: string) => {
+    if (name) name.textContent = 'প্রোফাইল পাওয়া যায়নি';
+    if (bio) bio.textContent = message;
+    if (handle) handle.textContent = '';
+    if (list) list.innerHTML = `<div class="feed-empty"><strong>${escapeHtml(message)}</strong></div>`;
+  };
+  if (!supabase || demoMode) { showUnavailable('প্রোফাইল লোড করতে প্রকাশিত সাইটের ডেটাবেজ সংযোগ প্রয়োজন।'); return; }
+  let username = path[1];
+  try { username = decodeURIComponent(username); } catch { showUnavailable('ইউজারনেমটি সঠিক নয়।'); return; }
+  if (!/^[a-zA-Z][a-zA-Z0-9_]{2,23}$/.test(username)) { showUnavailable('ইউজারনেমটি সঠিক নয়।'); return; }
+  const result = await supabase.from('profiles').select('id,username,display_name,bio,avatar_url').eq('username', username).maybeSingle();
+  if (result.error) { showUnavailable('প্রোফাইলটি এখন লোড করা যাচ্ছে না। কিছুক্ষণ পর আবার চেষ্টা করুন।'); return; }
+  if (!result.data) { showUnavailable('এই ইউজারনেমে কোনো প্রকাশ্য প্রোফাইল নেই।'); return; }
+  const profile = result.data as Profile; document.title = `${publicName(profile)} | DUTIMZ`; if (name) name.textContent = publicName(profile);
+  if (bio) bio.textContent = profile.bio || 'ঢাকা বিশ্ববিদ্যালয়ের পাঠক ও লেখক।';
+  if (handle) handle.textContent = `@${profile.username}`;
+  const avatar = document.querySelector<HTMLElement>('[data-public-avatar]');
+  if (avatar && profile.avatar_url) avatar.innerHTML = `<img src="${attr(profile.avatar_url)}" referrerpolicy="no-referrer" alt="" />`;
   const stories = await supabase.from('articles').select('id,slug,title,excerpt,body,published_at,created_at,status,author_id,hero_media_key,category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url)').eq('author_id', profile.id).eq('status', 'published').order('published_at', { ascending: false }).limit(30);
-  if (list) list.innerHTML = (stories.data as unknown as Article[] ?? []).map((article) => renderStoryCard(article)).join('') || '<div class="feed-empty"><strong>এখনো প্রকাশিত প্রতিবেদন নেই</strong></div>';
+  if (stories.error) {
+    if (list) list.innerHTML = '<div class="feed-empty"><strong>প্রতিবেদনগুলো এখন লোড করা যাচ্ছে না</strong><p>কিছুক্ষণ পর আবার চেষ্টা করুন।</p></div>';
+    return;
+  }
+  if (list) list.innerHTML = (stories.data as unknown as Article[] ?? []).map((article) => renderStoryCard(article)).join('') || '<div class="feed-empty"><strong>এখনো প্রকাশিত প্রতিবেদন নেই</strong><p>এই সদস্যের প্রকাশিত প্রতিবেদন এখানে দেখা যাবে।</p></div>';
 }
 
 async function maybeOpenProfilePrompt() {
@@ -675,14 +709,19 @@ function initProfileEditor() {
     const username = value('username');
     if (!/^[a-zA-Z][a-zA-Z0-9_]{2,23}$/.test(username)) return setMessage(error, 'ইউজারনেম ৩–২৪ অক্ষরের ইংরেজি অক্ষর, সংখ্যা বা আন্ডারস্কোর দিয়ে লিখুন।');
     button.disabled = true;
-    const result = await supabase.from('profiles').update({ username, display_name: value('display_name'), bio: value('bio') }).eq('id', authUser.id);
-    if (result.error) { button.disabled = false; return setMessage(error, result.error.code === '23505' ? 'এই ইউজারনেম অন্য কেউ ব্যবহার করছেন। আরেকটি বেছে নিন।' : result.error.message); }
+    setMessage(error, '');
     const details = await supabase.from('profile_details').upsert({ user_id: authUser.id, department: value('department') || null, session: value('session') || null }, { onConflict: 'user_id' });
+    if (details.error) { button.disabled = false; return setMessage(error, details.error.message); }
+    const result = await supabase.from('profiles').update({ username, display_name: value('display_name'), bio: value('bio') }).eq('id', authUser.id);
     button.disabled = false;
-    if (details.error) return setMessage(error, details.error.message);
+    if (result.error) return setMessage(error, result.error.code === '23505' ? 'এই ইউজারনেমটি অন্য কেউ ব্যবহার করছেন। আরেকটি বেছে নিন।' : result.error.message);
     authProfile = { ...authProfile!, username, display_name: value('display_name'), bio: value('bio') };
     const link = document.querySelector<HTMLAnchorElement>('[data-profile-public-link]');
-    if (link) link.href = `/u/${encodeURIComponent(username)}/`;
+    if (!demoMode) {
+      if (link) { link.href = `/u/${encodeURIComponent(username)}/`; link.hidden = false; }
+      const dashboardLink = document.querySelector<HTMLAnchorElement>('[data-dashboard-public-link]');
+      if (dashboardLink) { dashboardLink.href = `/u/${encodeURIComponent(username)}/`; dashboardLink.hidden = false; }
+    }
     paintAuthState(); toast('আপনার প্রোফাইল হালনাগাদ হয়েছে।'); setMessage(error, '', false);
     await loadIdentity(authUser);
   });

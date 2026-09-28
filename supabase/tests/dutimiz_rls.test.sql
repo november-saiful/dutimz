@@ -1,5 +1,5 @@
 begin;
-select plan(73);
+select plan(80);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -27,6 +27,21 @@ select results_eq(
   $$select role from public.user_roles where user_id = '77000000-0000-4000-8000-000000000007'$$,
   $$values ('reader'::public.app_role)$$,
   'An address that is not listed yet signs in as a reader'
+);
+select results_eq(
+  $$select username from public.profiles where id = '77000000-0000-4000-8000-000000000007'$$,
+  $$values ('reader_7700000000004000')$$,
+  'Every newly created account receives a stable public profile username'
+);
+select results_eq(
+  $$select count(*)::int from public.profile_details where user_id = '77000000-0000-4000-8000-000000000007'$$,
+  $$values (1)$$,
+  'Every newly created account receives its separate private profile details row'
+);
+select results_eq(
+  $$select count(*)::int from public.user_roles where user_id = '77000000-0000-4000-8000-000000000007'$$,
+  $$values (1)$$,
+  'Every newly created account receives its own application role row'
 );
 
 -- A configured list is parsed, normalised and applied.
@@ -73,6 +88,11 @@ select results_eq(
   $$select role from public.user_roles where user_id = '88000000-0000-4000-8000-000000000008'$$,
   $$values ('admin'::public.app_role)$$,
   'The reconciled account holds the administrator role'
+);
+select results_eq(
+  $$select username from public.profiles where id = '88000000-0000-4000-8000-000000000008'$$,
+  $$values ('reader_8800000000004000')$$,
+  'An account reconciled by the administrator bootstrap already has its public profile'
 );
 select results_eq(
   $$select count(*)::int from public.admin_audit_log where action = 'bootstrap_admin'$$,
@@ -126,6 +146,16 @@ select has_table('public', 'earnings_ledger', 'Earnings use an append-only ledge
 select has_table('public', 'withdrawals', 'Withdrawal requests are modeled');
 select col_not_null('public', 'moderation_actions', 'reason', 'Moderation reason is mandatory');
 select col_not_null('public', 'profiles', 'username', 'Every profile has a stable username');
+select results_eq(
+  $$select count(*)::int from auth.users u join public.profiles p on p.id = u.id$$,
+  $$select count(*)::int from auth.users$$,
+  'Every existing account has a public profile row'
+);
+select results_eq(
+  $$select count(distinct username)::int from public.profiles$$,
+  $$select count(*)::int from public.profiles$$,
+  'Every account public profile has a unique username'
+);
 select lives_ok($$select public.reporter_fee_for_tier('junior')$$, 'Junior reporters earn ৳90 per published article');
 select results_eq($$select public.reporter_fee_for_tier('general')$$, $$values (115)$$, 'General reporters earn ৳115 per published article');
 select results_eq($$select public.reporter_fee_for_tier('executive')$$, $$values (140)$$, 'Executive reporters earn ৳140 per published article');
@@ -156,6 +186,11 @@ select throws_ok($$select id from public.article_revisions$$, '42501', null, 'An
 -- query the table at all. These four reads failed with 42501 before migration 006 while the
 -- signed-out site was live.
 select lives_ok($$select slug from public.articles$$, 'A signed-out visitor can open the published article feed');
+select results_eq(
+  $$select username from public.profiles where id = '11000000-0000-4000-8000-000000000001'$$,
+  $$values ('reader_1100000000004000')$$,
+  'A signed-out visitor can load a member by their public username'
+);
 select lives_ok($$select slug from public.categories$$, 'A signed-out visitor can list the sections');
 select lives_ok($$select id from public.comments$$, 'A signed-out visitor can read visible comments');
 select lives_ok($$select article_id from public.reactions$$, 'A signed-out visitor can read reactions on published articles');

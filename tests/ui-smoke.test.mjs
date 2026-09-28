@@ -37,6 +37,13 @@ test('responsive DUTIMZ header keeps its routes and accessible mobile navigation
   assert.match(header, /data-breaking-bar/);
   assert.match(header, /aria-controls="mobile-menu"/);
   assert.match(header, /data-mobile-menu-backdrop/);
+  const publicProfile = await readProjectFile('src/pages/u/[username].astro');
+  assert.match(publicProfile, /getStaticPaths\(\) \{ return \[\]; \}/);
+  assert.match(publicProfile, /data-public-avatar/);
+  assert.match(publicProfile, /data-public-stories/);
+  const dynamicProfile = await readProjectFile('functions/u/[username].ts');
+  assert.match(dynamicProfile, /username.*eq\./);
+  assert.match(dynamicProfile, /status.*eq\.published/);
 
   const client = await readProjectFile('src/scripts/client.ts');
   assert.match(client, /syncTopbarState\(topbar, window\.scrollY\)/);
@@ -46,7 +53,18 @@ test('responsive DUTIMZ header keeps its routes and accessible mobile navigation
   assert.match(client, /document\.body\.style\.overflow = 'hidden'/);
 
   const css = await readProjectFile('public/site.css');
+  const responsiveNavigation = css.slice(css.lastIndexOf('/* Responsive editorial navigation'));
   assert.match(css, /\.primary-navigation\s*\{[^}]*justify-content:\s*center/s);
   assert.match(css, /\.mobile-menu-backdrop\s*\{[^}]*position:\s*fixed/s);
   assert.match(css, /\.mobile-menu-toggle\s*\{[^}]*display:\s*grid/s);
+  assert.match(responsiveNavigation, /\.site-topbar\.is-stuck \.breaking-bar\s*\{[^}]*max-height:\s*0[^}]*visibility:\s*hidden/s, 'breaking ticker collapses after the header sticks');
+  assert.ok(responsiveNavigation.includes('.header-actions > .header-search-trigger { display: none;'), 'mobile search uses the dock rather than duplicating the header action');
+  const layout = await readProjectFile('src/layouts/BaseLayout.astro');
+  assert.match(layout, /data-open-search-popup/);
+  const account = await readProjectFile('src/pages/account/index.astro');
+  assert.match(account, /data-dashboard-public-link/);
+  const profileEditor = await readProjectFile('src/pages/profile/me/index.astro');
+  assert.match(profileEditor, /data-profile-public-link/);
+  const migration = await readProjectFile('supabase/migrations/202609280003_public_user_profiles.sql');
+  assert.match(migration, /from auth\.users u\s+on conflict \(id\) do nothing/s);
 });
