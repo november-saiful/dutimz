@@ -1,5 +1,6 @@
 ---
 import SiteHeader from '../components/SiteHeader.astro';
+import { siteCssHref, clientJsSrc } from '../generated/asset-version';
 import type { Story } from '../data/stories';
 
 interface Props {
@@ -29,7 +30,7 @@ const BRAND_WORDMARK = `${ORIGIN}/dutimz-text-logo.svg`;
 <html lang="bn">
   <head>
     <meta charset="utf-8" />
-    <link rel="stylesheet" href="/site.css" />
+    <link rel="stylesheet" href={siteCssHref} />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#5f2367" />
     <meta name="color-scheme" content="light" />
@@ -158,6 +159,6 @@ const BRAND_WORDMARK = `${ORIGIN}/dutimz-text-logo.svg`;
       </form>
     </dialog>
     <div class="toast-region" aria-live="polite" aria-atomic="true" data-toast-region></div>
-    <script is:inline src={import.meta.env.DEV ? '/src/scripts/client.ts' : '/client.js'} type="module"></script>
+    <script is:inline src={import.meta.env.DEV ? '/src/scripts/client.ts' : clientJsSrc} type="module"></script>
   </body>
 </html>

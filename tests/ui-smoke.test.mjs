@@ -7,13 +7,22 @@ import { syncTopbarState } from '../src/scripts/header-state.mjs';
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 const readProjectFile = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('Astro dev serves its client module and production emits the client bundle', async () => {
+test('Astro dev serves its client module and production emits versioned asset URLs', async () => {
   const layout = await readProjectFile('src/layouts/BaseLayout.astro');
-  assert.match(layout, /import\.meta\.env\.DEV \? '\/src\/scripts\/client\.ts' : '\/client\.js'/);
+  assert.match(layout, /import\.meta\.env\.DEV \? '\/src\/scripts\/client\.ts' : clientJsSrc/);
   await access(new URL('../src/scripts/client.ts', import.meta.url));
 
+  // Every deployment must reference its stylesheet and bundle through a content-derived
+  // version parameter, so fresh markup can never pair with a stale cached asset on any
+  // hostname (dutimz.com and www.dutimz.com cache independently).
+  const version = (await readProjectFile('src/generated/asset-version.ts')).match(/ASSET_VERSION = '([^']+)'/)?.[1];
+  assert.ok(version, 'generated asset version module must exist');
   const homepage = await readProjectFile('dist/index.html');
-  assert.match(homepage, /<script[^>]+src="\/client\.js"[^>]*><\/script>/);
+  assert.match(homepage, new RegExp(`<link rel="stylesheet" href="/site\\.css\\?v=${version}">`));
+  assert.match(homepage, new RegExp(`<script[^>]+src="/client\\.js\\?v=${version}"[^>]*><\\/script>`));
+  const renderLib = await readProjectFile('functions/_lib/render.ts');
+  assert.match(renderLib, /site\.css\?v=\$\{ASSET_VERSION\}/);
+  assert.match(renderLib, /client\.js\?v=\$\{ASSET_VERSION\}/);
   const clientBundle = await readProjectFile('dist/client.js');
   assert.ok(clientBundle.length > 0, 'production client bundle must not be empty');
 });
