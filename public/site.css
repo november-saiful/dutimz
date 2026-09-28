@@ -138,9 +138,27 @@ svg { display: block; width: 21px; height: 21px; fill: none; stroke: currentColo
 .account-button-label { font-size: 13px; font-weight: 700; }
 .account-chevron { width: 14px; height: 14px; transition: transform .18s ease; }
 .account-button[aria-expanded="true"] .account-chevron { transform: rotate(180deg); }
-.account-panel { position: fixed; top: auto; right: 11px; bottom: calc(74px + env(safe-area-inset-bottom)); left: 11px; width: min(370px, calc(100vw - 22px)); max-height: min(75dvh, 660px); padding: 17px; border: 1px solid rgba(255,255,255,.95); border-radius: 22px; background: rgba(255,251,254,.96); box-shadow: var(--shadow-lilac); animation: panel-slide-up .3s cubic-bezier(.22,.68,0,1); overflow: auto; z-index: 50; }
-.account-panel::backdrop { position: fixed; inset: 0; background: rgba(43, 14, 46, .45); backdrop-filter: blur(5px); z-index: -1; }
-.account-panel.is-opening { transform: translateY(100%) scale(.95); opacity: 0; }
+.account-panel { position: fixed; z-index: 70; width: min(340px,calc(100vw - 24px)); max-height: min(70dvh,620px); overflow: auto; overscroll-behavior: contain; padding: 0; border: 0; border-radius: 17px; background: transparent; color: var(--ink); box-shadow: 0 18px 48px rgba(43,14,46,.2); }
+.account-panel__card { padding: 8px; border: 1px solid rgba(255,255,255,.94); border-radius: inherit; background: rgba(255,251,254,.98); box-shadow: inset 0 1px rgba(255,255,255,.95); }
+.account-panel__heading { display: flex; min-height: 62px; align-items: center; gap: 11px; padding: 7px 8px 11px; }
+.account-avatar--panel { width: 42px; height: 42px; }
+.account-panel__identity { display: grid; min-width: 0; flex: 1; line-height: 1.45; }
+.account-panel__identity strong { overflow: hidden; color: var(--brand-900); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.account-panel__identity > span { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.account-role-badge { flex: 0 0 auto; padding: 3px 7px; border: 1px solid rgba(195,157,191,.55); border-radius: 5px; background: #f7eef5; color: var(--brand-700); font-size: 10px; font-weight: 700; }
+.account-panel [data-dynamic-account-links] { display: contents; }
+.account-panel .account-links { gap: 2px; padding-top: 3px; }
+.account-panel .account-links a { min-height: 44px; gap: 10px; padding: 8px 10px; color: var(--ink-soft); font-size: 13px; }
+.account-panel .account-links a svg { color: var(--muted); }
+.account-panel .account-links a:hover, .account-panel .account-links a:focus-visible { background: #f5edf4; color: var(--brand-700); }
+.account-panel .account-balance { margin: 3px 2px 5px; }
+.account-panel .profile-completion { padding: 10px 4px 8px; }
+.account-panel .account-signout { min-height: 44px; }
+.account-panel[hidden] { display: none !important; }
+.account-panel[data-placement='top'] { transform-origin: bottom right; animation: account-popup-in .16s ease-out; }
+.account-panel[data-placement='bottom'] { transform-origin: top right; animation: account-popup-in .16s ease-out; }
+@keyframes account-popup-in { from { opacity: 0; transform: translateY(4px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .account-panel[data-placement] { animation: none; } }
 @keyframes panel-in { from { opacity: 0; transform: translateY(-8px) scale(.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes panel-slide-up { from { opacity: 0; transform: translateY(20px) scale(.96); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes popup-in { from { opacity: 0; transform: scale(.96) translateY(-10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
@@ -650,8 +668,7 @@ svg { display: block; width: 21px; height: 21px; fill: none; stroke: currentColo
   .mobile-dock__link svg { width: 20px; height: 20px; }
   .mobile-dock__link.is-active, .mobile-dock__link:hover { background: #f4ecf3; color: #5f2367; }
   .account-button { min-height: 44px; padding-right: 10px; }
-  .account-panel { position: fixed; top: auto; right: 11px; bottom: calc(74px + env(safe-area-inset-bottom)); width: min(370px,calc(100vw - 22px)); max-height: min(75dvh,660px); padding: 15px; overflow: auto; border-radius: 23px; }
-  .account-panel::backdrop { position: fixed; inset: 0; background: rgba(35, 16, 37, .5); backdrop-filter: blur(4px); z-index: -1; }
+  .account-panel { width: min(340px,calc(100vw - 24px)); max-height: min(70dvh,620px); }
   .search-results-panel { padding: 18px; border-radius: 21px; }
   .story-card h3 { min-height: 54px; font-size: 15px; }
   .contribute-card { gap: 11px; padding: 15px; }
@@ -750,9 +767,8 @@ svg { display: block; width: 21px; height: 21px; fill: none; stroke: currentColo
   .mobile-dock { right: 8px; bottom: calc(6px + env(safe-area-inset-bottom)); left: 8px; padding: 5px; border-radius: 16px; }
   .mobile-dock__link { min-height: 45px; font-size: 8px; }
   .mobile-dock__link svg { width: 19px; height: 19px; }
-  .account-panel { right: 7px; bottom: calc(64px + env(safe-area-inset-bottom)); width: min(350px,calc(100vw - 14px)); padding: 13px; border-radius: 20px; }
-  .account-panel__heading { padding-bottom: 11px; }
-  .account-links a { min-height: 42px; font-size: 12px; }
+  .account-panel { width: min(340px,calc(100vw - 20px)); max-height: min(72dvh,620px); }
+  .account-panel__heading { padding-bottom: 9px; }
   .search-results-panel { margin-top: 12px; padding: 14px; border-radius: 17px; }
   .search-result { grid-template-columns: 65px minmax(0,1fr); gap: 9px; padding: 7px; }
   .search-result__art { width: 65px; height: 57px; }

@@ -8,13 +8,14 @@
     "dev": "astro dev",
     "check": "astro check",
     "build": "astro build && node scripts/build-client.mjs",
+    "test:ui": "npm run build && node --test tests/*.test.mjs",
     "preview": "wrangler pages dev dist",
     "check:worker": "tsc --noEmit -p worker/tsconfig.json",
     "deploy:pages": "wrangler pages deploy dist --project-name=dutimz",
     "deploy": "npm run deploy:media && npm run deploy:pages",
     "deploy:media": "wrangler deploy --config worker/wrangler.jsonc",
     "test:db": "supabase test db",
-    "test": "npm run check && npm run check:worker && npm run test:db"
+    "test": "npm run check && npm run check:worker && npm run test:ui && npm run test:db"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4"

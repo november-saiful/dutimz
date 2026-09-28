@@ -1,4 +1,6 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
+import { syncTopbarState } from './header-state.mjs';
+import { bindAccountPopup } from './account-menu.mjs';
 import { collectQuestionnaireAnswers, initPublicQuestionnaireStats, initQuestionnaireAdmin, renderQuestionnaire, type QuestionnaireDefinition } from './questionnaire';
 
 type PublicConfig = { supabaseUrl: string; supabaseAnonKey: string; mediaUrl: string; demoMode: boolean };
@@ -78,21 +80,6 @@ async function loadConfig() {
 }
 function menuButton() { return document.querySelector<HTMLButtonElement>('[data-account-toggle]'); }
 function menuPanel() { return document.querySelector<HTMLElement>('[data-account-panel]'); }
-function setMenuOpen(open: boolean) {
-  const button = menuButton(); const panel = menuPanel();
-  button?.setAttribute('aria-expanded', String(open));
-  if (panel) panel.hidden = !open;
-  // Add blur to body when menu is open, but keep the trigger button unblurred
-  if (open && button) {
-    document.body.style.backdropFilter = 'blur(4px)';
-    document.body.style.backgroundColor = 'rgba(35, 16, 37, 0.5)';
-    button.style.backdropFilter = 'none';
-    button.style.backgroundColor = '';
-  } else {
-    document.body.style.backdropFilter = '';
-    document.body.style.backgroundColor = '';
-  }
-}
 function setSelectorHidden(selector: string, hidden: boolean) { document.querySelectorAll<HTMLElement>(selector).forEach((element) => { element.hidden = hidden; }); }
 function applyPopupBlur(triggerElement: HTMLElement | null) {
   if (!triggerElement) return;
@@ -127,9 +114,11 @@ function paintAuthState() {
   const label = document.querySelector<HTMLElement>('[data-account-label]');
   const display = document.querySelector<HTMLElement>('[data-account-name]');
   const email = document.querySelector<HTMLElement>('[data-account-email]');
+  const role = document.querySelector<HTMLElement>('[data-account-role]');
   if (label) label.textContent = authUser ? name : 'অ্যাকাউন্ট';
   if (display) display.textContent = authUser ? name : 'স্বাগতম';
-  if (email) email.textContent = authUser ? `${roleName()} · @${authProfile?.username ?? ''}` : 'পাঠক হিসেবে পড়ুন';
+  if (email) email.textContent = authUser ? `@${authProfile?.username ?? ''}` : 'পাঠক হিসেবে পড়ুন';
+  if (role) role.textContent = roleName();
   if (button) button.setAttribute('aria-label', authUser ? `${name} — অ্যাকাউন্ট মেনু` : 'অ্যাকাউন্ট মেনু খুলুন');
   setSelectorHidden('[data-signed-out-only]', Boolean(authUser));
   setSelectorHidden('[data-signed-in-only]', !authUser);
@@ -412,7 +401,7 @@ function initStickyTopbar() {
   const topbar = document.querySelector<HTMLElement>('[data-site-topbar]');
   if (!topbar) return;
   let queued = false;
-  const sync = () => { queued = false; topbar.classList.toggle('is-stuck', topbar.getBoundingClientRect().top <= 0); };
+  const sync = () => { queued = false; syncTopbarState(topbar, window.scrollY); };
   window.addEventListener('scroll', () => { if (!queued) { queued = true; requestAnimationFrame(sync); } }, { passive: true });
   sync();
 }
@@ -591,14 +580,17 @@ function initCategoryDropdown() {
 }
 function initAccountMenu() {
   const button = menuButton();
-  button?.addEventListener('click', () => setMenuOpen(button.getAttribute('aria-expanded') !== 'true'));
+  const panel = menuPanel();
+  bindAccountPopup({ button, panel });
   document.querySelectorAll<HTMLElement>('[data-open-account]').forEach((control) => control.addEventListener('click', () => {
-    if (authUser) setMenuOpen(true); else window.location.assign('/auth/sign-in/');
+    if (authUser) {
+      if (panel?.hidden) button?.click();
+      else {
+        button?.focus({ preventScroll: true });
+        button?.click();
+      }
+    } else window.location.assign('/auth/sign-in/');
   }));
-  document.addEventListener('click', (event) => {
-    if (!(event.target instanceof Node) || !document.querySelector('[data-account-menu]')?.contains(event.target)) setMenuOpen(false);
-  });
-  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') setMenuOpen(false); });
   document.querySelector<HTMLButtonElement>('[data-sign-out]')?.addEventListener('click', async () => {
     if (!supabase) return;
     const { error } = await supabase.auth.signOut();
