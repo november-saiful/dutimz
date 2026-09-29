@@ -39,7 +39,7 @@ export function DutimzSidebar() {
   const pathname = usePathname() ?? "/";
 
   return (
-    <Sidebar variant="inset" collapsible="offcanvas">
+    <Sidebar variant="inset" collapsible="icon">
       <SidebarHeader>
         <Link
           href="/"
@@ -52,10 +52,19 @@ export function DutimzSidebar() {
             alt="DUTIMZ"
             width={120}
             height={35}
-            className="h-8 w-auto"
+            className="h-8 w-auto group-data-[collapsible=icon]:hidden"
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand-icon.svg"
+            alt=""
+            aria-hidden
+            width={32}
+            height={32}
+            className="hidden h-8 w-8 group-data-[collapsible=icon]:block"
           />
         </Link>
-        <p className="px-2 text-xs text-muted-foreground">
+        <p className="px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
           ঢাকা বিশ্ববিদ্যালয়ের সংবাদমাধ্যম
         </p>
       </SidebarHeader>
@@ -212,7 +221,7 @@ export function DutimzSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <p className="px-2 pb-1 text-[11px] text-muted-foreground">
+        <p className="px-2 pb-1 text-[11px] text-muted-foreground group-data-[collapsible=icon]:hidden">
           © {new Date().getFullYear()} DUTIMZ
         </p>
       </SidebarFooter>
