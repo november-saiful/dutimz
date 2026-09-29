@@ -47,6 +47,17 @@ test('worker-rendered responses carry the headers _headers only applies to asset
   }
 });
 
+test('news body copy is justified by default', async () => {
+  const css = await readProjectFile('app/globals.css');
+  assert.match(
+    css,
+    /\.article-body\s*\{[^}]*text-align:\s*justify/,
+    'the article body must be justified',
+  );
+  const article = await readProjectFile('app/news/[slug]/page.tsx');
+  assert.match(article, /article-body/);
+});
+
 test('the trailing-slash shape agrees between the redirects file and next.config', async () => {
   // public/_redirects normalises to trailing-slash URLs, which is also every page's canonical
   // form. With Next left on its default (trailingSlash: false) it answered the slashed URL

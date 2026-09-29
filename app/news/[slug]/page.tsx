@@ -116,7 +116,7 @@ export default async function ArticlePage({
                   {formatDateBn(article.published_at)}
                 </time>
               </div>
-              <CardTitle className="text-3xl leading-tight">
+              <CardTitle className="text-2xl leading-snug sm:text-3xl sm:leading-tight">
                 {article.title}
               </CardTitle>
               <CardDescription className="text-base">
