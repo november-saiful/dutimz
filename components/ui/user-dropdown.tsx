@@ -1,5 +1,7 @@
 "use client";
 
+import * as React from "react";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -22,7 +24,7 @@ import { Icon } from "@iconify/react";
 export type DropdownUser = {
   name: string;
   username: string;
-  avatar: string;
+  avatar?: string;
   initials: string;
   status: string;
 };
@@ -54,6 +56,12 @@ export type UserDropdownProps = {
   onStatusChange?: (value: string) => void;
   selectedStatus?: string;
   promoDiscount?: string;
+  /**
+   * Action ids to hide, for hosts where an item has no destination. The status
+   * submenu is hidden with `"status"`; a group left with no visible items is
+   * dropped along with its separator, so the menu never shows dead entries.
+   */
+  hiddenActions?: string[];
 };
 
 const DEFAULT_USER: DropdownUser = {
@@ -124,7 +132,17 @@ export const UserDropdown = ({
   onStatusChange = () => {},
   selectedStatus = "online",
   promoDiscount = "20% off",
+  hiddenActions = [],
 }: UserDropdownProps) => {
+  const hidden = new Set(hiddenActions);
+  const visibleItems = (items: MenuItem[]) =>
+    items.filter((item) => !item.action || !hidden.has(item.action));
+  const showStatus = !hidden.has("status");
+  const groups = [
+    visibleItems(MENU_ITEMS.profile),
+    visibleItems(MENU_ITEMS.premium),
+    visibleItems(MENU_ITEMS.support),
+  ].filter((items) => items.length > 0);
   const renderMenuItem = (item: MenuItem, index: number) => (
     <DropdownMenuItem
       key={index}
@@ -201,43 +219,43 @@ export const UserDropdown = ({
             </Badge>
           </div>
 
-          <DropdownMenuGroup>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger className="cursor-pointer p-2 rounded-lg">
-                <span className="flex items-center gap-1.5 font-medium text-gray-500 dark:text-gray-400">
-                  <Icon
-                    icon="solar:smile-circle-line-duotone"
-                    className="size-5 text-gray-500 dark:text-gray-400"
-                  />
-                  Update status
-                </span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuPortal>
-                <DropdownMenuSubContent className="bg-white dark:bg-white/10 backdrop-blur-lg">
-                  <DropdownMenuRadioGroup value={selectedStatus} onValueChange={onStatusChange}>
-                    {MENU_ITEMS.status.map((status, index) => (
-                      <DropdownMenuRadioItem className="gap-2" key={index} value={status.value}>
-                        <Icon
-                          icon={status.icon}
-                          className="size-5 text-gray-500 dark:text-gray-400"
-                        />
-                        {status.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuPortal>
-            </DropdownMenuSub>
-          </DropdownMenuGroup>
+          {showStatus && (
+            <DropdownMenuGroup>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger className="cursor-pointer p-2 rounded-lg">
+                  <span className="flex items-center gap-1.5 font-medium text-gray-500 dark:text-gray-400">
+                    <Icon
+                      icon="solar:smile-circle-line-duotone"
+                      className="size-5 text-gray-500 dark:text-gray-400"
+                    />
+                    Update status
+                  </span>
+                </DropdownMenuSubTrigger>
+                <DropdownMenuPortal>
+                  <DropdownMenuSubContent className="bg-white dark:bg-white/10 backdrop-blur-lg">
+                    <DropdownMenuRadioGroup value={selectedStatus} onValueChange={onStatusChange}>
+                      {MENU_ITEMS.status.map((status, index) => (
+                        <DropdownMenuRadioItem className="gap-2" key={index} value={status.value}>
+                          <Icon
+                            icon={status.icon}
+                            className="size-5 text-gray-500 dark:text-gray-400"
+                          />
+                          {status.label}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuPortal>
+              </DropdownMenuSub>
+            </DropdownMenuGroup>
+          )}
 
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>{MENU_ITEMS.profile.map(renderMenuItem)}</DropdownMenuGroup>
-
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>{MENU_ITEMS.premium.map(renderMenuItem)}</DropdownMenuGroup>
-
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>{MENU_ITEMS.support.map(renderMenuItem)}</DropdownMenuGroup>
+          {groups.map((items, index) => (
+            <React.Fragment key={index}>
+              {(showStatus || index > 0) && <DropdownMenuSeparator />}
+              <DropdownMenuGroup>{items.map(renderMenuItem)}</DropdownMenuGroup>
+            </React.Fragment>
+          ))}
         </section>
 
         <section className="mt-1 p-1 rounded-2xl">

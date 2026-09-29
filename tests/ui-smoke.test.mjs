@@ -171,6 +171,23 @@ test('the dashboard shell wraps every page with the DUTIMZ sidebar', async () =>
   }
 });
 
+test('the header account menu is the session dropdown with DUTIMZ routes', async () => {
+  // The header must never show menu entries that go nowhere: there is no presence
+  // system, no theming, and no premium tier, so those actions stay hidden and every
+  // visible one maps to a real route.
+  const dropdown = await readProjectFile('components/ui/user-dropdown.tsx');
+  assert.match(dropdown, /hiddenActions/);
+  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
+  assert.match(header, /UserDropdown/);
+  assert.match(header, /supabaseBrowser/);
+  assert.match(header, /onAuthStateChange/);
+  assert.match(header, /hiddenActions/);
+  for (const route of ['/profile/me/', '/account/', '/saved/', '/about/', '/auth/sign-in/']) {
+    assert.ok(header.includes(`"${route}"`), `header menu must link ${route}`);
+  }
+  assert.match(header, /signOut/);
+});
+
 test('anonymous stories never receive a profile link', async () => {
   const supabase = await readProjectFile('lib/supabase.ts');
   assert.match(supabase, /ANONYMOUS_BYLINE/);
