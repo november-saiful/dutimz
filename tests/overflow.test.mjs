@@ -67,9 +67,12 @@ async function waitForServer(origin, attempts = 40) {
 test('every route stays inside the viewport at common widths', async () => {
   const port = 3197;
   const origin = `http://127.0.0.1:${port}`;
-  const nextBin = process.platform === 'win32' ? 'node_modules/.bin/next.cmd' : 'node_modules/.bin/next';
-  const server = spawn(nextBin, ['start', '-p', String(port)], {
-    shell: process.platform === 'win32',
+  // Spawn through node directly: .bin shims are not executable grand-children
+  // on Windows, and shell:true swallows the server's startup errors.
+  const server = spawn(
+    process.execPath,
+    ['node_modules/next/dist/bin/next', 'start', '-p', String(port)],
+    {
     env: { ...process.env, NEXT_PUBLIC_DEMO_MODE: 'true' },
     stdio: 'ignore',
   });
