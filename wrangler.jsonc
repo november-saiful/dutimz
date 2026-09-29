@@ -14,6 +14,24 @@
       "service": "dutimz"
     }
   ],
+  // The public hostnames are declared here instead of being clicked into the dashboard, so
+  // every release re-asserts the binding rather than silently leaving them on a retired
+  // Pages project. A Custom Domain matches one exact hostname, so the apex and www are both
+  // listed; middleware.ts redirects www to the apex once the Worker receives those requests.
+  //
+  // They can only be attached while no other Cloudflare project owns the hostnames: remove
+  // dutimz.com and www.dutimz.com from the old Pages project first, or `wrangler deploy`
+  // fails because the hostname is already in use.
+  "routes": [
+    {
+      "pattern": "dutimz.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.dutimz.com",
+      "custom_domain": true
+    }
+  ],
   "vars": {
     "NEXT_PUBLIC_DEMO_MODE": "false",
     "NEXT_PUBLIC_SITE_URL": "https://dutimz.com",
@@ -21,6 +39,9 @@
   },
   "env": {
     "preview": {
+      // A pull-request preview must never claim the production hostnames, so these routes are
+      // cleared explicitly for this environment instead of being inherited.
+      "routes": [],
       "vars": {
         "NEXT_PUBLIC_DEMO_MODE": "true",
         "NEXT_PUBLIC_SITE_URL": "https://dutimz.com"
