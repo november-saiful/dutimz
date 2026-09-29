@@ -58,6 +58,8 @@ The release ends with `scripts/verify-live-config.mjs`, which polls the live con
 
 It checks the public domain first and, when that domain is still serving a previous project — moving a custom domain between Pages and a Worker is a manual Cloudflare step, not a build failure — falls back to the address Cloudflare gives the Worker itself and reports the exact action as a warning. A deployment that answers on neither host, or that serves demo content, still fails the release, so a red run always means something is genuinely broken.
 
+Between the two it also walks the deployment the way a visitor would. The home page, the static pages, and a live article and section taken from the home page must all answer `200` on their canonical URL with **no** redirect and with the `public/_headers` guarantees attached; the unslashed form of an article must still settle on its canonical URL in one hop; and `www` must redirect to the apex without dropping the path. Those assertions are not padding. When the site moved off Pages, `public/_redirects` and Next.js disagreed about trailing slashes and every article, section and profile URL looped forever in the browser, while pages the Worker rendered shipped without any of the security headers the asset layer applies from `public/_headers` — and neither fault was visible to a check that only read the configuration. Run it locally with `SITE_URL=https://dutimz.com node scripts/verify-live-config.mjs`.
+
 ## Important MVP business rules
 
 - Reporter fees are issued exactly once on the first successful publication: junior ৳৯০, general ৳১১৫, executive ৳১৪০. Only assigned reporters earn article fees; a moderator receives a fee only when separately assigned a reporter tier.

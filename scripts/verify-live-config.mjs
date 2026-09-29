@@ -9,6 +9,13 @@
 // function the `anon` role cannot execute refuses the whole query (42501) rather than
 // returning fewer rows, which is invisible to any check that only looks at the site's HTML.
 //
+// Finally the deployment is walked as a visitor would walk it. Three failures have already
+// shipped past every other check because they only exist once the app is really served by
+// Cloudflare: public/_redirects and Next.js disagreed about trailing slashes and looped
+// forever on every article, the asset layer served some pages while the Worker served others
+// so only some carried the public/_headers guarantees, and the public hostname was attached
+// to a retired project. All three are ordinary HTTP behaviour, so all three are asserted here.
+//
 // The deployment is checked on the public domain first, and then — when that domain is still
 // pointed at a previous project, which is a manual Cloudflare step rather than a build
 // failure — on the address Cloudflare gives the Worker itself. Failing to reach the Worker
@@ -22,12 +29,49 @@ const siteUrl = process.env.SITE_URL ?? 'https://dutimz.com';
 const workerName = process.env.WORKER_NAME ?? 'dutimz';
 const attempts = Number(process.env.CONFIG_ATTEMPTS ?? 20);
 const delayMs = Number(process.env.CONFIG_DELAY_MS ?? 6000);
+const maxHops = Number(process.env.MAX_HOPS ?? 5);
+const requestTimeoutMs = Number(process.env.REQUEST_TIMEOUT_MS ?? 15000);
 const REQUIRED = ['supabaseUrl', 'supabaseAnonKey', 'mediaUrl'];
+
+// Every HTML page the site serves has to carry these. public/_headers applies them to the
+// files the asset layer serves and middleware applies them to everything the Worker renders,
+// so a page served through one layer without the other is a regression, not a detail.
+const REQUIRED_HEADERS = [
+  'x-content-type-options',
+  'referrer-policy',
+  'x-frame-options',
+  'permissions-policy',
+];
+
+// Routes whose canonical URL is known here, including the shapes that export a canonical of
+// their own (`/statistics/`, `/about/`, `/search/`). Each one must answer 200 with no redirect
+// at all: a canonical URL that redirects is how the trailing-slash loop started.
+const CANONICAL_PATHS = [
+  '/',
+  '/statistics/',
+  '/search/',
+  '/saved/',
+  '/about/',
+  '/guidelines/',
+  '/corrections/',
+  '/auth/sign-in/',
+];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+async function request(url) {
+  return fetch(url, {
+    redirect: 'manual',
+    headers: { 'cache-control': 'no-cache' },
+    signal: AbortSignal.timeout(requestTimeoutMs),
+  });
+}
+
 async function fetchText(url, headers = {}) {
-  const response = await fetch(url, { headers: { 'cache-control': 'no-cache', ...headers } });
+  const response = await fetch(url, {
+    headers: { 'cache-control': 'no-cache', ...headers },
+    signal: AbortSignal.timeout(requestTimeoutMs),
+  });
   if (!response.ok) {
     throw new Error(`${url} returned HTTP ${response.status}`);
   }
@@ -53,6 +97,7 @@ async function anonymousRead(config, path) {
       authorization: `Bearer ${config.supabaseAnonKey}`,
       'cache-control': 'no-cache',
     },
+    signal: AbortSignal.timeout(requestTimeoutMs),
   });
   return { url, status: response.status, body: (await response.text()).slice(0, 160) };
 }
@@ -77,6 +122,156 @@ async function visitorProblems(config) {
 }
 
 /**
+ * Walk redirects one hop at a time, so a loop is a reportable failure rather than a hang or a
+ * generic "too many redirects" from the HTTP client.
+ */
+async function walk(startUrl) {
+  const chain = [];
+  const seen = new Set();
+  let url = startUrl;
+  for (let hop = 0; hop <= maxHops; hop += 1) {
+    if (seen.has(url)) return { chain, loop: true };
+    seen.add(url);
+
+    const response = await request(url);
+    const location = response.headers.get('location') ?? undefined;
+    chain.push({ url, status: response.status, location });
+
+    if (response.status < 300 || response.status >= 400) {
+      return { chain, loop: false, response, final: url };
+    }
+    if (!location) {
+      return { chain, loop: false, response, final: url };
+    }
+    url = new URL(location, url).toString();
+  }
+  return { chain, loop: true };
+}
+
+const describeChain = (chain) =>
+  chain.map((hop) => `${hop.status} ${new URL(hop.url).pathname}`).join(' -> ');
+
+async function homeLinks(base) {
+  try {
+    const html = await fetchText(`${base}/`);
+    return [...html.matchAll(/href="([^"]*)"/g)].map((match) => match[1]);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Real article and section paths taken from the home page, mapped to the trailing-slash
+ * canonical their own `alternates.canonical` declares. Sampling live links means the check
+ * covers whatever the templates currently emit rather than a list that drifts.
+ */
+function canonicalSamples(links) {
+  const samples = new Map();
+  for (const href of links) {
+    const match = /^\/(news|category)\/([^/?#"]+)\/?$/.exec(href);
+    if (!match) continue;
+    const plain = `/${match[1]}/${match[2]}`;
+    if (!samples.has(`${plain}/`)) samples.set(`${plain}/`, plain);
+  }
+  return samples;
+}
+
+/** The `www` host for a bare apex, or null when this deployment has no such twin. */
+function wwwHostFor(base) {
+  const { protocol, hostname } = new URL(base);
+  if (hostname.startsWith('www.') || hostname.endsWith('.workers.dev') || !hostname.includes('.')) {
+    return null;
+  }
+  return `${protocol}//www.${hostname}/`;
+}
+
+async function routeProblems(base) {
+  const problems = [];
+  const samples = canonicalSamples(await homeLinks(base));
+
+  console.log(`Walking ${CANONICAL_PATHS.length + samples.size} canonical URLs on ${base}`);
+
+  const checkCanonical = async (path) => {
+    const { chain, loop, response } = await walk(new URL(path, base).toString());
+    if (loop) {
+      problems.push(`redirect loop at ${path}: ${describeChain(chain)}`);
+      return;
+    }
+    if (chain.length > 1) {
+      problems.push(`${path} is a canonical URL but redirects: ${describeChain(chain)}`);
+      return;
+    }
+    if (response.status !== 200) {
+      problems.push(`${path} answered HTTP ${response.status}`);
+      return;
+    }
+    const missing = REQUIRED_HEADERS.filter((name) => !response.headers.get(name));
+    if (missing.length > 0) {
+      problems.push(`${path} is served without ${missing.join(', ')}`);
+      return;
+    }
+    console.log(`  ${path} 200, canonical, headers present`);
+  };
+
+  for (const path of CANONICAL_PATHS) {
+    await checkCanonical(path);
+  }
+
+  // The shapes that looped: a live article and a live section, both ways round.
+  for (const [canonical, plain] of samples) {
+    await checkCanonical(canonical);
+
+    const { chain, loop, response, final } = await walk(new URL(plain, base).toString());
+    if (loop) {
+      problems.push(`redirect loop from ${plain}: ${describeChain(chain)}`);
+    } else if (response.status !== 200) {
+      problems.push(`${plain} ends at HTTP ${response.status} after ${chain.length - 1} redirect(s)`);
+    } else if (new URL(final).pathname !== canonical) {
+      problems.push(`${plain} should settle on ${canonical} but landed on ${new URL(final).pathname}`);
+    } else if (chain.length > 2) {
+      problems.push(`${plain} takes ${chain.length - 1} redirects to reach ${canonical}: ${describeChain(chain)}`);
+    } else {
+      console.log(`  ${plain} -> ${canonical} in ${chain.length - 1} redirect(s)`);
+    }
+  }
+
+  // `www` must hand the visitor to the apex, keeping the path they asked for. Only the first
+  // hop is judged: following the redirect onwards lands on a 200, which is the point of it.
+  const wwwBase = wwwHostFor(base);
+  if (wwwBase) {
+    const apexHost = new URL(base).hostname;
+    for (const path of ['/', '/statistics/']) {
+      const from = new URL(path, wwwBase).toString();
+      try {
+        const { chain, loop } = await walk(from);
+        const first = chain[0];
+        if (loop) {
+          problems.push(`redirect loop at ${from}: ${describeChain(chain)}`);
+        } else if (first.status < 300) {
+          problems.push(`${from} serves the site itself (HTTP ${first.status}) instead of redirecting to ${apexHost}, so one page has two addresses`);
+        } else if (!first.location) {
+          problems.push(`${from} answered HTTP ${first.status} without a Location pointing at ${apexHost}`);
+        } else {
+          const destination = new URL(first.location, from);
+          if (destination.hostname !== apexHost) {
+            problems.push(`${from} redirects to ${destination.hostname} instead of ${apexHost}`);
+          } else if (destination.pathname !== path) {
+            problems.push(`${from} redirects to ${destination.pathname} instead of keeping the requested path`);
+          } else {
+            console.log(`  ${from} ${first.status} -> ${destination.hostname}${destination.pathname}`);
+          }
+        }
+      } catch (error) {
+        console.log(`  ${from} could not be reached (${error.message}); not checked`);
+        break;
+      }
+    }
+  }
+
+  return problems;
+}
+
+/**
  * The address Cloudflare serves the Worker on, so a release can be verified even while the
  * public domain still points elsewhere. WORKER_URL overrides it; otherwise ask the API,
  * which needs no extra configuration because the release already holds these credentials.
@@ -91,7 +286,7 @@ async function workerUrl() {
   try {
     const response = await fetch(
       `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/subdomain`,
-      { headers: { authorization: `Bearer ${token}` } },
+      { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(requestTimeoutMs) },
     );
     if (!response.ok) {
       console.log(`Could not resolve the Worker hostname (HTTP ${response.status}); checking only ${siteUrl}.`);
@@ -135,8 +330,17 @@ async function probeDeployment(base) {
   return { ok: false, config: null, problems };
 }
 
-async function confirmConfiguration(config) {
+async function confirmDeployment(base, config) {
   console.log(`Live configuration OK: ${config.supabaseUrl} with media at ${config.mediaUrl}`);
+
+  const routeIssues = await routeProblems(base);
+  if (routeIssues.length > 0) {
+    for (const problem of routeIssues) {
+      console.error(`::error::${problem}`);
+    }
+    return 1;
+  }
+  console.log(`Live routes OK: canonical URLs resolve directly, no redirect loops, headers present.`);
 
   const visitorIssues = await visitorProblems(config);
   if (visitorIssues.length > 0) {
@@ -153,7 +357,7 @@ async function confirmConfiguration(config) {
 async function main() {
   const site = await probeDeployment(siteUrl);
   if (site.ok) {
-    return confirmConfiguration(site.config);
+    return confirmDeployment(siteUrl, site.config);
   }
 
   const fallback = await workerUrl();
@@ -166,7 +370,7 @@ async function main() {
           '(Workers & Pages -> the Pages project -> Custom domains -> remove, then the Worker -> Settings -> Domains & Routes -> Add -> Custom Domain). ' +
           'Keep the www redirect pointed at the Worker as well.',
       );
-      return confirmConfiguration(worker.config);
+      return confirmDeployment(fallback, worker.config);
     }
   }
 
