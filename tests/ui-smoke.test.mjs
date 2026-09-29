@@ -219,6 +219,23 @@ test('money and moderation flow through the audited RPCs', async () => {
   assert.match(admin, /rpc\(['"]admin_adjust_balance['"]/);
 });
 
+test('admin members are managed from a sortable table, not a UUID form', async () => {
+  // Role editing happens on the member's own row: the table already holds the
+  // member id for the audited RPC, so the UUID-paste role form is gone. The
+  // finance RPCs stay wired to their own cards.
+  const admin = await readProjectFile('components/account/admin-dashboard.tsx');
+  assert.match(admin, /<Table aria-label="সদস্য তালিকা">/);
+  assert.match(admin, /SortableHead/);
+  assert.match(admin, /assign_user_role/);
+  assert.match(admin, /Dialog/);
+  assert.doesNotMatch(admin, /role-user/);
+  assert.doesNotMatch(admin, /ভূমিকা নির্ধারণ/);
+  assert.match(admin, /review_withdrawal/);
+  assert.match(admin, /admin_adjust_balance/);
+  assert.ok(await exists('components/ui/table.tsx'), 'components/ui/table.tsx must exist');
+  assert.ok(await exists('components/ui/dialog.tsx'), 'components/ui/dialog.tsx must exist');
+});
+
 test('article reader keeps reactions, bookmarks, share, corrections, and comments', async () => {
   const actions = await readProjectFile('components/article/article-actions.tsx');
   assert.match(actions, /get_article_stats/);
