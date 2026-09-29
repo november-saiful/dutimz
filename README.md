@@ -55,6 +55,8 @@ Configure the GitHub Actions repository variables (or secrets, the release workf
 
 The release ends with `scripts/verify-live-config.mjs`, which polls the live configuration (a deployment serves requests before it serves its own configuration) and then repeats a signed-out visitor's anonymous reads against Supabase REST. That last part is not decoration: a row level security policy that calls a function the `anon` role cannot execute refuses the entire query with `42501`, so a missing `grant execute` takes the whole public feed down while the site still returns HTTP 200. Run it locally with `node scripts/verify-live-config.mjs`.
 
+It checks the public domain first and, when that domain is still serving a previous project — moving a custom domain between Pages and a Worker is a manual Cloudflare step, not a build failure — falls back to the address Cloudflare gives the Worker itself and reports the exact action as a warning. A deployment that answers on neither host, or that serves demo content, still fails the release, so a red run always means something is genuinely broken.
+
 ## Important MVP business rules
 
 - Reporter fees are issued exactly once on the first successful publication: junior ৳৯০, general ৳১১৫, executive ৳১৪০. Only assigned reporters earn article fees; a moderator receives a fee only when separately assigned a reporter tier.

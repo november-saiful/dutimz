@@ -9,10 +9,17 @@
 // function the `anon` role cannot execute refuses the whole query (42501) rather than
 // returning fewer rows, which is invisible to any check that only looks at the site's HTML.
 //
+// The deployment is checked on the public domain first, and then — when that domain is still
+// pointed at a previous project, which is a manual Cloudflare step rather than a build
+// failure — on the address Cloudflare gives the Worker itself. Failing to reach the Worker
+// there is still a release failure; the apex simply not being switched over yet is a warning
+// that names the exact action, so a red release always means something is actually broken.
+//
 // This sets process.exitCode rather than calling process.exit(): exiting while the HTTP
 // keep-alive sockets are still closing aborts the process on Windows and reports a bogus
 // exit code, which is exactly the sort of noise a smoke check must not emit.
 const siteUrl = process.env.SITE_URL ?? 'https://dutimz.com';
+const workerName = process.env.WORKER_NAME ?? 'dutimz';
 const attempts = Number(process.env.CONFIG_ATTEMPTS ?? 20);
 const delayMs = Number(process.env.CONFIG_DELAY_MS ?? 6000);
 const REQUIRED = ['supabaseUrl', 'supabaseAnonKey', 'mediaUrl'];
@@ -69,42 +76,66 @@ async function visitorProblems(config) {
   return problems;
 }
 
-async function main() {
+/**
+ * The address Cloudflare serves the Worker on, so a release can be verified even while the
+ * public domain still points elsewhere. WORKER_URL overrides it; otherwise ask the API,
+ * which needs no extra configuration because the release already holds these credentials.
+ */
+async function workerUrl() {
+  if (process.env.WORKER_URL) {
+    return process.env.WORKER_URL.replace(/\/+$/, '');
+  }
+  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  const token = process.env.CLOUDFLARE_API_TOKEN;
+  if (!accountId || !token) return null;
   try {
-    const portal = await fetchText(`${siteUrl}/`);
-    console.log(`Portal HTTP 200 (${portal.length} bytes of HTML)`);
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/subdomain`,
+      { headers: { authorization: `Bearer ${token}` } },
+    );
+    if (!response.ok) {
+      console.log(`Could not resolve the Worker hostname (HTTP ${response.status}); checking only ${siteUrl}.`);
+      return null;
+    }
+    const { result } = await response.json();
+    return result?.subdomain ? `https://${workerName}.${result.subdomain}.workers.dev` : null;
   } catch (error) {
-    console.error(`::error::the live portal did not respond: ${error.message}`);
-    return 1;
+    console.log(`Could not resolve the Worker hostname (${error.message}); checking only ${siteUrl}.`);
+    return null;
+  }
+}
+
+/** Wait until `base` serves this deployment's own configuration. */
+async function probeDeployment(base) {
+  try {
+    const portal = await fetchText(`${base}/`);
+    console.log(`${base} answered HTTP 200 (${portal.length} bytes of HTML)`);
+  } catch (error) {
+    return { ok: false, config: null, problems: [`${base} did not respond: ${error.message}`] };
   }
 
-  let lastProblems = ['no attempt was made'];
-  let config;
+  let problems = ['no attempt was made'];
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      config = JSON.parse(await fetchText(`${siteUrl}/api/config`));
-      lastProblems = problemsWith(config);
-      if (lastProblems.length === 0) {
-        break;
+      const config = JSON.parse(await fetchText(`${base}/api/config`));
+      problems = problemsWith(config);
+      if (problems.length === 0) {
+        return { ok: true, config, problems: [] };
       }
     } catch (error) {
-      lastProblems = [error.message];
+      problems = [error.message];
     }
 
-    console.log(`Attempt ${attempt}/${attempts} is not serving this deployment yet: ${lastProblems.join('; ')}`);
+    console.log(`Attempt ${attempt}/${attempts}: ${base}/api/config is not serving this deployment yet: ${problems.join('; ')}`);
     if (attempt < attempts) {
       await sleep(delayMs);
     }
   }
 
-  if (lastProblems.length > 0) {
-    for (const problem of lastProblems) {
-      console.error(`::error::${problem}`);
-    }
-    console.error(`::error::${siteUrl}/api/config never reported the deployed configuration`);
-    return 1;
-  }
+  return { ok: false, config: null, problems };
+}
 
+async function confirmConfiguration(config) {
   console.log(`Live configuration OK: ${config.supabaseUrl} with media at ${config.mediaUrl}`);
 
   const visitorIssues = await visitorProblems(config);
@@ -117,6 +148,33 @@ async function main() {
 
   console.log('Anonymous access OK: the published feed, search sections and RLS denials all behave.');
   return 0;
+}
+
+async function main() {
+  const site = await probeDeployment(siteUrl);
+  if (site.ok) {
+    return confirmConfiguration(site.config);
+  }
+
+  const fallback = await workerUrl();
+  if (fallback && fallback !== siteUrl) {
+    const worker = await probeDeployment(fallback);
+    if (worker.ok) {
+      console.log(
+        `::warning::${siteUrl} is still serving a previous deployment, but this release is live and verified at ${fallback}. ` +
+          `To publish it on the public domain, remove ${siteUrl} from the Cloudflare Pages project and add it as a Custom Domain on the ${workerName} Worker ` +
+          '(Workers & Pages -> the Pages project -> Custom domains -> remove, then the Worker -> Settings -> Domains & Routes -> Add -> Custom Domain). ' +
+          'Keep the www redirect pointed at the Worker as well.',
+      );
+      return confirmConfiguration(worker.config);
+    }
+  }
+
+  for (const problem of site.problems) {
+    console.error(`::error::${problem}`);
+  }
+  console.error(`::error::${siteUrl}/api/config never reported the deployed configuration`);
+  return 1;
 }
 
 process.exitCode = await main();
