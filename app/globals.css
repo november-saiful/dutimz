@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* DUTIMZ paper background, brand purple primary. Light-only v1. */
+    --background: 315 30% 97%;
+    --foreground: 300 25% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 300 25% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 300 25% 14%;
+    --primary: 297 52% 27%;
+    --primary-foreground: 315 40% 98%;
+    --secondary: 310 22% 92%;
+    --secondary-foreground: 297 52% 27%;
+    --muted: 310 18% 93%;
+    --muted-foreground: 300 12% 42%;
+    --accent: 312 30% 90%;
+    --accent-foreground: 297 52% 27%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 310 20% 87%;
+    --input: 310 20% 84%;
+    --ring: 297 52% 27%;
+    --radius: 0.625rem;
+    --chart-1: 297 52% 32%;
+    --chart-2: 280 45% 55%;
+    --chart-3: 320 40% 60%;
+    --chart-4: 260 40% 62%;
+    --chart-5: 335 45% 55%;
+    --font-bengali: "Noto Serif Bengali", "Noto Sans Bengali", Georgia, serif;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    color-scheme: light;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-bengali);
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-bengali);
+    text-wrap: balance;
+  }
+}
+
+@layer components {
+  /* Fallback story art when no hero image: brand gradient + seal. */
+  .story-art-fallback {
+    background: linear-gradient(145deg, #ece0e9, #b3a0b0 54%, #7b3a80);
+  }
+  .article-body p + p {
+    margin-top: 1.25rem;
+  }
+}

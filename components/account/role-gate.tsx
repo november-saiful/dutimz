@@ -1,0 +1,96 @@
+"use client";
+
+import Link from "next/link";
+import * as React from "react";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { supabaseBrowser } from "@/lib/supabase";
+
+export function RoleGate({
+  roles,
+  title,
+  description,
+}: {
+  roles: string[];
+  title: string;
+  description: string;
+}) {
+  const [state, setState] = React.useState<"loading" | "allowed" | "denied">(
+    "loading",
+  );
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = supabaseBrowser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) {
+          if (!cancelled) setState("denied");
+          return;
+        }
+        const { data } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (!cancelled)
+          setState(
+            roles.includes((data as { role?: string } | null)?.role ?? "")
+              ? "allowed"
+              : "denied",
+          );
+      } catch {
+        if (!cancelled) setState("denied");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [roles]);
+
+  if (state === "loading") {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center text-sm text-muted-foreground">
+          অনুমতি যাচাই করা হচ্ছে…
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (state === "denied") {
+    return (
+      <Card className="mx-auto max-w-md text-center">
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center gap-3">
+          <p className="text-sm text-muted-foreground">{description}</p>
+          <Button asChild>
+            <Link href="/auth/sign-in">প্রবেশ করুন →</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="text-sm text-muted-foreground">
+        <p>{description}</p>
+        <p className="mt-2">
+          এই ডেস্কের সম্পূর্ণ কর্মপ্রবাহ (পর্যালোচনা সারি, সিদ্ধান্তের কারণ,
+          নিরীক্ষা লগ) পরবর্তী ধাপে এখানে যুক্ত হবে। তথ্য একই Supabase
+          টেবিল/RPC থেকে আসবে।
+        </p>
+      </CardContent>
+    </Card>
+  );
+}

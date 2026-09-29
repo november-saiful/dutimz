@@ -82,7 +82,7 @@ async function main() {
   let config;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      config = JSON.parse(await fetchText(`${siteUrl}/api/config.json`));
+      config = JSON.parse(await fetchText(`${siteUrl}/api/config`));
       lastProblems = problemsWith(config);
       if (lastProblems.length === 0) {
         break;
@@ -101,7 +101,7 @@ async function main() {
     for (const problem of lastProblems) {
       console.error(`::error::${problem}`);
     }
-    console.error(`::error::${siteUrl}/api/config.json never reported the deployed configuration`);
+    console.error(`::error::${siteUrl}/api/config never reported the deployed configuration`);
     return 1;
   }
 
