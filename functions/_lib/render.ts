@@ -8,6 +8,21 @@ export function publicName(profile: { display_name?: string; username?: string }
   return profile?.display_name?.trim() || `@${profile?.username || 'পাঠক'}`;
 }
 
+export const ANONYMOUS_BYLINE = 'নাম প্রকাশে অনিচ্ছুক';
+
+// An anonymous story carries no author on its public row, so a credit is either a
+// profile worth linking to or a label that says nothing about who filed it.
+export function credit(profile: { display_name?: string; username?: string } | null | undefined, anonymous?: boolean | null) {
+  if (anonymous || !profile?.username) return { name: ANONYMOUS_BYLINE, href: '' };
+  return { name: publicName(profile), href: `/u/${encodeURIComponent(profile.username)}/` };
+}
+
+export function creditMarkup(value: { name: string; href: string }, className = 'story-byline') {
+  return value.href
+    ? `<a class="${className}" href="${escapeHtml(value.href)}">${escapeHtml(value.name)}</a>`
+    : `<span class="${className} story-byline--anonymous">${escapeHtml(value.name)}</span>`;
+}
+
 export function pageShell(title: string, description: string, canonical: string, content: string): string {
   const siteTitle = `${escapeHtml(title)} | DUTIMZ`;
   const safeDescription = escapeHtml(description);
@@ -21,8 +36,48 @@ export function safeJson(value: unknown) {
   return JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 }
 
-export function responseHtml(html: string, status = 200, cache = 'public, max-age=30, stale-while-revalidate=120') {
-  return new Response(html, {
+function edgeCache(): Cache | null {
+  if (typeof caches === 'undefined') return null;
+  return (caches as CacheStorage & { default?: Cache }).default ?? null;
+}
+
+function htmlCacheKey(request: Request) {
+  const url = new URL(request.url);
+  url.search = '';
+  url.hash = '';
+  return new Request(url.toString(), { method: 'GET' });
+}
+
+export async function cachedHtml(request: Request) {
+  const cache = edgeCache();
+  if (!cache) return null;
+  try {
+    return await cache.match(htmlCacheKey(request));
+  } catch (error) {
+    console.warn('Unable to read rendered HTML cache', error);
+    return null;
+  }
+}
+
+export function canonicalHostRedirect(request?: Request) {
+  if (!request) return null;
+  const url = new URL(request.url);
+  if (url.hostname.toLowerCase() !== 'www.dutimz.com') return null;
+  url.hostname = 'dutimz.com';
+  return new Response(null, {
+    status: 301,
+    headers: { Location: url.toString(), 'Cache-Control': 'public, max-age=86400' },
+  });
+}
+
+export function responseHtml(
+  html: string,
+  status = 200,
+  cache = 'public, max-age=30, stale-while-revalidate=120',
+  request?: Request,
+  waitUntil?: (promise: Promise<unknown>) => void,
+) {
+  const response = new Response(html, {
     status,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
@@ -33,4 +88,12 @@ export function responseHtml(html: string, status = 200, cache = 'public, max-ag
       'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
     },
   });
+  const edge = edgeCache();
+  if (request && status === 200 && !cache.includes('no-store') && edge) {
+    const write = edge.put(htmlCacheKey(request), response.clone())
+      .catch((error: unknown) => console.warn('Unable to cache rendered HTML', error));
+    if (waitUntil) waitUntil(write);
+    else void write;
+  }
+  return response;
 }

@@ -1,5 +1,5 @@
 begin;
-select plan(80);
+select plan(150);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -373,6 +373,512 @@ select results_eq(
   $$select count(*) from public.get_article_questionnaire_responses(10)$$,
   $$values (1::bigint)$$,
   'Administrators can read submitted questionnaire details'
+);
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+
+-- Anonymous filing. The publishable key is handed to every browser, so a byline that only
+-- the interface hides is not hidden at all: the identity leaves articles.author_id and moves
+-- to a table only the reporter and the desk administrator may read, while the fee and the
+-- self-approval guard keep resolving the real reporter through that attribution.
+select has_table('public', 'article_attributions', 'The real author of an anonymous story is recorded out of band');
+select has_column('public', 'articles', 'is_anonymous', 'A story records that its byline is withheld');
+select is(
+  (select is_nullable from information_schema.columns
+    where table_schema = 'public' and table_name = 'articles' and column_name = 'author_id'),
+  'YES',
+  'An anonymous story cannot keep an author on its own public row'
+);
+
+-- The two representations of authorship cannot drift apart in either direction.
+select throws_ok(
+  $$insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, published_at, is_anonymous)
+      select '22000000-0000-4000-8000-000000000002', c.id, 'porikkha-bad-anon', 'অসঙ্গত নামহীন প্রতিবেদন',
+             'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('পরীক্ষামূলক প্রতিবেদনের অংশ। ', 6), 'published', now(), true
+        from public.categories c where c.slug = 'porikkha'$$,
+  '23514', null,
+  'A story cannot be anonymous while it still names its author'
+);
+select throws_ok(
+  $$insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, published_at, is_anonymous)
+      select null, c.id, 'porikkha-bad-credit', 'লেখকহীন অথচ নামযুক্ত প্রতিবেদন',
+             'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('পরীক্ষামূলক প্রতিবেদনের অংশ। ', 6), 'published', now(), false
+        from public.categories c where c.slug = 'porikkha'$$,
+  '23514', null,
+  'A named story must keep its author'
+);
+
+-- The reporter files anonymously; the flag has to travel with the submission itself.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select results_eq(
+  $$select author_id is null, is_anonymous from public.submit_article('porikkha', 'নামহীন পরীক্ষামূলক প্রতিবেদন', 'নামহীন প্রতিবেদনের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active), true)$$,
+  $$values (true, true)$$,
+  'An anonymous submission comes back with no author on it and the flag set'
+);
+select results_eq(
+  $$select author_id is null, is_anonymous, status::text from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন'$$,
+  $$values (true, true, 'pending')$$,
+  'The anonymous story is stored without an author and waits for the desk'
+);
+select results_eq(
+  $$select count(*)::int from public.article_attributions aa join public.articles a on a.id = aa.article_id
+     where a.title = 'নামহীন পরীক্ষামূলক প্রতিবেদন' and aa.author_id = '22000000-0000-4000-8000-000000000002'$$,
+  $$values (1)$$,
+  'The reporter can read back their own attribution'
+);
+select results_eq(
+  $$select count(*)::int from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন'$$,
+  $$values (1)$$,
+  'The reporter still owns the unpublished anonymous story through the attribution policy'
+);
+select set_config('request.jwt.claim.sub', '11000000-0000-4000-8000-000000000001', true);
+select is_empty(
+  $$select article_id from public.article_attributions$$,
+  'Another signed-in member cannot learn who filed an anonymous story'
+);
+select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
+select is_empty(
+  $$select article_id from public.article_attributions$$,
+  'A moderator cannot read the attribution either; it belongs to the desk administrator'
+);
+select lives_ok(
+  $$select public.moderate_article((select id from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন'), 'approve', 'নামহীন প্রতিবেদন যাচাই করে অনুমোদন')$$,
+  'A moderator approves an anonymous story without ever seeing the byline'
+);
+
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+select results_eq(
+  $$select status::text, author_id is null from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন'$$,
+  $$values ('published', true)$$,
+  'The approved anonymous story is published with no author on its public row'
+);
+select results_eq(
+  $$select target_user_id from public.moderation_actions
+     where action = 'approve_article' and article_id = (select id from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন')$$,
+  $$values ('22000000-0000-4000-8000-000000000002'::uuid)$$,
+  'The moderation audit still records the real reporter behind the anonymous story'
+);
+select results_eq(
+  $$select count(*)::int, coalesce(sum(amount_tk), 0)::int from public.earnings_ledger
+     where article_id = (select id from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন')
+       and user_id = '22000000-0000-4000-8000-000000000002'$$,
+  $$values (1, 90)$$,
+  'Approving an anonymous story pays the reporter who filed it'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select lives_ok(
+  $$select public.admin_update_article((select id from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন'), 'নামহীন পরীক্ষামূলক প্রতিবেদন', 'নামহীন প্রতিবেদনের হালনাগাদ পরিচিতি', repeat('হালনাগাদ প্রতিবেদনের অংশ। ', 8), 'সম্পাদকীয় হালনাগাদ ও যাচাই')$$,
+  'The desk can edit an anonymous story without disturbing its byline'
+);
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+select results_eq(
+  $$select target_user_id from public.moderation_actions
+     where action = 'edit_article' and article_id = (select id from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন')$$,
+  $$values ('22000000-0000-4000-8000-000000000002'::uuid)$$,
+  'An admin edit of an anonymous story still records the real reporter'
+);
+
+set local role anon;
+select set_config('request.jwt.claim.role', 'anon', true);
+select set_config('request.jwt.claim.sub', '', true);
+select results_eq(
+  $$select count(*)::int, bool_and(author_id is null) from public.search_public_articles('নামহীন', 10)$$,
+  $$values (1, true)$$,
+  'Public search still finds an anonymous story and exposes no author with it'
+);
+select throws_ok(
+  $$select * from public.article_attributions$$,
+  '42501', null,
+  'A signed-out visitor cannot read the attribution table'
+);
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+
+-- The attribution is the only record of authorship an anonymous story has, so the guard,
+-- the withdrawal gate and every read policy hinge on it. These assertions exist to fail the
+-- moment that hinge is loosened, which is why they sit on the exact edge cases.
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+-- A moderator files anonymously, then tries to wave their own report through. The guard used
+-- to read author_id, which an anonymous story does not have, so this is the precise hole the
+-- attribution closes.
+insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, is_anonymous)
+  select null, c.id, 'porikkha-mod-anon', 'মডারেটরের নামহীন অপেক্ষমাণ প্রতিবেদন',
+         'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('পরীক্ষামূলক প্রতিবেদনের অংশ। ', 6), 'pending', true
+    from public.categories c where c.slug = 'porikkha';
+insert into public.article_attributions (article_id, author_id)
+  select a.id, '33000000-0000-4000-8000-000000000003'::uuid from public.articles a where a.slug = 'porikkha-mod-anon';
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
+select throws_ok(
+  $$select public.moderate_article((select id from public.articles where slug = 'porikkha-mod-anon'), 'approve', 'নিজের নামহীন প্রতিবেদন অনুমোদনের চেষ্টা')$$,
+  '42501', null,
+  'A moderator cannot approve the anonymous story they filed themselves'
+);
+
+-- Attribution rows are evidence, not client data: only the audited SECURITY DEFINER functions
+-- may write one, so a member can neither claim a story nor move one onto their own name.
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select throws_ok(
+  $$insert into public.article_attributions (article_id, author_id)
+      values ('00000000-0000-4000-8000-000000000000', '22000000-0000-4000-8000-000000000002')$$,
+  '42501', null,
+  'A signed-in member cannot write an attribution row to claim a story'
+);
+select throws_ok(
+  $$update public.article_attributions set author_id = '22000000-0000-4000-8000-000000000002'$$,
+  '42501', null,
+  'A signed-in member cannot move an anonymous story onto their own name'
+);
+
+-- The filer keeps full access and nobody else gets any: the anonymous story, the revision
+-- history the desk wrote while editing it, and its still-unpublished gallery stay with the
+-- reporter alone.
+select set_config('request.jwt.claim.sub', '11000000-0000-4000-8000-000000000001', true);
+select is_empty(
+  $$select id from public.articles where slug = 'porikkha-mod-anon'$$,
+  'Another signed-in member cannot read an anonymous story still waiting for the desk'
+);
+select is_empty(
+  $$select r.id from public.article_revisions r join public.articles a on a.id = r.article_id
+     where a.title = 'নামহীন পরীক্ষামূলক প্রতিবেদন'$$,
+  'Another signed-in member reads no revision of an anonymous story'
+);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select results_eq(
+  $$select count(*)::int from public.article_revisions r join public.articles a on a.id = r.article_id
+     where a.title = 'নামহীন পরীক্ষামূলক প্রতিবেদন'$$,
+  $$values (3)$$,
+  'The reporter reads every revision of their anonymous story, including the desk edits'
+);
+select lives_ok(
+  $$select public.submit_article('porikkha', 'নামহীন গ্যালারি প্রতিবেদন', 'নামহীন গ্যালারি প্রতিবেদনের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, array['91000000-0000-4000-8000-000000000001'], '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active), true)$$,
+  'An anonymous submission can carry a photo gallery'
+);
+select results_eq(
+  $$select count(*)::int from public.article_media am join public.articles a on a.id = am.article_id
+     where a.title = 'নামহীন গ্যালারি প্রতিবেদন'$$,
+  $$values (1)$$,
+  'The filer can still read the gallery of their own unpublished anonymous story'
+);
+
+-- The first-withdrawal gate counts the reporter published work. Two of the reporter 35 named
+-- stories become anonymous, which drops the named count below the threshold: only resolving
+-- through the attribution can keep the withdrawal open.
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+update public.articles set author_id = null, is_anonymous = true where slug in ('porikkha-1', 'porikkha-2');
+insert into public.article_attributions (article_id, author_id)
+  select a.id, '22000000-0000-4000-8000-000000000002'::uuid from public.articles a where a.slug in ('porikkha-1', 'porikkha-2');
+select results_eq(
+  $$select count(*)::int from public.articles where author_id = '22000000-0000-4000-8000-000000000002' and status = 'published'$$,
+  $$values (33)$$,
+  'The named count alone sits below the threshold, so only the attributed stories can carry it'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select lives_ok(
+  $$select public.request_withdrawal(3000, 'bkash', '01700000000')$$,
+  'The first withdrawal counts named and anonymously filed stories alike'
+);
+
+-- The byline and the dateline are facts about a story, so only the desk may rewrite them:
+-- a reporter files as themselves, and a reporter who sends the fields is refused rather than
+-- quietly ignored. These assertions cover both halves -- the refusal and the capability.
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, published_at)
+  select '22000000-0000-4000-8000-000000000002', c.id, 'porikkha-byline', 'বাইলাইন পরীক্ষার প্রতিবেদন',
+         'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('পরীক্ষামূলক প্রতিবেদনের অংশ। ', 6), 'published', now()
+    from public.categories c where c.slug = 'porikkha';
+insert into public.articles (author_id, category_id, slug, title, excerpt, body, status)
+  select '22000000-0000-4000-8000-000000000002', c.id, 'porikkha-dateline', 'প্রকাশের সময় পরীক্ষার প্রতিবেদন',
+         'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('পরীক্ষামূলক প্রতিবেদনের অংশ। ', 6), 'pending'
+    from public.categories c where c.slug = 'porikkha';
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select throws_ok(
+  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'author', '22000000-0000-4000-8000-000000000002', null, 'নিজের নামে বদলানোর চেষ্টা')$$,
+  '42501', null,
+  'A reporter cannot rewrite a byline, not even their own'
+);
+select throws_ok(
+  $$select public.submit_article('porikkha', 'অন্যের নামে জমা দেওয়ার চেষ্টা', 'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active), false, '33000000-0000-4000-8000-000000000003')$$,
+  '42501', null,
+  'A reporter cannot file a story under an author they choose'
+);
+select throws_ok(
+  $$select public.submit_article('porikkha', 'সময় নির্ধারণের চেষ্টা', 'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active), false, null, now() - interval '1 day')$$,
+  '42501', null,
+  'A reporter cannot choose when their story is dated'
+);
+
+-- The desk files the same story under another reporter's name. The story belongs to that
+-- reporter from here on: byline, attribution and fee all follow the named author rather than
+-- the account that pressed publish.
+reset role;
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select results_eq(
+  $$select author_id, is_anonymous from public.submit_article('porikkha', 'অন্যের নামে প্রকাশিত প্রতিবেদন', 'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active), false, '22000000-0000-4000-8000-000000000002')$$,
+  $$values ('22000000-0000-4000-8000-000000000002'::uuid, false)$$,
+  'The desk can publish a story credited to another reporter'
+);
+reset role;
+select results_eq(
+  $$select count(*)::int, coalesce(sum(amount_tk), 0)::int from public.earnings_ledger
+     where article_id = (select id from public.articles where title = 'অন্যের নামে প্রকাশিত প্রতিবেদন')
+       and user_id = '22000000-0000-4000-8000-000000000002'
+       and entry_type in ('article_earning_held', 'article_earning_available')$$,
+  $$values (1, 90)$$,
+  'A story published on another reporter behalf pays that reporter, not the desk'
+);
+select results_eq(
+  $$select count(*)::int from public.admin_audit_log
+     where action = 'publish_on_behalf' and target_id = (select id from public.articles where title = 'অন্যের নামে প্রকাশিত প্রতিবেদন')$$,
+  $$values (1)$$,
+  'Publishing under another name is recorded for accountability'
+);
+
+-- Re-bylining an already published story: the credited row moves and no stale attribution is
+-- left behind, which is the state articles_author_matches_anonymity exists to protect.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select lives_ok(
+  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'author', '33000000-0000-4000-8000-000000000003', null, 'বাইলাইন সংশোধন')$$,
+  'The desk can move a byline to another author'
+);
+reset role;
+select results_eq(
+  $$select author_id, is_anonymous from public.articles where slug = 'porikkha-byline'$$,
+  $$values ('33000000-0000-4000-8000-000000000003'::uuid, false)$$,
+  'The reassigned byline is credited to the new author on the public row'
+);
+select is_empty(
+  $$select article_id from public.article_attributions where article_id = (select id from public.articles where slug = 'porikkha-byline')$$,
+  'A credited story keeps no attribution row behind it'
+);
+select results_eq(
+  $$select count(*)::int from public.moderation_actions
+     where action = 'set_article_publication' and article_id = (select id from public.articles where slug = 'porikkha-byline')$$,
+  $$values (1)$$,
+  'The byline change appears in the moderation history'
+);
+
+-- Withdrawing a byline has to keep the author on file -- the desk still needs to know who was
+-- paid and who to ask -- and crediting it again must clear that record rather than leave it.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select lives_ok(
+  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'anonymous', null, null, 'লেখকের অনুরোধে নাম প্রত্যাহার')$$,
+  'The desk can withdraw a byline without losing the author'
+);
+reset role;
+select results_eq(
+  $$select a.author_id is null, a.is_anonymous, aa.author_id from public.articles a
+      join public.article_attributions aa on aa.article_id = a.id
+     where a.slug = 'porikkha-byline'$$,
+  $$values (true, true, '33000000-0000-4000-8000-000000000003'::uuid)$$,
+  'Withdrawing a byline moves the author into the attribution and off the public row'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select lives_ok(
+  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'author', '22000000-0000-4000-8000-000000000002', null, 'পুনরায় নাম প্রকাশ')$$,
+  'The desk can credit an anonymous story again'
+);
+reset role;
+select is_empty(
+  $$select article_id from public.article_attributions where article_id = (select id from public.articles where slug = 'porikkha-byline')$$,
+  'Restoring the byline clears the stale attribution'
+);
+
+-- Dating a story before it is approved: the chosen dateline has to survive approval instead of
+-- being overwritten by the moment somebody got round to pressing approve.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select lives_ok(
+  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-dateline'), 'keep', null, timestamptz '2026-08-15 09:00:00+00', 'প্রকাশের সময় নির্ধারণ')$$,
+  'The desk can date a story while it still waits for approval'
+);
+select lives_ok(
+  $$select public.moderate_article((select id from public.articles where slug = 'porikkha-dateline'), 'approve', 'নির্ধারিত তারিখে অনুমোদন')$$,
+  'A dated pending story can still be approved'
+);
+reset role;
+select results_eq(
+  $$select status::text, published_at = timestamptz '2026-08-15 09:00:00+00' from public.articles where slug = 'porikkha-dateline'$$,
+  $$values ('published', true)$$,
+  'Approval keeps the dateline the desk chose instead of stamping the moment of approval'
+);
+
+-- A date ahead of the present is capped, so a story can never claim to have gone live later
+-- than it did; a date-only change leaves the byline exactly where it was.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select lives_ok(
+  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'keep', null, now() + interval '400 days', 'ভবিষ্যতের তারিখ নির্ধারণের চেষ্টা')$$,
+  'The desk can send any date and the operation still succeeds'
+);
+reset role;
+select results_eq(
+  $$select published_at <= now() from public.articles where slug = 'porikkha-byline'$$,
+  $$values (true)$$,
+  'A publication date ahead of now is capped at the present'
+);
+select results_eq(
+  $$select author_id from public.articles where slug = 'porikkha-byline'$$,
+  $$values ('22000000-0000-4000-8000-000000000002'::uuid)$$,
+  'Changing only the date leaves the byline where it was'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select throws_ok(
+  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'keep', null, null, 'ab')$$,
+  'P0001', null,
+  'A byline or date change without a real reason is refused'
+);
+-- The desk edit form used to insist on a published story, which broke its own edit button in
+-- the moderation queue: editing a pending submission always came back as not found.
+select lives_ok(
+  $$select public.admin_update_article((select id from public.articles where slug = 'porikkha-mod'), 'মডারেটরের নিজের অপেক্ষমাণ প্রতিবেদন', 'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('পরীক্ষামূলক প্রতিবেদনের অংশ। ', 6), 'অপেক্ষমাণ অবস্থায় সম্পাদকীয় সংশোধন')$$,
+  'The desk can edit a story that has not been published yet'
+);
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+
+-- The desk reads and corrects member records. profile_details is owner-only at the table level,
+-- so this is the only door into another member's record and it is checked on both sides: who may
+-- open it, and what may be written through it.
+reset role;
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select throws_ok(
+  $$select count(*) from public.admin_member_records(null, 50)$$,
+  '42501', null,
+  'A reporter cannot list the member records'
+);
+select throws_ok(
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{"display_name":"অননুমোদিত পরিবর্তন"}'::jsonb, '{}'::jsonb, 'অননুমোদিত সম্পাদনার চেষ্টা')$$,
+  '42501', null,
+  'A reporter cannot edit another member record'
+);
+select throws_ok(
+  $$update public.profiles set username = 'reporter_new_name' where id = '22000000-0000-4000-8000-000000000002'$$,
+  '42501', null,
+  'A member cannot change their own username through the profile API'
+);
+
+reset role;
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select results_eq(
+  $$select role::text, completion_percent, total_count from public.admin_member_records('reader_1100000000004000', 10, 0)$$,
+  $$values ('reader', 13, 1::bigint)$$,
+  'The desk sees every member with their role and how complete their record is'
+);
+select lives_ok(
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{"username":"staff_reader","display_name":"সংশোধিত পাঠক নাম"}'::jsonb, '{"department":"সংশোধিত বিভাগ","session":"২০২৪-২৫"}'::jsonb, 'সদস্যের তথ্য সংশোধন')$$,
+  'The desk can change another member''s username and correct their details together'
+);
+reset role;
+select results_eq(
+  $$select p.username, p.display_name, d.department, d.session from public.profiles p
+      join public.profile_details d on d.user_id = p.id
+     where p.id = '11000000-0000-4000-8000-000000000001'$$,
+  $$values ('staff_reader', 'সংশোধিত পাঠক নাম', 'সংশোধিত বিভাগ', '২০২৪-২৫')$$,
+  'The corrected member record is stored'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select lives_ok(
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{"hall_name":"পরীক্ষামূলক হল"}'::jsonb, 'হলের নাম যোগ')$$,
+  'The desk can fill in a single field'
+);
+reset role;
+select results_eq(
+  $$select d.hall_name, p.display_name from public.profiles p
+      join public.profile_details d on d.user_id = p.id
+     where p.id = '11000000-0000-4000-8000-000000000001'$$,
+  $$values ('পরীক্ষামূলক হল', 'সংশোধিত পাঠক নাম')$$,
+  'A patch touches only the fields it carries'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select lives_ok(
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{"hall_name":""}'::jsonb, 'ভুল তথ্য মুছে ফেলা')$$,
+  'An empty value is how the desk clears a field it filled in by mistake'
+);
+reset role;
+select results_eq(
+  $$select d.hall_name is null, d.department from public.profile_details d where d.user_id = '11000000-0000-4000-8000-000000000001'$$,
+  $$values (true, 'সংশোধিত বিভাগ')$$,
+  'Clearing one field leaves the rest of the record alone'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select throws_ok(
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{"nickname":"x"}'::jsonb, '{}'::jsonb, 'অচেনা ঘরের চেষ্টা')$$,
+  'P0001', null,
+  'An unknown profile field is refused rather than dropped on the floor'
+);
+select throws_ok(
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{"completion_percent":100}'::jsonb, 'নিষিদ্ধ ঘরের চেষ্টা')$$,
+  'P0001', null,
+  'A derived field the desk must not set directly is refused'
+);
+select throws_ok(
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', jsonb_build_object('username', (select username from public.profiles where id = '22000000-0000-4000-8000-000000000002')), '{}'::jsonb, 'ইউজারনেম সংঘর্ষের চেষ্টা')$$,
+  'P0001', null,
+  'A username already taken by another member is refused as a sentence, not an index violation'
+);
+select throws_ok(
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{"residency_status":"hall_resident"}'::jsonb, 'হল ছাড়া আবাসিক')$$,
+  'P0001', null,
+  'A hall resident needs a hall name to go with it'
+);
+select throws_ok(
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{"payout_method":"bkash"}'::jsonb, 'নম্বর ছাড়া পেমেন্ট পদ্ধতি')$$,
+  'P0001', null,
+  'A payout method and its number have to arrive together'
+);
+select throws_ok(
+  $$select public.admin_update_member('00000000-0000-4000-8000-000000000000', '{}'::jsonb, '{}'::jsonb, 'অজানা সদস্য')$$,
+  'P0001', null,
+  'Editing a member who does not exist is refused'
+);
+select throws_ok(
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{}'::jsonb, 'ab')$$,
+  'P0001', null,
+  'A member record change without a real reason is refused'
+);
+reset role;
+select ok(
+  (select count(*) from public.admin_audit_log where action = 'update_member' and target_id = '11000000-0000-4000-8000-000000000001') >= 3,
+  'Every member record change is written to the accountability log'
+);
+select ok(
+  (select details ? 'profile_before' and details ? 'profile_after' and details ? 'details_before'
+     from public.admin_audit_log where action = 'update_member' and target_id = '11000000-0000-4000-8000-000000000001'
+    order by created_at limit 1),
+  'The log keeps what the desk saw as well as what it saved'
 );
 reset role;
 select set_config('request.jwt.claim.sub', '', true);

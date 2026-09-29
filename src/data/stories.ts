@@ -7,6 +7,7 @@ export type Story = {
   author: string;
   time: string;
   imageClass: string;
+  imageUrl?: string;
   isDemo?: boolean;
 };
 
@@ -23,6 +24,7 @@ export const previewStories: Story[] = [
     author: 'সম্পাদকীয় ডেস্ক',
     time: 'প্রিভিউ',
     imageClass: 'art-campus',
+    imageUrl: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&q=85',
     isDemo: true,
   },
   {
@@ -34,6 +36,7 @@ export const previewStories: Story[] = [
     author: 'সম্পাদকীয় ডেস্ক',
     time: 'প্রিভিউ',
     imageClass: 'art-library',
+    imageUrl: 'https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=1200&q=85',
     isDemo: true,
   },
   {
@@ -45,6 +48,7 @@ export const previewStories: Story[] = [
     author: 'সম্পাদকীয় ডেস্ক',
     time: 'প্রিভিউ',
     imageClass: 'art-culture',
+    imageUrl: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=85',
     isDemo: true,
   },
   {
@@ -56,6 +60,7 @@ export const previewStories: Story[] = [
     author: 'সম্পাদকীয় ডেস্ক',
     time: 'প্রিভিউ',
     imageClass: 'art-student',
+    imageUrl: 'https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&w=1200&q=85',
     isDemo: true,
   },
 ];

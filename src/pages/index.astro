@@ -2,65 +2,41 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import StoryCard from '../components/StoryCard.astro';
 import { previewStories } from '../data/stories';
+import ConnectedCarousel from '../components/ui/ConnectedCarousel.astro';
 const demoMode = import.meta.env.PUBLIC_DEMO_MODE !== 'false';
 const featured = demoMode ? previewStories[0] : null;
 const sideStories = demoMode ? previewStories.slice(1) : [];
+const carouselStories = demoMode ? previewStories : [];
 ---
 <BaseLayout
   title="ঢাকা বিশ্ববিদ্যালয়ের সংবাদমাধ্যম"
   description="ঢাকা বিশ্ববিদ্যালয়ের ক্যাম্পাস সংবাদ, শিক্ষার্থী জীবন, সংস্কৃতি, মতামত ও বিশ্ববিদ্যালয়ের গল্প—DUTIMZ-এ।"
   canonicalPath="/"
   demoMode={demoMode}
-  featured={featured}
+  featured={demoMode ? previewStories[0] : null}
 >
   <div class="portal-frame">
+    <div class="section-eyebrow"><span class="eyebrow-dot"></span> ক্যাম্পাসের খবর, ক্যাম্পাসের কণ্ঠে</div>
+    {carouselStories.length ? (
+      <ConnectedCarousel
+        items={carouselStories.map((story) => ({
+          id: story.slug,
+          stat: story.title,
+          href: `/news/${story.slug}/`,
+          imageClass: story.imageClass,
+          imageUrl: story.imageUrl,
+          alt: story.title,
+        }))}
+        label="নির্বাচিত সাম্প্রতিক প্রতিবেদন"
+      />
+    ) : (
+      <section class="lead-story lead-story--empty" aria-labelledby="featured-title">
+        <div class="lead-story__copy"><span class="lead-label"><span class="lead-label__mark">ঢা</span> পাঠকের জন্য, ক্যাম্পাসের কাছ থেকে</span><h1 id="featured-title">ঢাকা বিশ্ববিদ্যালয়ের প্রতিটি গল্পের নিজস্ব একটি মঞ্চ।</h1><p>ক্যাম্পাসের খবর, শিক্ষার্থীদের কণ্ঠ, সংস্কৃতি ও মতামত—সম্পাদিত ও যাচাই করা প্রতিবেদন পড়ুন DUTIMZ-এ।</p><a class="read-button" href="/account/write/"><span>আপনার প্রতিবেদন পাঠান</span><span class="read-button__arrow" aria-hidden="true">→</span></a></div>
+        <div class="lead-art lead-art--placeholder" aria-hidden="true"><span class="placeholder-seal">ঢা<br /><i>বি</i></span><span class="placeholder-ring placeholder-ring--one"></span><span class="placeholder-ring placeholder-ring--two"></span><span class="placeholder-caption">ক্যাম্পাসের কণ্ঠস্বর</span></div>
+      </section>
+    )}
     <div class="portal-grid">
-      <section class="editorial-main" aria-labelledby="featured-title">
-        <div class="section-eyebrow"><span class="eyebrow-dot"></span> ক্যাম্পাসের খবর, ক্যাম্পাসের কণ্ঠে</div>
-        {featured ? (
-          <article class="lead-story" data-featured-story data-story-id={featured.slug}>
-            <div class="lead-story__copy">
-              <span class="lead-label"><span class="lead-label__mark">ঢা</span> আজকের মুখ্য প্রতিবেদন</span>
-              <div class="lead-story__meta">
-                <a href={`/category/${featured.categorySlug}/`}>{featured.category}</a>
-                <span aria-hidden="true">·</span>
-                <time>{featured.time}</time>
-              </div>
-              <h1 id="featured-title"><a href={`/news/${featured.slug}/`}>{featured.title}</a></h1>
-              <p>{featured.excerpt}</p>
-              <div class="lead-story__tags"><span>#ঢাকাবিশ্ববিদ্যালয়</span><span>#ক্যাম্পাস</span></div>
-              <a class="read-button" href={`/news/${featured.slug}/`}>
-                <span>প্রতিবেদন পড়ুন</span>
-                <span class="read-button__arrow" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12h13M12 5l7 7-7 7" /></svg></span>
-              </a>
-            </div>
-            <a class="lead-art story-art" href={`/news/${featured.slug}/`} aria-label={`পড়ুন: ${featured.title}`}>
-              <span class:list={['story-art__visual story-art__visual--lead', featured.imageClass]} aria-hidden="true">
-                <span class="story-art__halo"></span>
-                <span class="story-art__line story-art__line--one"></span>
-                <span class="story-art__line story-art__line--two"></span>
-                <span class="story-art__seal story-art__seal--lead">ঢা<br /><i>বি</i></span>
-                <span class="lead-art__caption"><span class="lead-art__live-dot"></span> ঢাকা বিশ্ববিদ্যালয়ের কথা</span>
-              </span>
-              <span class="lead-art__stamp">ঢাকা<br />বিশ্ববিদ্যালয়</span>
-            </a>
-          </article>
-        ) : (
-          <section class="lead-story lead-story--empty" aria-live="polite">
-            <div class="lead-story__copy">
-              <span class="lead-label"><span class="lead-label__mark">ঢা</span> পাঠকের জন্য, ক্যাম্পাসের কাছ থেকে</span>
-              <h1 id="featured-title">ঢাকা বিশ্ববিদ্যালয়ের প্রতিটি গল্পের নিজস্ব একটি মঞ্চ।</h1>
-              <p>ক্যাম্পাসের খবর, শিক্ষার্থীদের কণ্ঠ, সংস্কৃতি ও মতামত—সম্পাদিত ও যাচাই করা প্রতিবেদন পড়ুন DUTIMZ-এ।</p>
-              <a class="read-button" href="/account/write/"><span>আপনার প্রতিবেদন পাঠান</span><span class="read-button__arrow" aria-hidden="true">→</span></a>
-            </div>
-            <div class="lead-art lead-art--placeholder" aria-hidden="true">
-              <span class="placeholder-seal">ঢা<br /><i>বি</i></span>
-              <span class="placeholder-ring placeholder-ring--one"></span>
-              <span class="placeholder-ring placeholder-ring--two"></span>
-              <span class="placeholder-caption">ক্যাম্পাসের কণ্ঠস্বর</span>
-            </div>
-          </section>
-        )}
+      <section class="editorial-main">
         <div class="feed-heading">
           <div>
             <span class="section-kicker">সাম্প্রতিক</span>

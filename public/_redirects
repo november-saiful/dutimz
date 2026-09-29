@@ -1,4 +1,3 @@
-https://www.dutimz.com/* https://dutimz.com/:splat 301
 /news/:slug /news/:slug/ 301
 /category/:slug /category/:slug/ 301
 /u/:username /u/:username/ 301

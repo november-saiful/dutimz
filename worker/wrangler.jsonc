@@ -13,7 +13,7 @@
   ],
   "images": { "binding": "IMAGES" },
   "vars": {
-    "ALLOWED_ORIGIN": "https://dutimz.com",
+    "ALLOWED_ORIGINS": "https://dutimz.com,https://www.dutimz.com",
     "OPTIMIZE_IMAGES": "false"
   }
 }

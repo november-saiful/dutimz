@@ -47,11 +47,33 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
         <section class="admin-panel admin-user-lookup">
           <span class="section-kicker">অ্যাকাউন্ট খুঁজুন</span><h2>নাম বা ইউজারনেম দিয়ে সদস্য খুঁজুন</h2>
           <form class="admin-search-form" data-admin-user-search>
-            <label class="field-label" for="admin-user-query">সদস্যের নাম / ইউজারনেম<input id="admin-user-query" name="query" type="search" minlength="2" maxlength="80" placeholder="যেমন: পাঠক বা reader_…" required /></label>
+            <label class="field-label" for="admin-user-query">সদস্যের নাম / ইউজারনেম<input id="admin-user-query" name="query" type="search" maxlength="80" placeholder="যেমন: পাঠক বা reader_…" /></label>
             <button class="outline-button" type="submit">সদস্য খুঁজুন</button>
           </form>
+          <p class="member-directory__status" data-admin-user-count aria-live="polite"></p>
           <p class="form-error" role="alert" data-admin-user-search-error hidden></p>
-          <div class="admin-search-results" data-admin-user-results aria-live="polite"><div class="feed-empty"><strong>নাম বা ইউজারনেম লিখে সদস্য খুঁজুন।</strong></div></div>
+          <button class="text-link-button" type="button" data-admin-user-clear>সব সদস্য</button>
+          <div class="admin-search-results" data-admin-user-results aria-live="polite"><div class="feed-empty"><strong>সদস্য তালিকা লোড হচ্ছে…</strong></div></div>
+          <nav class="member-directory__pagination" aria-label="সদস্য তালিকার পৃষ্ঠা"><button class="outline-button" type="button" data-admin-user-prev disabled>আগের পৃষ্ঠা</button><span data-admin-user-page aria-live="polite"></span><button class="outline-button" type="button" data-admin-user-next disabled>পরের পৃষ্ঠা</button></nav>
+        </section>
+        <section class="admin-panel admin-member-editor" data-member-editor-panel hidden>
+          <span class="section-kicker">তথ্য সম্পাদনা</span><h2 data-member-editor-title>সদস্য নির্বাচন করুন</h2>
+          <p class="admin-selection" data-member-editor-selection>তালিকা থেকে একজন সদস্য বেছে নিলে তাঁর তথ্য এখানে খুলবে।</p>
+          <form class="member-editor" data-member-editor>
+            <input type="hidden" name="user_id" />
+            <div class="editor-two-col"><label class="field-label">প্রদর্শিত নাম<input name="display_name" maxlength="80" /></label><label class="field-label">ইউজারনেম<input name="username" required minlength="3" maxlength="24" pattern="[a-zA-Z][a-zA-Z0-9_]{2,23}" /></label></div>
+            <label class="field-label">পরিচিতি (সর্বোচ্চ ২৮০ অক্ষর)<textarea name="bio" rows="3" maxlength="280"></textarea></label>
+            <label class="field-label">প্রোফাইল ছবির লিংক<input name="avatar_url" maxlength="2048" placeholder="https://…" /></label>
+            <div class="editor-two-col"><label class="field-label">ভূমিকা<select name="role"><option value="reader">রিডার</option><option value="reporter">রিপোর্টার</option><option value="moderator">মডারেটর</option><option value="admin">অ্যাডমিন</option></select></label><label class="field-label">রিপোর্টার স্তর<select name="reporter_tier"><option value="">প্রযোজ্য নয়</option><option value="junior">জুনিয়র — ৳৯০</option><option value="general">জেনারেল — ৳১১৫</option><option value="executive">এক্সিকিউটিভ — ৳১৪০</option></select></label></div>
+            <div class="editor-two-col"><label class="field-label">বিভাগ<input name="department" maxlength="100" /></label><label class="field-label">বর্ষ / সেশন<input name="session" maxlength="24" /></label></div>
+            <div class="editor-two-col"><label class="field-label">বিশ্ববিদ্যালয় নিবন্ধন নম্বর<input name="du_registration_number" maxlength="40" /></label><label class="field-label">আবাসিক অবস্থা<select name="residency_status"><option value="">অনির্ধারিত</option><option value="hall_resident">হল-আবাসিক</option><option value="off_campus">হলের বাইরে</option></select></label></div>
+            <div class="editor-two-col"><label class="field-label">হলের নাম<input name="hall_name" maxlength="120" /></label><label class="field-label">হোয়াটসঅ্যাপ নম্বর<input name="whatsapp_number" maxlength="24" /></label></div>
+            <label class="field-check"><input type="checkbox" name="whatsapp_na" /> হোয়াটসঅ্যাপ নম্বর দিতে চান না</label>
+            <div class="editor-two-col"><label class="field-label">পেমেন্ট পদ্ধতি<select name="payout_method"><option value="">নির্ধারিত নয়</option><option value="bkash">বিকাশ</option><option value="nagad">নগদ</option></select></label><label class="field-label">পেমেন্ট নম্বর<input name="payout_number" maxlength="24" /></label></div>
+            <label class="field-label">পরিবর্তনের কারণ<textarea name="reason" rows="3" minlength="3" maxlength="500" required></textarea></label>
+            <p class="form-error" role="alert" data-member-editor-error hidden></p>
+            <button class="read-button" type="submit"><span>সদস্যের তথ্য সংরক্ষণ করুন</span><span>→</span></button>
+          </form>
         </section>
         <section class="admin-panel">
           <span class="section-kicker">ব্যবহারকারীর ভূমিকা</span><h2>ভূমিকা পরিবর্তন করুন</h2>

@@ -3,7 +3,7 @@ interface Env {
   IMAGES: ImagesBinding;
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
-  ALLOWED_ORIGIN: string;
+  ALLOWED_ORIGINS: string;
   OPTIMIZE_IMAGES?: string;
 }
 
@@ -33,7 +33,10 @@ const MIME_EXTENSIONS: Record<string, string> = {
   'audio/ogg': 'ogg', 'audio/mp4': 'm4a', 'video/mp4': 'mp4', 'video/webm': 'webm',
 };
 
-function response(body: BodyInit | null, status: number, origin: string, allowedOrigin: string, headers?: HeadersInit) {
+function allowedOrigins(env: Env) {
+  return new Set(env.ALLOWED_ORIGINS.split(',').map((value) => value.trim()).filter(Boolean));
+}
+function response(body: BodyInit | null, status: number, allowedOrigin: string, headers?: HeadersInit) {
   const output = new Headers(headers);
   output.set('Access-Control-Allow-Origin', allowedOrigin);
   output.set('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS');
@@ -42,10 +45,10 @@ function response(body: BodyInit | null, status: number, origin: string, allowed
   output.set('Vary', 'Origin');
   return new Response(body, { status, headers: output });
 }
-function json(payload: unknown, status: number, origin: string, env: Env, additional?: HeadersInit) {
+function json(payload: unknown, status: number, allowedOrigin: string, additional?: HeadersInit) {
   const headers = new Headers({ 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
   new Headers(additional).forEach((value, key) => headers.set(key, value));
-  return response(JSON.stringify(payload), status, origin, env.ALLOWED_ORIGIN, headers);
+  return response(JSON.stringify(payload), status, allowedOrigin, headers);
 }
 function cleanMime(value: string) { return value.split(';', 1)[0]!.trim().toLowerCase(); }
 function isUuid(value: string) { return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
@@ -115,17 +118,17 @@ async function createDerivative(env: Env, originalKey: string, originalMime: str
   }
 }
 
-async function upload(request: Request, env: Env, origin: string) {
-  if (!request.body) return json({ error: 'ফাইলের তথ্য পাওয়া যায়নি।' }, 400, origin, env);
+async function upload(request: Request, env: Env, allowedOrigin: string) {
+  if (!request.body) return json({ error: 'ফাইলের তথ্য পাওয়া যায়নি।' }, 400, allowedOrigin);
   const user = await currentUser(request, env);
-  if (!user) return json({ error: 'ফাইল পাঠাতে আগে গুগল দিয়ে প্রবেশ করুন।' }, 401, origin, env);
+  if (!user) return json({ error: 'ফাইল পাঠাতে আগে গুগল দিয়ে প্রবেশ করুন।' }, 401, allowedOrigin);
   const role = await currentRole(request, env, user.id);
-  if (!role || !['reporter', 'moderator', 'admin'].includes(role.role)) return json({ error: 'ফাইল পাঠাতে সম্পাদকীয় অনুমতি প্রয়োজন।' }, 403, origin, env);
+  if (!role || !['reporter', 'moderator', 'admin'].includes(role.role)) return json({ error: 'ফাইল পাঠাতে সম্পাদকীয় অনুমতি প্রয়োজন।' }, 403, allowedOrigin);
   const mime = cleanMime(request.headers.get('Content-Type') ?? '');
-  if (!ALLOWED_TYPES.has(mime)) return json({ error: 'এই ফাইলের ধরন অনুমোদিত নয়।' }, 415, origin, env);
+  if (!ALLOWED_TYPES.has(mime)) return json({ error: 'এই ফাইলের ধরন অনুমোদিত নয়। HEIC ফাইল সমর্থিত নয়; JPEG, PNG, WebP, GIF বা AVIF ব্যবহার করুন।' }, 415, allowedOrigin);
   const maximum = mime.startsWith('image/') ? MAX_IMAGE_BYTES : mime.startsWith('video/') || mime.startsWith('audio/') ? MAX_VIDEO_BYTES : MAX_DOCUMENT_BYTES;
   const declaredSize = Number(request.headers.get('Content-Length') ?? 0);
-  if (declaredSize > maximum) return json({ error: `এই ফাইলের আকার সর্বোচ্চ ${Math.round(maximum / (1024 * 1024))} মেগাবাইট হতে পারে।` }, 413, origin, env);
+  if (declaredSize > maximum) return json({ error: `এই ফাইলের আকার সর্বোচ্চ ${Math.round(maximum / (1024 * 1024))} মেগাবাইট হতে পারে।` }, 413, allowedOrigin);
   const limited = limitBody(request.body, maximum);
   const extension = MIME_EXTENSIONS[mime];
   const id = crypto.randomUUID();
@@ -136,12 +139,12 @@ async function upload(request: Request, env: Env, origin: string) {
       customMetadata: { ownerId: user.id, mediaAssetId: id },
     });
   } catch (error) {
-    if (error instanceof Error && error.message === 'UPLOAD_TOO_LARGE') return json({ error: `ফাইলের আকার সর্বোচ্চ ${Math.round(maximum / (1024 * 1024))} মেগাবাইট হতে পারে।` }, 413, origin, env);
+    if (error instanceof Error && error.message === 'UPLOAD_TOO_LARGE') return json({ error: `ফাইলের আকার সর্বোচ্চ ${Math.round(maximum / (1024 * 1024))} মেগাবাইট হতে পারে।` }, 413, allowedOrigin);
     console.error('R2 upload failed', error);
-    return json({ error: 'ফাইলটি নিরাপদে সংরক্ষণ করা যায়নি।' }, 502, origin, env);
+    return json({ error: 'ফাইলটি নিরাপদে সংরক্ষণ করা যায়নি।' }, 502, allowedOrigin);
   }
   const original = await env.MEDIA_BUCKET.head(originalKey);
-  if (!original?.size) return json({ error: 'ফাইল সংরক্ষণের যাচাই সম্পন্ন হয়নি।' }, 502, origin, env);
+  if (!original?.size) return json({ error: 'ফাইল সংরক্ষণের যাচাই সম্পন্ন হয়নি।' }, 502, allowedOrigin);
   const derivative = await createDerivative(env, originalKey, mime, original.size);
   const metadata: Omit<MediaAsset, 'created_at'> = {
     id,
@@ -166,7 +169,7 @@ async function upload(request: Request, env: Env, origin: string) {
     await env.MEDIA_BUCKET.delete([originalKey, ...(derivative ? [derivative.key] : [])]);
     const detail = await supabaseResponse.text();
     console.error('Media record rejected', detail);
-    return json({ error: 'মিডিয়ার নিরাপদ তথ্য নথিভুক্ত করা যায়নি।' }, 502, origin, env);
+    return json({ error: 'মিডিয়ার নিরাপদ তথ্য নথিভুক্ত করা যায়নি।' }, 502, allowedOrigin);
   }
   return json({
     id,
@@ -175,11 +178,11 @@ async function upload(request: Request, env: Env, origin: string) {
     derivativeBytes: derivative?.bytes ?? null,
     optimized: Boolean(derivative),
     compression: derivative ? 'webp-optimized-smaller' : 'original-retained',
-  }, 201, origin, env);
+  }, 201, allowedOrigin);
 }
 
-async function serveMedia(request: Request, env: Env, origin: string, mediaId: string, headOnly: boolean) {
-  if (!isUuid(mediaId)) return json({ error: 'ফাইল পাওয়া যায়নি।' }, 404, origin, env);
+async function serveMedia(request: Request, env: Env, allowedOrigin: string, mediaId: string, headOnly: boolean) {
+  if (!isUuid(mediaId)) return json({ error: 'ফাইল পাওয়া যায়নি।' }, 404, allowedOrigin);
   const user = await currentUser(request, env);
   const token = request.headers.get('Authorization') ?? `Bearer ${env.SUPABASE_ANON_KEY}`;
   // Resolve the object through the SECURITY DEFINER RPC so anonymous readers can
@@ -189,35 +192,41 @@ async function serveMedia(request: Request, env: Env, origin: string, mediaId: s
     headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: token, 'Content-Type': 'application/json' },
     body: JSON.stringify({ p_media_id: mediaId }),
   });
-  if (!result.ok) return json({ error: 'ফাইল পাওয়া যায়নি।' }, 404, origin, env);
+  if (!result.ok) return json({ error: 'ফাইল পাওয়া যায়নি।' }, 404, allowedOrigin);
   const asset = (await jsonFromResponse<MediaAsset[]>(result))[0];
-  if (!asset) return json({ error: 'এই ফাইলটি দেখার অনুমতি নেই।' }, 404, origin, env);
+  if (!asset) return json({ error: 'এই ফাইলটি দেখার অনুমতি নেই।' }, 404, allowedOrigin);
   const preferred = asset.derivative_key && asset.derivative_bytes && asset.derivative_bytes < asset.original_bytes ? asset.derivative_key : asset.original_key;
-  if (!safeKey(preferred)) return json({ error: 'ফাইল পাওয়া যায়নি।' }, 404, origin, env);
+  if (!safeKey(preferred)) return json({ error: 'ফাইল পাওয়া যায়নি।' }, 404, allowedOrigin);
   const object = await env.MEDIA_BUCKET.get(preferred, { range: request.headers });
-  if (!object) return json({ error: 'ফাইল পাওয়া যায়নি।' }, 404, origin, env);
+  if (!object) return json({ error: 'ফাইল পাওয়া যায়নি।' }, 404, allowedOrigin);
   const headers = new Headers();
   object.writeHttpMetadata(headers);
   headers.set('ETag', object.httpEtag);
   headers.set('Cache-Control', user?.id === asset.owner_id ? 'private, max-age=0, must-revalidate' : 'public, max-age=86400, stale-while-revalidate=604800');
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('Content-Security-Policy', "default-src 'none'; sandbox");
-  headers.set('Access-Control-Allow-Origin', env.ALLOWED_ORIGIN);
+  headers.set('Access-Control-Allow-Origin', allowedOrigin);
   headers.set('Vary', 'Origin');
-  return response(headOnly ? null : object.body, object.httpEtag === request.headers.get('If-None-Match') ? 304 : 200, origin, env.ALLOWED_ORIGIN, headers);
+  return response(headOnly ? null : object.body, object.httpEtag === request.headers.get('If-None-Match') ? 304 : 200, allowedOrigin, headers);
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const origin = request.headers.get('Origin') ?? env.ALLOWED_ORIGIN;
-    if (origin !== env.ALLOWED_ORIGIN) return new Response('Forbidden', { status: 403, headers: { 'Vary': 'Origin' } });
+    const origin = request.headers.get('Origin');
+    const allowed = allowedOrigins(env);
+    const allowedOrigin = origin && allowed.has(origin) ? origin : null;
+    if (origin && !allowedOrigin) return new Response('Forbidden', { status: 403, headers: { 'Vary': 'Origin' } });
+    const corsOrigin = allowedOrigin ?? [...allowed][0] ?? '';
     const url = new URL(request.url);
-    if (request.method === 'OPTIONS') return response(null, 204, origin, env.ALLOWED_ORIGIN);
-    if (url.pathname === '/health') return json({ ok: true, service: 'dutimz-media' }, 200, origin, env);
-    if ((url.pathname === '/upload' || url.pathname === '/media/upload') && request.method === 'POST') return upload(request, env, origin);
-    if (url.pathname.startsWith('/media/') && (request.method === 'GET' || request.method === 'HEAD')) {
-      return serveMedia(request, env, origin, decodeURIComponent(url.pathname.slice('/media/'.length)), request.method === 'HEAD');
+    if (request.method === 'OPTIONS') {
+      if (!allowedOrigin) return new Response(null, { status: 403, headers: { 'Vary': 'Origin' } });
+      return response(null, 204, allowedOrigin);
     }
-    return json({ error: 'এই মিডিয়া অনুরোধ সমর্থিত নয়।' }, 404, origin, env);
+    if (url.pathname === '/health') return json({ ok: true, service: 'dutimz-media' }, 200, corsOrigin);
+    if ((url.pathname === '/upload' || url.pathname === '/media/upload') && request.method === 'POST') return upload(request, env, corsOrigin);
+    if (url.pathname.startsWith('/media/') && (request.method === 'GET' || request.method === 'HEAD')) {
+      return serveMedia(request, env, corsOrigin, decodeURIComponent(url.pathname.slice('/media/'.length)), request.method === 'HEAD');
+    }
+    return json({ error: 'এই মিডিয়া অনুরোধ সমর্থিত নয়।' }, 404, corsOrigin);
   },
 };

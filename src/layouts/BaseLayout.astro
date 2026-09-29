@@ -25,6 +25,9 @@ const fullTitle = title.includes('DUTIMZ') ? title : `${title} | DUTIMZ`;
 const ORIGIN = 'https://dutimz.com';
 const OG_BANNER = `${ORIGIN}/og-banner.png`;
 const BRAND_WORDMARK = `${ORIGIN}/dutimz-text-logo.svg`;
+const supabaseOrigin = import.meta.env.PUBLIC_SUPABASE_URL
+  ? new URL(import.meta.env.PUBLIC_SUPABASE_URL).origin
+  : undefined;
 ---
 <!doctype html>
 <html lang="bn">
@@ -38,6 +41,7 @@ const BRAND_WORDMARK = `${ORIGIN}/dutimz-text-logo.svg`;
     <link rel="canonical" href={canonical} />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/brand-icon.svg" />
+    {supabaseOrigin && <link rel="preconnect" href={supabaseOrigin} crossorigin />}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -136,6 +140,7 @@ const BRAND_WORDMARK = `${ORIGIN}/dutimz-text-logo.svg`;
         <span class="section-kicker">আপনার প্রোফাইল</span>
         <h2 id="profile-modal-title">ঢাকা বিশ্ববিদ্যালয়ের সঙ্গে আপনার যোগসূত্র</h2>
         <p class="profile-modal__intro">তথ্যগুলো ব্যক্তিগত থাকবে। এখন যতটুকু পারেন পূরণ করুন; উত্তোলন সুবিধার জন্য প্রোফাইল সম্পূর্ণ করতে হবে।</p>
+        <p class="profile-modal__reason" role="status" data-profile-modal-reason hidden></p>
         <div class="profile-progress-summary"><span>প্রোফাইল সম্পূর্ণ</span><strong data-modal-percent>০%</strong></div>
         <div class="completion-track completion-track--modal"><span data-modal-progress style="width:0%"></span></div>
         <div class="profile-fields">

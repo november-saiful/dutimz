@@ -42,6 +42,12 @@ jobs:
         run: npm run check --prefix worker
       - name: Build production portal
         run: npm run build
+      - name: Install the Chromium used by the layout checks
+        # The overflow guard measures real layout, so it needs a real engine.
+        run: npx playwright install --with-deps chromium
+      - name: Run interface and layout tests
+        # test:ui rebuilds, so this also re-checks the pages the guard measures.
+        run: npm run test:ui
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:

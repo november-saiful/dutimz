@@ -3,6 +3,7 @@
 interface Env {
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
+  ASSETS: Fetcher;
   PUBLIC_DEMO_MODE?: string;
   SITE_URL: string;
   MEDIA_URL: string;

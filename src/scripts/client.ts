@@ -1,13 +1,14 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { syncTopbarState } from './header-state.mjs';
 import { bindAccountPopup } from './account-menu.mjs';
+import { initConnectedCarousel } from './connected-carousel';
 import { collectQuestionnaireAnswers, initPublicQuestionnaireStats, initQuestionnaireAdmin, renderQuestionnaire, type QuestionnaireDefinition } from './questionnaire';
 
 type PublicConfig = { supabaseUrl: string; supabaseAnonKey: string; mediaUrl: string; demoMode: boolean };
 type Role = 'reader' | 'reporter' | 'moderator' | 'admin';
 type Tier = 'junior' | 'general' | 'executive' | null;
 type Profile = { id: string; username: string; display_name: string; avatar_url: string | null; bio?: string };
-type Article = { id: string; slug: string; title: string; excerpt: string; body: string; published_at: string | null; created_at: string; status: string; author_id: string; hero_media_key: string | null; article_media?: { media_id: string; position: number }[] | null; category: { slug: string; title_bn: string } | { slug: string; title_bn: string }[]; profiles: { username: string; display_name: string; avatar_url: string | null } | { username: string; display_name: string; avatar_url: string | null }[] };
+type Article = { id: string; slug: string; title: string; excerpt: string; body: string; published_at: string | null; created_at: string; status: string; is_anonymous?: boolean | null; author_id: string | null; hero_media_key: string | null; article_media?: { media_id: string; position: number }[] | null; category: { slug: string; title_bn: string } | { slug: string; title_bn: string }[]; profiles: { username: string; display_name: string; avatar_url: string | null } | { username: string; display_name: string; avatar_url: string | null }[] | null };
 
 type Correction = { article_id: string; slug: string; title: string; revision: number; reason: string; editor_label: string; headline_changed: boolean; body_changed: boolean; edited_at: string };
 
@@ -29,7 +30,6 @@ let reporterTier: Tier = null;
 let currentArticles: Article[] = [];
 let profileCompletion = 0;
 let demoMode = true;
-let profilePromptShown = false;
 let searchAbort = 0;
 let refreshBusy = false;
 
@@ -66,10 +66,23 @@ function relativeTime(value: string | null | undefined) {
 function publicName(profile: { display_name?: string | null; username?: string | null } | null | undefined) { return profile?.display_name?.trim() || `@${profile?.username || 'পাঠক'}`; }
 
 async function loadConfig() {
+  let storedConfig: PublicConfig | null = null;
   try {
-    const response = await fetch('/api/config.json', { cache: 'no-store' });
-    if (response.ok) config = { ...config, ...await response.json() as PublicConfig };
-  } catch (error) { console.warn('DUTIMZ configuration is not available yet', error); }
+    const stored = sessionStorage.getItem('dutimz-public-config');
+    if (stored) storedConfig = JSON.parse(stored) as PublicConfig;
+  } catch (error) { console.warn('Cached DUTIMZ configuration is not available', error); }
+  if (storedConfig) config = { ...config, ...storedConfig };
+  else {
+    try {
+      const response = await fetch('/api/config.json', { cache: 'no-store' });
+      if (response.ok) {
+        const publicConfig = await response.json() as PublicConfig;
+        config = { ...config, ...publicConfig };
+        try { sessionStorage.setItem('dutimz-public-config', JSON.stringify(publicConfig)); }
+        catch (error) { console.warn('Unable to cache DUTIMZ configuration for this tab', error); }
+      }
+    } catch (error) { console.warn('DUTIMZ configuration is not available yet', error); }
+  }
   demoMode = document.body.dataset.demoMode === 'true' || (config.demoMode && !config.supabaseUrl);
   if (config.supabaseUrl && config.supabaseAnonKey) {
     supabase = createClient(config.supabaseUrl, config.supabaseAnonKey, {
@@ -147,6 +160,8 @@ function paintAuthState() {
   const signOut = document.querySelector<HTMLButtonElement>('[data-sign-out]');
   if (signOut) signOut.hidden = !authUser;
   renderAccountLinks();
+  const uploadPermissionNote = document.querySelector<HTMLElement>('[data-upload-permission-note]');
+  if (uploadPermissionNote) uploadPermissionNote.hidden = !authUser || authRole !== 'reader';
   if (typeof supabase !== 'undefined') window.setTimeout(() => initQuestionnaireAdmin(supabase, () => authRole === 'admin', (message, isError) => toast(message, isError), setMessage), 0);
 }
 function setCompletion(percent: number) {
@@ -234,7 +249,11 @@ async function loadIdentity(user: User) {
   if (reporterSubtitle) reporterSubtitle.textContent = authRole === 'reporter' || authRole === 'moderator' || authRole === 'admin' ? 'প্রতিবেদন পাঠান ও আপনার লেখা পরিচালনা করুন' : 'নিজের লেখা ও প্রস্তাবনা পাঠান';
   setSelectorHidden('[data-dashboard-moderation]', authRole !== 'moderator' && authRole !== 'admin');
   setSelectorHidden('[data-dashboard-admin]', authRole !== 'admin');
-  await loadWalletHistory(user.id); await loadSavedStories(user.id); await loadOwnArticles(); await maybeOpenProfilePrompt();
+  await Promise.all([
+    loadWalletHistory(user.id),
+    loadSavedStories(user.id),
+    loadOwnArticles(),
+  ]);
 }
 async function reloadRole() {
   if (!supabase || !authUser) return;
@@ -242,20 +261,36 @@ async function reloadRole() {
   if (!result.error) { authRole = (result.data?.role as Role | undefined) ?? 'reader'; reporterTier = (result.data?.reporter_tier as Tier | undefined) ?? null; }
 }
 function categoryInfo(article: Article) { return single(article.category) ?? { slug: 'campus', title_bn: 'ক্যাম্পাস' }; }
-function authorInfo(article: Article) { return single(article.profiles) ?? { username: 'reader', display_name: 'পাঠক', avatar_url: null }; }
-function storyImageClass(slug: string) { return slug.includes('culture') || slug.includes('opinion') ? 'art-culture' : slug.includes('university') ? 'art-library' : slug.includes('student') ? 'art-student' : 'art-campus'; }
-function getFeaturedStory() { return currentArticles[0] ?? null; }
-function updateFeatured(article: Article) {
-  const root = document.querySelector<HTMLElement>('[data-featured-story]'); if (!root) return;
-  root.dataset.storyId = article.id; const titleLink = root.querySelector<HTMLAnchorElement>('h1 a'); const category = categoryInfo(article);
-  if (titleLink) { titleLink.href = `/news/${encodeURIComponent(article.slug)}/`; titleLink.textContent = article.title; }
-  const body = root.querySelector<HTMLElement>('.lead-story__copy > p'); if (body) body.textContent = article.excerpt;
-  const meta = root.querySelector<HTMLElement>('.lead-story__meta'); if (meta) meta.innerHTML = `<a href="/category/${attr(category.slug)}/">${escapeHtml(category.title_bn)}</a><span aria-hidden="true">·</span><time>${escapeHtml(relativeTime(article.published_at))}</time>`;
-  const button = root.querySelector<HTMLAnchorElement>('.lead-story__copy > .read-button'); if (button) button.href = `/news/${encodeURIComponent(article.slug)}/`;
+// A story filed anonymously carries no author on its own row, so the card must not
+// reach for a profile that is not there. The label states the choice instead.
+const ANONYMOUS_BYLINE = 'নাম প্রকাশে অনিচ্ছুক';
+function authorInfo(article: Article) {
+  if (article.is_anonymous) return { username: '', display_name: ANONYMOUS_BYLINE, avatar_url: null };
+  return single(article.profiles) ?? { username: 'reader', display_name: 'পাঠক', avatar_url: null };
 }
+// Only a credited author has a profile to link to; an anonymous byline is plain text.
+function bylineMarkup(author: { username: string; display_name: string }) {
+  return author.username
+    ? `<a class="story-byline" href="/u/${encodeURIComponent(author.username)}/">${escapeHtml(publicName(author))}</a>`
+    : `<span class="story-byline story-byline--anonymous">${escapeHtml(publicName(author))}</span>`;
+}
+// Desk-side credits name the reporter only when the reader is allowed to see the
+// attribution (an admin). A moderator who cannot read it must not be handed an
+// invented name, so the label stands alone.
+function anonymousCredit(name: string | null) {
+  return `<span class="anon-badge">${ANONYMOUS_BYLINE}</span>${name ? ` <strong>${escapeHtml(name)}</strong>` : ''}`;
+}
+// The article page's larger byline follows the same rule as the cards: only a
+// credited reporter gets a profile to click through to.
+function authorCreditMarkup(author: { username: string; display_name: string }) {
+  return author.username
+    ? `<a href="/u/${encodeURIComponent(author.username)}/"><strong>${escapeHtml(publicName(author))}</strong></a>`
+    : `<strong class="story-byline--anonymous">${escapeHtml(publicName(author))}</strong>`;
+}
+function storyImageClass(slug: string) { return slug.includes('culture') || slug.includes('opinion') ? 'art-culture' : slug.includes('university') ? 'art-library' : slug.includes('student') ? 'art-student' : 'art-campus'; }
 function renderStoryCard(article: Article, rank = 0, compact = false) {
   const category = categoryInfo(article); const author = authorInfo(article); const url = `/news/${encodeURIComponent(article.slug)}/`;
-  return `<article class="story-card${compact ? ' story-card--compact' : ''}" data-story-card data-story-id="${attr(article.id)}">${rank ? `<span class="story-rank" aria-hidden="true">${digits.format(rank)}</span>` : ''}<a class="story-card__art story-art" href="${url}" aria-label="পড়ুন: ${attr(article.title)}"><span class="story-art__visual ${storyImageClass(category.slug)}" aria-hidden="true"><span class="story-art__halo"></span><span class="story-art__line story-art__line--one"></span><span class="story-art__line story-art__line--two"></span><span class="story-art__seal">ঢা<br><i>বি</i></span><span class="story-art__pill">ঢাকা বিশ্ববিদ্যালয়</span></span><span class="story-card__category">${escapeHtml(category.title_bn)}</span></a><div class="story-card__body"><div class="story-meta"><a href="/category/${attr(category.slug)}/">${escapeHtml(category.title_bn)}</a><span aria-hidden="true">·</span><time>${escapeHtml(relativeTime(article.published_at))}</time></div><h3><a href="${url}">${escapeHtml(article.title)}</a></h3>${compact ? '' : `<p>${escapeHtml(article.excerpt)}</p>`}<div class="story-card__footer"><a class="story-byline" href="/u/${encodeURIComponent(author.username)}/">${escapeHtml(publicName(author))}</a><a class="round-arrow" href="${url}" aria-label="পড়ুন: ${attr(article.title)}"><svg viewBox="0 0 24 24"><path d="M5 12h13M12 5l7 7-7 7"/></svg></a></div></div></article>`;
+  return `<article class="story-card${compact ? ' story-card--compact' : ''}" data-story-card data-story-id="${attr(article.id)}">${rank ? `<span class="story-rank" aria-hidden="true">${digits.format(rank)}</span>` : ''}<a class="story-card__art story-art" href="${url}" aria-label="পড়ুন: ${attr(article.title)}"><span class="story-art__visual ${storyImageClass(category.slug)}" aria-hidden="true"><span class="story-art__halo"></span><span class="story-art__line story-art__line--one"></span><span class="story-art__line story-art__line--two"></span><span class="story-art__seal">ঢা<br><i>বি</i></span><span class="story-art__pill">ঢাকা বিশ্ববিদ্যালয়</span></span><span class="story-card__category">${escapeHtml(category.title_bn)}</span></a><div class="story-card__body"><div class="story-meta"><a href="/category/${attr(category.slug)}/">${escapeHtml(category.title_bn)}</a><span aria-hidden="true">·</span><time>${escapeHtml(relativeTime(article.published_at))}</time></div><h3><a href="${url}">${escapeHtml(article.title)}</a></h3>${compact ? '' : `<p>${escapeHtml(article.excerpt)}</p>`}<div class="story-card__footer">${bylineMarkup(author)}<a class="round-arrow" href="${url}" aria-label="পড়ুন: ${attr(article.title)}"><svg viewBox="0 0 24 24"><path d="M5 12h13M12 5l7 7-7 7"/></svg></a></div></div></article>`;
 }
 function renderSidebar(articles: Article[]) {
   const feature = document.querySelector<HTMLElement>('[data-recommended-feature]'); const list = document.querySelector<HTMLElement>('#recommended-list'); const empty = document.querySelector<HTMLElement>('[data-sidebar-empty]');
@@ -373,7 +408,7 @@ async function loadArticles() {
   const categorySlug = document.querySelector<HTMLElement>('[data-category-slug]')?.dataset.categorySlug;
   if (publicProfile[0] === 'u' && publicProfile[1]) { await loadPublicProfile(); return; }
   if (!supabase || demoMode) return;
-  const select = `id,slug,title,excerpt,body,published_at,created_at,status,author_id,hero_media_key,category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url)${articleSlug ? ',article_media(media_id,position)' : ''}`;
+  const select = `id,slug,title,excerpt,${articleSlug ? 'body,' : ''}published_at,created_at,status,is_anonymous,author_id,hero_media_key,category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url)${articleSlug ? ',article_media(media_id,position)' : ''}`;
   let query = supabase.from('articles').select(select).eq('status', 'published').order('published_at', { ascending: false }).limit(40);
   if (articleSlug) query = supabase.from('articles').select(select).eq('status', 'published').eq('slug', articleSlug).limit(1);
   if (categorySlug) query = supabase.from('articles').select(select).eq('status', 'published').eq('category.slug', categorySlug).order('published_at', { ascending: false }).limit(40);
@@ -442,7 +477,7 @@ async function renderArticlePage(article: Article) {
     }
     gallery = `<section class="article-gallery" aria-label="ছবির গ্যালারি"><div class="feed-heading"><div><span class="section-kicker">প্রতিবেদনের ছবি</span><h2>ছবির গ্যালারি</h2></div><span>${digits.format(galleryItems.length)}টি</span></div><div class="article-gallery__grid">${figures.join('')}</div></section>`;
   }
-  root.innerHTML = `<nav class="article-breadcrumbs" aria-label="অবস্থান"><a href="/">মূলপাতা</a><span>›</span><a href="/category/${attr(category.slug)}/">${escapeHtml(category.title_bn)}</a></nav><header class="article-header"><div class="story-meta"><a href="/category/${attr(category.slug)}/">${escapeHtml(category.title_bn)}</a><span>·</span><time datetime="${attr(article.published_at)}">${escapeHtml(timestamp(article.published_at))}</time></div><h1>${escapeHtml(article.title)}</h1><p class="article-excerpt">${escapeHtml(article.excerpt)}</p><div class="article-author-row"><span class="article-author-avatar">ঢা</span><div class="article-author-info"><a href="/u/${encodeURIComponent(author.username)}/"><strong>${escapeHtml(publicName(author))}</strong></a><time datetime="${attr(article.published_at)}">প্রকাশিত ${escapeHtml(timestamp(article.published_at))}</time></div></div></header>${hero}<article class="article-body">${body}</article>${gallery}<div class="article-actions"><div class="article-actions__group"><button class="action-pill" type="button" data-reaction-button><svg viewBox="0 0 24 24"><path d="M20.8 8.9c0 5.1-8.8 11.1-8.8 11.1S3.2 14 3.2 8.9a4.3 4.3 0 0 1 8.1-2 4.3 4.3 0 0 1 9.5 2Z"/></svg><span data-reaction-count>০</span><span>ভালো লেগেছে</span></button><button class="action-pill" type="button" data-bookmark-button><svg viewBox="0 0 24 24"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.8L6 21z"/></svg><span data-bookmark-label>সংরক্ষণ</span></button></div><div class="article-actions__group"><button class="action-pill" type="button" data-share-button>শেয়ার করুন ↗</button><a class="action-pill" href="mailto:corrections@dutimz.com?subject=${encodeURIComponent(`সংশোধন: ${article.title}`)}">সংশোধন জানান</a></div></div><section class="comments-section"><div class="feed-heading"><div><span class="section-kicker">পাঠকের আলোচনা</span><h2>মন্তব্য</h2></div><span data-comment-total>০টি</span></div><form class="comment-form" data-comment-form><label class="sr-only" for="comment-body">আপনার মন্তব্য</label><textarea id="comment-body" name="body" maxlength="2000" placeholder="শ্রদ্ধাশীল ভাষায় আপনার মতামত লিখুন…" required></textarea><button class="read-button" type="submit"><span>মন্তব্য করুন</span><span>→</span></button></form><p class="form-error" role="alert" data-comment-error hidden></p><div class="comment-list" data-comment-list></div></section>`;
+  root.innerHTML = `<nav class="article-breadcrumbs" aria-label="অবস্থান"><a href="/">মূলপাতা</a><span>›</span><a href="/category/${attr(category.slug)}/">${escapeHtml(category.title_bn)}</a></nav><header class="article-header"><div class="story-meta"><a href="/category/${attr(category.slug)}/">${escapeHtml(category.title_bn)}</a><span>·</span><time datetime="${attr(article.published_at)}">${escapeHtml(timestamp(article.published_at))}</time></div><h1>${escapeHtml(article.title)}</h1><p class="article-excerpt">${escapeHtml(article.excerpt)}</p><div class="article-author-row"><span class="article-author-avatar">ঢা</span><div class="article-author-info">${authorCreditMarkup(author)}<time datetime="${attr(article.published_at)}">প্রকাশিত ${escapeHtml(timestamp(article.published_at))}</time></div></div></header>${hero}<article class="article-body">${body}</article>${gallery}<div class="article-actions"><div class="article-actions__group"><button class="action-pill" type="button" data-reaction-button><svg viewBox="0 0 24 24"><path d="M20.8 8.9c0 5.1-8.8 11.1-8.8 11.1S3.2 14 3.2 8.9a4.3 4.3 0 0 1 8.1-2 4.3 4.3 0 0 1 9.5 2Z"/></svg><span data-reaction-count>০</span><span>ভালো লেগেছে</span></button><button class="action-pill" type="button" data-bookmark-button><svg viewBox="0 0 24 24"><path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-3.8L6 21z"/></svg><span data-bookmark-label>সংরক্ষণ</span></button></div><div class="article-actions__group"><button class="action-pill" type="button" data-share-button>শেয়ার করুন ↗</button><a class="action-pill" href="mailto:corrections@dutimz.com?subject=${encodeURIComponent(`সংশোধন: ${article.title}`)}">সংশোধন জানান</a></div></div><section class="comments-section"><div class="feed-heading"><div><span class="section-kicker">পাঠকের আলোচনা</span><h2>মন্তব্য</h2></div><span data-comment-total>০টি</span></div><form class="comment-form" data-comment-form><label class="sr-only" for="comment-body">আপনার মন্তব্য</label><textarea id="comment-body" name="body" maxlength="2000" placeholder="শ্রদ্ধাশীল ভাষায় আপনার মতামত লিখুন…" required></textarea><button class="read-button" type="submit"><span>মন্তব্য করুন</span><span>→</span></button></form><p class="form-error" role="alert" data-comment-error hidden></p><div class="comment-list" data-comment-list></div></section>`;
   const metaDescription = document.querySelector<HTMLMetaElement>('meta[name="description"]'); if (metaDescription) metaDescription.content = article.excerpt;
   const title = document.querySelector<HTMLTitleElement>('title'); if (title) title.textContent = `${article.title} | DUTIMZ`;
   await initArticleActions(article); await loadComments(article.id);
@@ -523,15 +558,18 @@ async function loadPublicProfile() {
   if (list) list.innerHTML = (stories.data as unknown as Article[] ?? []).map((article) => renderStoryCard(article)).join('') || '<div class="feed-empty"><strong>এখনো প্রকাশিত প্রতিবেদন নেই</strong><p>এই সদস্যের প্রকাশিত প্রতিবেদন এখানে দেখা যাবে।</p></div>';
 }
 
-async function maybeOpenProfilePrompt() {
-  if (!authUser || !supabase || demoMode || profilePromptShown || profileCompletion >= 70) return;
-  if (sessionStorage.getItem(`dutimz-profile-prompt:${authUser.id}`) === 'shown') return;
-  const result = await supabase.from('profile_details').select('*').eq('user_id', authUser.id).maybeSingle();
-  if (result.error) return;
-  const details = result.data as Record<string, unknown> | null;
+// Completing the profile is never opened on its own any more. A half-filled profile used to
+// pop this form up on every visit, which is nagging on a site that wants a complete profile in
+// exactly one place -- withdrawing money. The form now waits until it is wanted: from the
+// dashboard button, or from an action that genuinely needs the missing fields.
+async function openProfilePrompt(reason = '') {
+  if (!authUser || !supabase || demoMode) return false;
   const form = document.querySelector<HTMLFormElement>('[data-profile-form]');
   const dialog = document.querySelector<HTMLDialogElement>('[data-profile-modal]');
-  if (!form || !dialog) return;
+  if (!form || !dialog) return false;
+  const result = await supabase.from('profile_details').select('*').eq('user_id', authUser.id).maybeSingle();
+  if (result.error) return false;
+  const details = result.data as Record<string, unknown> | null;
   for (const element of Array.from(form.elements)) {
     if (!(element instanceof HTMLInputElement || element instanceof HTMLSelectElement)) continue;
     if (element.name === 'display_name') element.value = authProfile?.display_name ?? '';
@@ -545,16 +583,19 @@ async function maybeOpenProfilePrompt() {
   if (hallField) hallField.required = false;
   const whatsapp = form.elements.namedItem('whatsapp_number') as HTMLInputElement | null;
   if (whatsapp) whatsapp.required = false;
+  // The form says why it was opened this time, so a required action never looks like a nag.
+  const reasonNode = dialog.querySelector<HTMLElement>('[data-profile-modal-reason]');
+  if (reasonNode) { reasonNode.textContent = reason; reasonNode.hidden = !reason; }
   dialog.showModal();
-  sessionStorage.setItem(`dutimz-profile-prompt:${authUser.id}`, 'shown');
-  profilePromptShown = true;
+  applyPopupBlur(dialog);
+  return true;
 }
 function initProfileForm() {
   const form = document.querySelector<HTMLFormElement>('[data-profile-form]');
   const dialog = document.querySelector<HTMLDialogElement>('[data-profile-modal]');
   const close = () => { if (dialog?.open) { dialog.close(); removePopupBlur(); } };
   document.querySelectorAll<HTMLElement>('[data-close-profile]').forEach((button) => button.addEventListener('click', () => { close(); }));
-  document.querySelectorAll<HTMLElement>('[data-open-profile]').forEach((button) => button.addEventListener('click', () => { dialog?.showModal(); applyPopupBlur(button as HTMLElement); }));
+  document.querySelectorAll<HTMLElement>('[data-open-profile]').forEach((button) => button.addEventListener('click', () => { void openProfilePrompt(); }));
   dialog?.addEventListener('click', (event) => { if (event.target === dialog) close(); });
   (form?.elements.namedItem('residency_status') as HTMLSelectElement | null)?.addEventListener('change', (event) => {
     const choice = (event.currentTarget as HTMLSelectElement).value;
@@ -597,7 +638,6 @@ function initProfileForm() {
     if (submit) submit.disabled = false;
     if (saved.error) { setMessage(errorNode, saved.error.message); return; }
     close();
-    profilePromptShown = false;
     toast(strings.done);
     await loadIdentity(authUser);
   });
@@ -742,6 +782,10 @@ function initWithdrawals() {
     event.preventDefault();
     const error = document.querySelector<HTMLElement>('[data-withdrawal-error]');
     if (!authUser || !supabase) return requireLogin();
+    // Withdrawing is the one thing on the site that needs a complete profile, so this is where
+    // the completion form is allowed to interrupt: it opens with the reason instead of letting
+    // the request come back as an error the reader has to decode.
+    if (profileCompletion < 100) { await openProfilePrompt('টাকা তুলতে প্রোফাইল ১০০% সম্পূর্ণ হতে হবে। বাকি তথ্যগুলো এখনই পূরণ করে নিন।'); return; }
     const values = formDataObject(form);
     const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
     if (button) button.disabled = true;
@@ -757,13 +801,20 @@ async function uploadEditorMedia(file: File) {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new Error('আপনার প্রবেশ সেশন শেষ হয়েছে; আবার প্রবেশ করুন।');
-  const response = await fetch(`${config.mediaUrl.replace(/\/$/, '')}/upload`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': file.type || 'application/octet-stream' },
-    body: file,
-  });
-  const payload = await response.json() as { id?: string; error?: string };
-  if (!response.ok || !payload.id) throw new Error(payload.error || 'ফাইল পাঠানো যায়নি।');
+  let response: Response;
+  try {
+    response = await fetch(`${config.mediaUrl.replace(/\/$/, '')}/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': file.type || 'application/octet-stream' },
+      body: file,
+    });
+  } catch (error) {
+    if (error instanceof TypeError) throw new Error('মিডিয়া সার্ভারে সংযোগ করা যায়নি (নেটওয়ার্ক বা CORS)। www ও মূল ডোমেইনের অনুমোদিত origin যাচাই করে আবার চেষ্টা করুন।');
+    throw error;
+  }
+  const payload = await response.json().catch(() => null) as { id?: string; error?: string } | null;
+  if (!response.ok) throw new Error(payload?.error || `মিডিয়া সার্ভার থেকে ${response.status} ত্রুটি এসেছে; আবার চেষ্টা করুন।`);
+  if (!payload?.id) throw new Error(payload?.error || 'সার্ভারের উত্তর বোঝা যায়নি; আবার চেষ্টা করুন।');
   return payload.id;
 }
 // Each selected photo uploads straight to the R2-backed media worker and keeps a
@@ -779,7 +830,16 @@ function initArticleEditor() {
   const preview = document.querySelector<HTMLElement>('[data-slug-preview]');
   let previewTimer = 0;
   const upload = form.elements.namedItem('gallery_images') as HTMLInputElement | null;
+  const anonymousToggle = form.elements.namedItem('is_anonymous') as HTMLInputElement | null;
+  const adminAuthor = form.elements.namedItem('author_id') as HTMLSelectElement | null;
+  const adminPublishedAt = form.elements.namedItem('published_at') as HTMLInputElement | null;
+  if (adminAuthor) void loadAuthorOptions().then((options) => {
+    adminAuthor.innerHTML = `<option value="">নিজেই (আমি)</option>${options.map((option) => `<option value="${attr(option.id)}">${escapeHtml(option.label)}</option>`).join('')}`;
+  });
+  // The browser refuses a future date outright; the server caps it again as the real guard.
+  if (adminPublishedAt) adminPublishedAt.max = localDateTimeNow();
   const status = document.querySelector<HTMLElement>('[data-editor-status]');
+  const uploadPermissionNote = document.querySelector<HTMLElement>('[data-upload-permission-note]');
   const strip = document.querySelector<HTMLElement>('[data-gallery-strip]');
   const gallery: GalleryItem[] = [];
   let draggedItem: GalleryItem | null = null;
@@ -885,8 +945,14 @@ function initArticleEditor() {
     const files = Array.from(upload.files ?? []);
     upload.value = '';
     if (!files.length) return;
+    if (authRole === 'reader') {
+      if (uploadPermissionNote) uploadPermissionNote.hidden = false;
+      return;
+    }
+    if (uploadPermissionNote) uploadPermissionNote.hidden = true;
+    const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
     for (const file of files) {
-      if (!file.type.startsWith('image/')) { toast('শুধুমাত্র JPEG, PNG, WebP, GIF অথবা AVIF ছবি যুক্ত করা যায়।', true); continue; }
+      if (!allowedImageTypes.has(file.type.toLowerCase())) { toast('শুধুমাত্র JPEG, PNG, WebP, GIF অথবা AVIF ছবি যুক্ত করা যায়। HEIC/HEIF ছবি সমর্থিত নয়।', true); continue; }
       if (file.size > 20 * 1024 * 1024) { toast('প্রতিটি ছবি সর্বোচ্চ ২০ মেগাবাইট হতে পারে।', true); continue; }
       if (gallery.length >= MAX_GALLERY_IMAGES) { toast(`সর্বোচ্চ ${digits.format(MAX_GALLERY_IMAGES)}টি ছবি যুক্ত করা যায়।`, true); break; }
       const item: GalleryItem = { file, preview: URL.createObjectURL(file), mediaId: null, failed: false, uploading: true };
@@ -916,6 +982,11 @@ function initArticleEditor() {
       p_excerpt: values.excerpt, p_body: values.body,
       p_hero_media_key: mediaKeys[0] ?? null, p_media_keys: mediaKeys.length ? mediaKeys : null,
       p_questionnaire_answers: questionnaireAnswers, p_questionnaire_version_id: questionnaire.id,
+      p_is_anonymous: anonymousToggle?.checked ?? false,
+      // Only an administrator sends these. The server refuses them from anyone else, so a
+      // reporter's own submission keeps their byline and the moment it went live.
+      ...(authRole === 'admin' && adminAuthor?.value ? { p_author_id: adminAuthor.value } : {}),
+      ...(authRole === 'admin' && adminPublishedAt?.value ? { p_published_at: new Date(adminPublishedAt.value).toISOString() } : {}),
     });
     if (button) button.disabled = false;
     if (result.error) return setMessage(error, result.error.message);
@@ -975,19 +1046,44 @@ function initAdminDashboard() {
     if (!authUser || authRole !== 'admin') return;
     button.disabled = true;
     initModeration(); initAdminWorkflows(); initAdminHistory(); initAdminRoster();
+    initAdminUserSearch();
     initQuestionnaireAdmin(supabase, () => authRole === 'admin', (message, isError) => toast(message, isError), setMessage);
     window.setTimeout(() => { button.disabled = false; toast('প্রশাসনিক তথ্য রিফ্রেশ হয়েছে।'); }, 700);
   });
 }
+let adminMemberDirectoryInitialized = false;
+let adminMemberDirectoryReload: (() => void) | null = null;
 function initAdminUserSearch() {
+  if (adminMemberDirectoryInitialized) { adminMemberDirectoryReload?.(); return; }
   const form = document.querySelector<HTMLFormElement>('[data-admin-user-search]');
   const results = document.querySelector<HTMLElement>('[data-admin-user-results]');
   const error = document.querySelector<HTMLElement>('[data-admin-user-search-error]');
   const roleForm = document.querySelector<HTMLFormElement>('[data-admin-role-form]');
   const balanceForm = document.querySelector<HTMLFormElement>('[data-admin-balance-form]');
   const selection = document.querySelector<HTMLElement>('[data-admin-role-selection]');
-  if (!form || !results || form.dataset.bound === 'true') return;
+  const count = document.querySelector<HTMLElement>('[data-admin-user-count]');
+  const clear = document.querySelector<HTMLButtonElement>('[data-admin-user-clear]');
+  const editorPanel = document.querySelector<HTMLElement>('[data-member-editor-panel]');
+  const editor = document.querySelector<HTMLFormElement>('[data-member-editor]');
+  const editorTitle = document.querySelector<HTMLElement>('[data-member-editor-title]');
+  const editorSelection = document.querySelector<HTMLElement>('[data-member-editor-selection]');
+  const editorError = document.querySelector<HTMLElement>('[data-member-editor-error]');
+  const previousPage = document.querySelector<HTMLButtonElement>('[data-admin-user-prev]');
+  const nextPage = document.querySelector<HTMLButtonElement>('[data-admin-user-next]');
+  const pageLabel = document.querySelector<HTMLElement>('[data-admin-user-page]');
+  const pageSize = 50;
+  type MemberRow = {
+    id: string; username: string; display_name: string | null; bio: string | null; avatar_url: string | null;
+    role: string; reporter_tier: string | null; department: string | null; session: string | null;
+    du_registration_number: string | null; residency_status: string | null; hall_name: string | null;
+    whatsapp_number: string | null; whatsapp_na: boolean; payout_method: string | null; payout_number: string | null;
+    completion_percent: number; created_at: string; total_count: number;
+  };
+  if (!form || !results || form.dataset.bound === 'true' || !supabase || !authUser || authRole !== 'admin') return;
+  adminMemberDirectoryInitialized = true;
   form.dataset.bound = 'true';
+  const list: HTMLElement = results;
+  const searchForm: HTMLFormElement = form;
   results.addEventListener('click', (event) => {
     const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-admin-select-user]');
     if (!button || authRole !== 'admin') return;
@@ -1004,38 +1100,162 @@ function initAdminUserSearch() {
       if (tier instanceof HTMLSelectElement) tier.value = currentTier;
     }
     if (selection) selection.textContent = `${button.dataset.userName ?? 'সদস্য'} · @${button.dataset.username ?? ''} · বর্তমান ভূমিকা: ${roleLabels[currentRole] ?? currentRole}${currentTier ? ` (${tierLabels[currentTier] ?? currentTier})` : ''}`;
-    results.querySelectorAll<HTMLButtonElement>('[data-admin-select-user]').forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+    const row = members.get(userId);
+    if (row) { fillEditor(row); renderMembers(); }
     toast('সদস্যটি ভূমিকা ও হিসাব ব্যবস্থাপনায় নির্বাচন করা হয়েছে।');
   });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!supabase || !authUser || authRole !== 'admin') return;
     const query = String(new FormData(form).get('query') ?? '').trim().replace(/[,%()\\]/g, ' ').replace(/\s+/g, ' ');
-    if (query.length < 2) return setMessage(error, 'কমপক্ষে ২ অক্ষর লিখুন।');
-    const submit = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    void loadMembers(query, 0);
+  });
+  // The desk's directory. Every account is listed once, and the whole record sits behind it:
+  // the read and the write are both administrator-only functions, so a member without the role
+  // can neither enumerate the records nor change one.
+  const members = new Map<string, MemberRow>();
+  let selectedId = '';
+  let lastQuery = '';
+  let pageOffset = 0;
+  let totalCount = 0;
+  const isAdmin = () => Boolean(supabase && authUser && authRole === 'admin');
+
+  function setEditorField(name: string, value: string) {
+    const field = editor?.elements.namedItem(name);
+    if (field instanceof HTMLInputElement && field.type === 'checkbox') field.checked = value === 'true';
+    else if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) field.value = value;
+  }
+
+  function renderMembers() {
+    const rows = [...members.values()];
+    const page = Math.floor(pageOffset / pageSize) + 1;
+    const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
+    if (count) count.textContent = `${totalCount} জন সদস্য${lastQuery ? ' · অনুসন্ধানের ফল' : ''}`;
+    if (pageLabel) pageLabel.textContent = `${page} / ${pageCount}`;
+    if (previousPage) previousPage.disabled = pageOffset <= 0;
+    if (nextPage) nextPage.disabled = pageOffset + pageSize >= totalCount;
+    if (!rows.length) {
+      list.innerHTML = totalCount ? '<div class="feed-empty"><strong>এই পাতায় কোনো সদস্য নেই।</strong></div>' : '<div class="feed-empty"><strong>এই শর্তে কোনো সদস্য পাওয়া যায়নি।</strong><p>নামের অন্য অংশ বা ইউজারনেম দিয়ে চেষ্টা করুন।</p></div>';
+      return;
+    }
+    list.innerHTML = rows.map((row) => {
+      const name = row.display_name?.trim() || `@${row.username}`;
+      const meta = [roleLabels[row.role] ?? row.role, row.reporter_tier ? tierLabels[row.reporter_tier] ?? row.reporter_tier : '', `${row.completion_percent}% পূর্ণ`].filter(Boolean).join(' · ');
+      return `<button class="admin-user-result" type="button" data-admin-select-user data-user-id="${attr(row.id)}" data-user-name="${attr(name)}" data-username="${attr(row.username)}" data-user-role="${attr(row.role)}" data-user-tier="${attr(row.reporter_tier ?? '')}" aria-pressed="${row.id === selectedId}"><span><strong>${escapeHtml(name)}</strong><small>@${escapeHtml(row.username)}</small></span><span class="admin-user-result__role">${escapeHtml(meta)}</span></button>`;
+    }).join('');
+  }
+
+  // The editor keeps every field a member can carry, so a correction never needs a second trip
+  // into the database console. An empty value clears the field rather than being dropped.
+  function fillEditor(row: MemberRow) {
+    if (!editor) return;
+    selectedId = row.id;
+    if (editorPanel) editorPanel.hidden = false;
+    setEditorField('user_id', row.id);
+    setEditorField('display_name', row.display_name ?? '');
+    setEditorField('username', row.username);
+    setEditorField('bio', row.bio ?? '');
+    setEditorField('avatar_url', row.avatar_url ?? '');
+    setEditorField('role', row.role);
+    setEditorField('reporter_tier', row.reporter_tier ?? '');
+    setEditorField('department', row.department ?? '');
+    setEditorField('session', row.session ?? '');
+    setEditorField('du_registration_number', row.du_registration_number ?? '');
+    setEditorField('residency_status', row.residency_status ?? '');
+    setEditorField('hall_name', row.hall_name ?? '');
+    setEditorField('whatsapp_number', row.whatsapp_number ?? '');
+    setEditorField('whatsapp_na', String(row.whatsapp_na === true));
+    setEditorField('payout_method', row.payout_method ?? '');
+    setEditorField('payout_number', row.payout_number ?? '');
+    if (editorTitle) editorTitle.textContent = row.display_name?.trim() || `@${row.username}`;
+    if (editorSelection) editorSelection.textContent = `@${row.username} · ${roleLabels[row.role] ?? row.role} · প্রোফাইল ${row.completion_percent}% পূর্ণ · যোগ দিয়েছেন ${timestamp(row.created_at)}`;
+    setMessage(editorError, '', false);
+    editor.querySelectorAll<HTMLButtonElement>('button[type="submit"]').forEach((button) => { button.disabled = false; });
+  }
+
+  async function loadMembers(query = lastQuery, offset = 0) {
+    if (!isAdmin()) return;
+    lastQuery = query;
+    pageOffset = offset;
+    const submit = searchForm.querySelector<HTMLButtonElement>('button[type="submit"]');
     if (submit) submit.disabled = true;
     setMessage(error, '');
-    results.innerHTML = '<div class="feed-empty"><strong>সদস্য খোঁজা হচ্ছে…</strong></div>';
-    const pattern = `%${query}%`;
-    const [byUsername, byName] = await Promise.all([
-      supabase.from('profiles').select('id,username,display_name').ilike('username', pattern).limit(12),
-      supabase.from('profiles').select('id,username,display_name').ilike('display_name', pattern).limit(12),
-    ]);
+    const result = await supabase!.rpc('admin_member_records', { p_query: query.trim() || null, p_limit: pageSize, p_offset: pageOffset });
     if (submit) submit.disabled = false;
-    const searchError = byUsername.error ?? byName.error;
-    if (searchError) { results.replaceChildren(); setMessage(error, searchError.message); return; }
-    const people = new Map<string, { id: string; username: string; display_name: string | null }>();
-    for (const person of [...(byUsername.data ?? []), ...(byName.data ?? [])]) people.set(person.id, person);
-    const matches = [...people.values()].slice(0, 15);
-    if (!matches.length) { results.innerHTML = '<div class="feed-empty"><strong>এই নামে কোনো সদস্য পাওয়া যায়নি।</strong><p>ইউজারনেম বা নামের অন্য অংশ দিয়ে চেষ্টা করুন।</p></div>'; return; }
-    const roles = await supabase.from('user_roles').select('user_id,role,reporter_tier').in('user_id', matches.map((person) => person.id));
-    if (roles.error) { results.replaceChildren(); setMessage(error, roles.error.message); return; }
-    const roleByUser = new Map((roles.data ?? []).map((row) => [row.user_id, row]));
-    results.innerHTML = matches.map((person) => {
-      const role = roleByUser.get(person.id);
-      return `<button class="admin-user-result" type="button" data-admin-select-user data-user-id="${attr(person.id)}" data-user-name="${attr(person.display_name || `@${person.username}`)}" data-username="${attr(person.username)}" data-user-role="${attr(role?.role ?? 'reader')}" data-user-tier="${attr(role?.reporter_tier ?? '')}" aria-pressed="false"><span><strong>${escapeHtml(person.display_name || `@${person.username}`)}</strong><small>@${escapeHtml(person.username)}</small></span><span class="admin-user-result__role">${escapeHtml(roleLabels[role?.role ?? 'reader'] ?? 'রিডার')}${role?.reporter_tier ? ` · ${escapeHtml(tierLabels[role.reporter_tier] ?? role.reporter_tier)}` : ''}</span></button>`;
-    }).join('');
+    if (result.error) { list.replaceChildren(); setMessage(error, result.error.message); return; }
+    members.clear();
+    const pageRows = (result.data ?? []) as MemberRow[];
+    totalCount = Number(pageRows[0]?.total_count ?? 0);
+    for (const row of pageRows) members.set(row.id, row);
+    renderMembers();
+    const current = members.get(selectedId);
+    if (current) fillEditor(current);
+  }
+
+  results.addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-admin-select-user]');
+    if (!button || !isAdmin()) return;
+    const row = members.get(button.dataset.userId ?? '');
+    if (!row) return;
+    fillEditor(row);
+    renderMembers();
+    editorPanel?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
+
+  clear?.addEventListener('click', () => {
+    const input = searchForm.elements.namedItem('query');
+    if (input instanceof HTMLInputElement) input.value = '';
+    void loadMembers('', 0);
+  });
+  previousPage?.addEventListener('click', () => { if (pageOffset > 0) void loadMembers(lastQuery, Math.max(0, pageOffset - pageSize)); });
+  nextPage?.addEventListener('click', () => { if (pageOffset + pageSize < totalCount) void loadMembers(lastQuery, pageOffset + pageSize); });
+
+  editor?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!isAdmin() || !editor) return;
+    const data = new FormData(editor);
+    const field = (name: string) => String(data.get(name) ?? '').trim();
+    const userId = field('user_id');
+    if (!userId) return setMessage(editorError, 'তালিকা থেকে একজন সদস্য বেছে নিন।');
+    const reason = field('reason');
+    if (reason.length < 3) return setMessage(editorError, 'পরিবর্তনের কারণ কমপক্ষে ৩ অক্ষরের হতে হবে।');
+    const row = members.get(userId);
+    const nextRole = field('role') || 'reader';
+    const nextTier = field('reporter_tier');
+    if (nextRole === 'reporter' && !nextTier) return setMessage(editorError, 'রিপোর্টার ভূমিকার জন্য একটি স্তর নির্বাচন করুন।');
+    const button = editor.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (button) button.disabled = true;
+    const saved = await supabase!.rpc('admin_update_member', {
+      p_user_id: userId,
+      p_profile: { username: field('username'), display_name: field('display_name'), bio: field('bio'), avatar_url: field('avatar_url') },
+      p_details: {
+        department: field('department'), session: field('session'), du_registration_number: field('du_registration_number'),
+        residency_status: field('residency_status'), hall_name: field('hall_name'), whatsapp_number: field('whatsapp_number'),
+        whatsapp_na: data.has('whatsapp_na'), payout_method: field('payout_method'), payout_number: field('payout_number')
+      },
+      p_reason: reason
+    });
+    if (saved.error) { if (button) button.disabled = false; return setMessage(editorError, saved.error.message); }
+    // The role lives in its own table with its own audit trail, so it is a second call -- and
+    // only when the select actually moved, so an ordinary correction does not rewrite it.
+    if (row && (row.role !== nextRole || (row.reporter_tier ?? '') !== nextTier)) {
+      const roleSaved = await supabase!.rpc('assign_user_role', {
+        p_user_id: userId, p_role: nextRole,
+        p_tier: nextRole === 'reporter' || nextRole === 'moderator' ? nextTier || null : null,
+        p_reason: reason
+      });
+      if (roleSaved.error) { if (button) button.disabled = false; return setMessage(editorError, `তথ্য সংরক্ষিত হয়েছে, তবে ভূমিকা বদলানো যায়নি: ${roleSaved.error.message}`); }
+    }
+    if (button) button.disabled = false;
+    setMessage(editorError, '', false);
+    toast('সদস্যের তথ্য সংরক্ষণ হয়েছে।');
+    if (authUser) await loadIdentity(authUser);
+    paintAuthState();
+    await loadMembers();
+  });
+
+  adminMemberDirectoryReload = () => { void loadMembers(lastQuery, pageOffset); };
+  if (isAdmin()) void loadMembers('');
 }
 function initRoleForms() {
   const application = document.querySelector<HTMLFormElement>('[data-application-form]');
@@ -1067,8 +1287,95 @@ function initRoleForms() {
     if (result.error) return setMessage(error, result.error.message);
     toast('ব্যবহারকারীর ভূমিকা হালনাগাদ হয়েছে।'); setMessage(error, '', false); roleForm.reset();
     await reloadRole(); paintAuthState(); initAdminWorkflows(); initAdminRoster(); initAdminHistory();
+    if (authRole === 'admin') initAdminUserSearch();
   });
   }
+}
+// An anonymous story carries no author on its own row, so anything on the desk side
+// that has to name the reporter reads the attribution instead -- a table only an
+// admin, or the author themselves, may select.
+async function attributionNames(articleIds: string[]) {
+  const names = new Map<string, { id: string; username: string; display_name: string }>();
+  if (!supabase || !articleIds.length) return names;
+  const result = await supabase.from('article_attributions')
+    .select('article_id,author_id,profiles:profiles!article_attributions_author_id_fkey(username,display_name)')
+    .in('article_id', articleIds);
+  for (const row of (result.data ?? []) as unknown as { article_id: string; author_id: string; profiles: { username: string; display_name: string } | { username: string; display_name: string }[] | null }[]) {
+    const profile = single(row.profiles);
+    if (profile) names.set(row.article_id, { id: row.author_id, ...profile });
+  }
+  return names;
+}
+// The desk decides a story's byline and its dateline. Both are enforced admin-only on the
+// server, so these controls are rendered for an administrator only and the values are only
+// sent when there is something to send.
+type AuthorOption = { id: string; label: string };
+let authorOptionsCache: AuthorOption[] | null = null;
+function localDateTimeValue(iso: string | null) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+const localDateTimeNow = () => localDateTimeValue(new Date().toISOString());
+async function loadAuthorOptions(): Promise<AuthorOption[]> {
+  if (authorOptionsCache) return authorOptionsCache;
+  if (!supabase || authRole !== 'admin') return [];
+  const result = await supabase.from('user_roles')
+    .select('user_id,role,profiles:profiles!user_roles_user_id_fkey(username,display_name)')
+    .in('role', ['reporter', 'moderator', 'admin']);
+  const options: AuthorOption[] = [];
+  for (const row of (result.data ?? []) as unknown as { user_id: string; profiles: { username: string; display_name: string } | { username: string; display_name: string }[] | null }[]) {
+    const profile = single(row.profiles);
+    if (!profile?.username) continue;
+    options.push({ id: row.user_id, label: `${profile.display_name?.trim() || `@${profile.username}`} (@${profile.username})` });
+  }
+  options.sort((left, right) => left.label.localeCompare(right.label, 'bn-BD'));
+  authorOptionsCache = options;
+  return options;
+}
+function authorOptionsMarkup(options: AuthorOption[], currentId: string | null, currentLabel: string) {
+  const rows = options.map((option) => `<option value="${attr(option.id)}"${option.id === currentId ? ' selected' : ''}>${escapeHtml(option.label)}</option>`);
+  // The author a story already has stays selectable even when that account is no longer an
+  // editorial one, so saving a date can never quietly re-credit the story to somebody else.
+  if (currentId && !options.some((option) => option.id === currentId)) {
+    rows.unshift(`<option value="${attr(currentId)}" selected>${escapeHtml(currentLabel)}</option>`);
+  }
+  return rows.join('');
+}
+function publicationFormMarkup(article: { id: string; authorId: string | null; authorLabel: string; publishedAt: string | null }, options: AuthorOption[]) {
+  return `<details class="admin-publication"><summary>বাইলাইন ও প্রকাশের সময়</summary><form data-publication-form data-article-id="${attr(article.id)}"><label class="field-label">বাইলাইন<select name="byline"><option value="keep">অপরিবর্তিত রাখুন</option><option value="author">নির্বাচিত লেখকের নামে</option><option value="anonymous">নাম প্রকাশে অনিচ্ছুক</option></select></label><label class="field-label">লেখক<select name="author_id">${authorOptionsMarkup(options, article.authorId, article.authorLabel)}</select><small>নির্বাচিত লেখকের নামেই প্রতিবেদনটি প্রকাশিত হবে।</small></label><label class="field-label">প্রকাশের সময়<input type="datetime-local" name="published_at" max="${attr(localDateTimeNow())}" value="${attr(localDateTimeValue(article.publishedAt))}"><small>ভবিষ্যতের সময় দেওয়া যাবে না; খালি রাখলে বর্তমান সময়টি অপরিবর্তিত থাকবে।</small></label><label class="field-label">পরিবর্তনের কারণ<textarea name="reason" rows="2" minlength="3" maxlength="500" required></textarea></label><p class="form-error" data-publication-error hidden></p><button class="outline-button" type="submit">বাইলাইন ও সময় সংরক্ষণ করুন</button></form></details>`;
+}
+function bindPublicationForms(scope: HTMLElement, refresh: () => void) {
+  scope.querySelectorAll<HTMLFormElement>('[data-publication-form]').forEach((form) => {
+    if (form.dataset.bound === 'true') return;
+    form.dataset.bound = 'true';
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const error = form.querySelector<HTMLElement>('[data-publication-error]');
+      if (!supabase || !authUser || authRole !== 'admin') return setMessage(error, 'এই পরিবর্তন কেবল প্রশাসক করতে পারেন।');
+      const values = formDataObject(form);
+      const byline = String(values.byline ?? 'keep');
+      const authorId = String(values.author_id ?? '');
+      const publishedAt = String(values.published_at ?? '');
+      if (byline === 'author' && !authorId) return setMessage(error, 'বাইলাইনের জন্য একজন লেখক নির্বাচন করুন।');
+      const button = form.querySelector<HTMLButtonElement>('button[type="submit"]');
+      if (button) button.disabled = true;
+      setMessage(error, '');
+      const result = await supabase.rpc('admin_set_article_publication', {
+        p_article_id: form.dataset.articleId,
+        p_byline: byline,
+        p_author_id: byline === 'keep' ? null : (authorId || null),
+        p_published_at: publishedAt ? new Date(publishedAt).toISOString() : null,
+        p_reason: values.reason,
+      });
+      if (button) button.disabled = false;
+      if (result.error) return setMessage(error, result.error.message);
+      toast('বাইলাইন ও প্রকাশের সময় সংরক্ষণ হয়েছে।');
+      refresh();
+    });
+  });
 }
 function initModeration() {
   const queue = document.querySelector<HTMLElement>('[data-moderation-queue]');
@@ -1077,21 +1384,24 @@ function initModeration() {
     queue.innerHTML = `<div class="feed-empty"><strong>${authUser ? 'এই ডেস্ক ব্যবহারের অনুমতি নেই' : 'মডারেশন ডেস্ক দেখতে আগে প্রবেশ করুন'}</strong></div>`; return;
   }
   void (async () => {
-    const result = await supabase!.from('articles').select('id,slug,title,excerpt,body,created_at,author_id,profiles:profiles!articles_author_id_fkey(username,display_name)')
+    const result = await supabase!.from('articles').select('id,slug,title,excerpt,body,created_at,published_at,is_anonymous,author_id,profiles:profiles!articles_author_id_fkey(username,display_name)')
       .eq('status', 'pending').order('created_at', { ascending: true }).limit(60);
     if (result.error) { queue.innerHTML = `<p class="form-error">${escapeHtml(result.error.message)}</p>`; return; }
     const articles = result.data ?? [];
     if (!articles.length) { queue.innerHTML = '<div class="feed-empty"><span class="feed-empty__icon">✓</span><strong>সব প্রতিবেদন পর্যালোচিত</strong><p>নতুন অপেক্ষমাণ প্রতিবেদন এলে এখানে দেখা যাবে।</p></div>'; return; }
+    const attributed = await attributionNames(articles.filter((article) => article.is_anonymous).map((article) => article.id));
+    const authorOptions = authRole === 'admin' ? await loadAuthorOptions() : [];
     queue.innerHTML = articles.map((article) => {
-      const author = single(article.profiles) ?? { username: '', display_name: 'পাঠক' };
+      const author = single(article.profiles) ?? attributed.get(article.id) ?? null;
       const canEdit = authRole === 'admin';
       return `<article class="moderation-card" data-pending-id="${attr(article.id)}" data-original-title="${attr(article.title)}" data-original-excerpt="${attr(article.excerpt)}" data-original-body="${attr(article.body)}">
-        <div class="moderation-card__top"><span class="story-meta"><a href="/u/${encodeURIComponent(author.username)}/">${escapeHtml(publicName(author))}</a> · ${escapeHtml(timestamp(article.created_at))}</span><span class="section-kicker">অপেক্ষমাণ প্রতিবেদন</span></div>
+        <div class="moderation-card__top"><span class="story-meta">${article.is_anonymous ? anonymousCredit(author ? publicName(author) : null) : `<a href="/u/${encodeURIComponent(author?.username ?? 'reader')}/">${escapeHtml(publicName(author))}</a>`} · ${escapeHtml(timestamp(article.created_at))}</span><span class="section-kicker">অপেক্ষমাণ প্রতিবেদন</span></div>
         <h2>${escapeHtml(article.title)}</h2><p>${escapeHtml(article.excerpt)}</p><details><summary>পূর্ণ প্রতিবেদন পড়ুন</summary><div class="moderation-preview">${escapeHtml(article.body)}</div></details>
-        ${canEdit ? `<button class="outline-button" type="button" data-edit-pending>প্রতিবেদন সম্পাদনা</button>` : ''}
+        ${canEdit ? `<button class="outline-button" type="button" data-edit-pending>প্রতিবেদন সম্পাদনা</button>${publicationFormMarkup({ id: article.id, authorId: article.author_id ?? attributed.get(article.id)?.id ?? null, authorLabel: author ? publicName(author) : 'অজানা লেখক', publishedAt: article.published_at ?? null }, authorOptions)}` : ''}
         <form data-moderation-form><label class="field-label">সিদ্ধান্তের কারণ<textarea name="reason" rows="2" minlength="3" maxlength="500" required></textarea></label><button type="button" data-action="approve">অনুমোদন ও প্রকাশ</button><button type="button" data-action="reject">প্রত্যাখ্যান</button></form>
       </article>`;
     }).join('');
+    bindPublicationForms(queue, initModeration);
     queue.querySelectorAll<HTMLButtonElement>('[data-edit-pending]').forEach((button) => button.addEventListener('click', async () => {
       const card = button.closest<HTMLElement>('[data-pending-id]'); if (!card || !supabase) return;
       const reason = window.prompt('প্রতিবেদন সম্পাদনার কারণ লিখুন (অন্তত ৩ অক্ষর)');
@@ -1170,11 +1480,19 @@ function initAdminWorkflows() {
     if (!supabase || !authUser || authRole !== 'admin') managedArticles.innerHTML = '<div class="feed-empty"><strong>এই তালিকা কেবল প্রশাসক দেখতে পারেন।</strong></div>';
     else {
       const searchTerm = managedArticles.dataset.query?.trim() ?? '';
-      const articleQuery = supabase.from('articles').select('id,slug,title,excerpt,body,published_at,created_at,author_id,profiles:profiles!articles_author_id_fkey(username,display_name)').eq('status', 'published').ilike('title', `%${searchTerm.replace(/[,%()\\]/g, ' ')}%`).order('published_at', { ascending: false }).limit(60);
-      void articleQuery.then(({ data, error }) => {
+      const articleQuery = supabase.from('articles').select('id,slug,title,excerpt,body,published_at,created_at,is_anonymous,author_id,profiles:profiles!articles_author_id_fkey(username,display_name)').eq('status', 'published').ilike('title', `%${searchTerm.replace(/[,%()\\]/g, ' ')}%`).order('published_at', { ascending: false }).limit(60);
+      void articleQuery.then(async ({ data, error }) => {
       if (error) { managedArticles.innerHTML = `<p class="form-error">${escapeHtml(error.message)}</p>`; return; }
       if (!data?.length) { managedArticles.innerHTML = '<div class="feed-empty"><strong>এখনো প্রকাশিত প্রতিবেদন নেই।</strong></div>'; return; }
-      managedArticles.innerHTML = data.map((article) => `<article class="history-entry admin-article-entry" data-admin-article="${attr(article.id)}"><strong>${escapeHtml(article.title)}</strong><p>${escapeHtml(publicName(single(article.profiles)))} · ${escapeHtml(timestamp(article.published_at))}</p><details class="admin-article-editor"><summary>প্রতিবেদন সম্পাদনা</summary><form data-admin-edit-article><label class="field-label">শিরোনাম<input name="title" maxlength="180" value="${attr(article.title)}" required></label><label class="field-label">সংক্ষিপ্ত পরিচিতি<textarea name="excerpt" rows="3" maxlength="280" required>${escapeHtml(article.excerpt)}</textarea></label><label class="field-label">পূর্ণ প্রতিবেদন<textarea name="body" rows="8" minlength="100" maxlength="30000" required>${escapeHtml(article.body)}</textarea></label><label class="field-label">সম্পাদনার কারণ<textarea name="reason" rows="2" minlength="3" maxlength="500" required></textarea></label><p class="form-error" data-admin-article-error hidden></p><button class="outline-button" type="submit">পরিবর্তন সংরক্ষণ করুন</button></form></details><a class="text-link" href="/news/${encodeURIComponent(article.slug)}/">প্রতিবেদন দেখুন ↗</a></article>`).join('');
+      const attributed = await attributionNames(data.filter((article) => article.is_anonymous).map((article) => article.id));
+      const authorOptions = await loadAuthorOptions();
+      const credits = new Map<string, string>();
+      for (const article of data) {
+        const profile = single(article.profiles) ?? attributed.get(article.id) ?? null;
+        credits.set(article.id, article.is_anonymous ? anonymousCredit(profile ? publicName(profile) : null) : escapeHtml(publicName(profile)));
+      }
+      managedArticles.innerHTML = data.map((article) => `<article class="history-entry admin-article-entry" data-admin-article="${attr(article.id)}"><strong>${escapeHtml(article.title)}</strong><p>${credits.get(article.id)} · ${escapeHtml(timestamp(article.published_at))}</p><details class="admin-article-editor"><summary>প্রতিবেদন সম্পাদনা</summary><form data-admin-edit-article><label class="field-label">শিরোনাম<input name="title" maxlength="180" value="${attr(article.title)}" required></label><label class="field-label">সংক্ষিপ্ত পরিচিতি<textarea name="excerpt" rows="3" maxlength="280" required>${escapeHtml(article.excerpt)}</textarea></label><label class="field-label">পূর্ণ প্রতিবেদন<textarea name="body" rows="8" minlength="100" maxlength="30000" required>${escapeHtml(article.body)}</textarea></label><label class="field-label">সম্পাদনার কারণ<textarea name="reason" rows="2" minlength="3" maxlength="500" required></textarea></label><p class="form-error" data-admin-article-error hidden></p><button class="outline-button" type="submit">পরিবর্তন সংরক্ষণ করুন</button></form>${publicationFormMarkup({ id: article.id, authorId: article.author_id ?? attributed.get(article.id)?.id ?? null, authorLabel: publicName(single(article.profiles) ?? attributed.get(article.id) ?? null), publishedAt: article.published_at ?? null }, authorOptions)}</details><a class="text-link" href="/news/${encodeURIComponent(article.slug)}/">প্রতিবেদন দেখুন ↗</a></article>`).join('');
+      bindPublicationForms(managedArticles, initAdminWorkflows);
       managedArticles.querySelectorAll<HTMLFormElement>('[data-admin-edit-article]').forEach((form) => form.addEventListener('submit', async (event) => {
         event.preventDefault();
         const card = form.closest<HTMLElement>('[data-admin-article]'); const error = form.querySelector<HTMLElement>('[data-admin-article-error]');
@@ -1315,8 +1633,15 @@ async function loadOwnArticles() {
     return;
   }
   container.hidden = false;
-  const result = await supabase.from('articles').select('id,slug,title,excerpt,body,published_at')
-    .eq('author_id', authUser.id).eq('status', 'published').order('published_at', { ascending: false }).limit(30);
+  // A reporter's anonymous stories are still theirs, so the list has to include
+  // them even though their rows name no author.
+  const mine = await supabase.from('article_attributions').select('article_id').eq('author_id', authUser.id);
+  const anonymousIds = (mine.data ?? []).map((row) => (row as { article_id: string }).article_id);
+  let ownQuery = supabase.from('articles').select('id,slug,title,excerpt,body,published_at').eq('status', 'published');
+  ownQuery = anonymousIds.length
+    ? ownQuery.or(`author_id.eq.${authUser.id},id.in.(${anonymousIds.join(',')})`)
+    : ownQuery.eq('author_id', authUser.id);
+  const result = await ownQuery.order('published_at', { ascending: false }).limit(30);
   if (result.error) { container.innerHTML = `<p class="form-error">${escapeHtml(result.error.message)}</p>`; return; }
   if (!result.data?.length) { container.innerHTML = '<div class="feed-empty"><strong>এখনো কোনো প্রকাশিত প্রতিবেদন নেই</strong></div>'; return; }
   container.innerHTML = result.data.map((article) => `<details class="history-entry own-article-editor" data-own-article="${attr(article.id)}"><summary><strong>${escapeHtml(article.title)}</strong><span> · ${escapeHtml(timestamp(article.published_at))}</span></summary><form data-own-article-form><label class="field-label">শিরোনাম<input name="title" maxlength="180" value="${attr(article.title)}" required></label><label class="field-label">সংক্ষিপ্ত পরিচিতি<textarea name="excerpt" rows="3" maxlength="280" required>${escapeHtml(article.excerpt)}</textarea></label><label class="field-label">পূর্ণ প্রতিবেদন<textarea name="body" rows="9" minlength="100" maxlength="30000" required>${escapeHtml(article.body)}</textarea></label><label class="field-label">সম্পাদনার কারণ<textarea name="reason" rows="2" minlength="3" maxlength="500" required></textarea></label><p class="form-error" data-own-article-error hidden></p><button class="outline-button" type="submit">পরিবর্তন সংরক্ষণ করুন</button><a class="text-link" href="/news/${encodeURIComponent(article.slug)}/">প্রকাশিত প্রতিবেদন দেখুন ↗</a></form></details>`).join('');
@@ -1366,7 +1691,14 @@ async function initIdentity() {
   if (authUser) {
     // The administrator list is applied when an account is created, so this only has work to do for
     // an account that signed in before the configured list reached the database.
-    if (!demoMode) { const bootstrap = await supabase.rpc('bootstrap_admin_accounts'); if (Number(bootstrap.data) > 0) toast('প্রাথমিক অ্যাডমিন হিসেবে সক্রিয় হয়েছেন।'); }
+    if (!demoMode) {
+      void Promise.resolve(supabase.rpc('bootstrap_admin_accounts'))
+        .then(({ data, error }) => {
+          if (error) throw error;
+          if (Number(data) > 0) toast('প্রাথমিক অ্যাডমিন হিসেবে সক্রিয় হয়েছেন।');
+        })
+        .catch((error: unknown) => console.warn('Administrator bootstrap is not available yet', error));
+    }
     await loadIdentity(authUser);
   }
   paintAuthState();
@@ -1374,12 +1706,10 @@ async function initIdentity() {
     const previous = authUser?.id;
     authUser = session?.user ?? null;
     if (!authUser) {
-      if (previous) sessionStorage.removeItem(`dutimz-profile-prompt:${previous}`);
-      authProfile = null; authRole = 'reader'; reporterTier = null; profilePromptShown = false;
+      authProfile = null; authRole = 'reader'; reporterTier = null;
       setCompletion(0); paintAuthState();
       return;
     }
-    if (previous !== authUser.id) profilePromptShown = false;
     paintAuthState();
     if (previous !== authUser.id && !refreshBusy) {
       refreshBusy = true;
@@ -1394,11 +1724,16 @@ async function initIdentity() {
 }
 async function boot() {
   await loadConfig();
-  initStickyTopbar(); initBreaking();
+  initStickyTopbar(); initBreaking(); initConnectedCarousel();
   initHeaderNavigation(); initAccountMenu(); initProfileForm(); initLiveSearch(); initProfileEditor();
   initWithdrawals(); initArticleEditor();
-  await initOAuth(); await initIdentity();
-  await loadArticles(); await loadBreaking(); initSearchPage(); initModeration(); initCorrections();
+  await initOAuth();
+  const feedPromise = loadArticles();
+  const breakingPromise = loadBreaking();
+  await initIdentity();
+  await feedPromise;
+  initSearchPage();
+  await breakingPromise; initModeration(); initCorrections();
   initAdminDashboard(); initAdminUserSearch();
   initRoleForms(); initModeration(); initAdminWorkflows(); initAdminHistory(); initAdminRoster();
   initQuestionnaireAdmin(supabase, () => authRole === 'admin', (message, isError) => toast(message, isError), setMessage);
