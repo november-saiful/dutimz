@@ -230,3 +230,60 @@ export async function getDashboardStats(
     recentActivity,
   };
 }
+
+export type SitemapArticle = {
+  slug: string;
+  published_at: string;
+  updated_at: string | null;
+};
+
+/**
+ * Every published article, newest first, for the sitemap.
+ *
+ * Demo mode and a failed query both return nothing rather than throwing: a sitemap listing
+ * only the static pages is a far better failure than an unreachable database taking a build
+ * or a release down with it.
+ */
+export async function getSitemapArticles(
+  limit = 5000,
+): Promise<SitemapArticle[]> {
+  if (isDemoMode()) return [];
+  try {
+    const supabase = supabaseServer();
+    const { data, error } = await supabase
+      .from("articles")
+      .select("slug,published_at,updated_at")
+      .eq("status", "published")
+      .order("published_at", { ascending: false })
+      .limit(limit);
+    if (error) {
+      console.warn("Sitemap article list is not available", error.message);
+      return [];
+    }
+    return (data ?? []) as unknown as SitemapArticle[];
+  } catch (error) {
+    console.warn("Sitemap article list is not available", error);
+    return [];
+  }
+}
+
+/** The sections that are actually live, so a retired one is never advertised. */
+export async function getSitemapCategorySlugs(): Promise<string[]> {
+  if (isDemoMode()) return [];
+  try {
+    const supabase = supabaseServer();
+    const { data, error } = await supabase
+      .from("categories")
+      .select("slug")
+      .eq("active", true)
+      .order("slug");
+    if (error) {
+      console.warn("Sitemap section list is not available", error.message);
+      return [];
+    }
+    return ((data ?? []) as { slug: string }[]).map((row) => row.slug);
+  } catch (error) {
+    console.warn("Sitemap section list is not available", error);
+    return [];
+  }
+}
