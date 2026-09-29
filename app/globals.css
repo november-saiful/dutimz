@@ -58,6 +58,12 @@
   .story-art-fallback {
     background: linear-gradient(145deg, #ece0e9, #b3a0b0 54%, #7b3a80);
   }
+  /* News body copy is justified by default. Long tokens (links, hashtags)
+     still wrap instead of pushing the page past the viewport on phones. */
+  .article-body {
+    text-align: justify;
+    overflow-wrap: break-word;
+  }
   .article-body p + p {
     margin-top: 1.25rem;
   }
@@ -68,5 +74,16 @@
   }
   .no-scrollbar::-webkit-scrollbar {
     display: none;
+  }
+}
+
+/* iOS Safari zooms the whole page when a sub-16px field takes focus, and never
+   zooms back out. Browsers without that behaviour are unaffected: 16px is the
+   body's size there too once the cascade below is limited to phones. */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
   }
 }

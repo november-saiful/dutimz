@@ -82,6 +82,7 @@ export function SearchResults({ initialQuery }: { initialQuery: string }) {
           id="search-page-input"
           name="q"
           type="search"
+          className="min-w-0"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="যেমন: ক্যাম্পাস, সংস্কৃতি, শিক্ষার্থী…"

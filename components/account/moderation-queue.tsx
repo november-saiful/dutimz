@@ -195,7 +195,7 @@ export function ModerationQueue() {
                 <summary className="cursor-pointer text-sm text-primary">
                   পূর্ণ প্রতিবেদন পড়ুন
                 </summary>
-                <div className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap text-sm">
+                <div className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-sm">
                   {article.body}
                 </div>
               </details>

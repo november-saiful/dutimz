@@ -26,7 +26,15 @@ const ROUTES = [
   '/account/',
   '/account/write/',
   '/account/balance/',
+  '/account/moderation/',
+  '/account/admin/',
   '/profile/me/',
+  // Dynamic shells in demo mode: the 404 page, an unknown section, and a
+  // missing profile. None of them may overflow either.
+  '/news/no-such-story/',
+  '/category/no-such-section/',
+  '/u/nosuchuser/',
+  '/no-such-page/',
 ];
 
 const measure = () => {

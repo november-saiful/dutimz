@@ -135,15 +135,15 @@ export function Comments({ articleId }: { articleId: string }) {
               </Avatar>
               <div className="min-w-0 flex-1 rounded-md border p-3">
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <strong className="text-foreground">
+                  <strong className="min-w-0 truncate text-foreground">
                     <a href={`/u/${encodeURIComponent(author.username)}/`}>
                       {name}
                     </a>
                   </strong>
                   <span aria-hidden>·</span>
-                  <time>{relativeTimeBn(comment.created_at)}</time>
+                  <time className="shrink-0">{relativeTimeBn(comment.created_at)}</time>
                 </div>
-                <p className="mt-1 text-sm">{comment.body}</p>
+                <p className="mt-1 break-words text-sm">{comment.body}</p>
               </div>
             </article>
           );
