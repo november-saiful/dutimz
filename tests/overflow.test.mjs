@@ -69,6 +69,7 @@ test('every route stays inside the viewport at common widths', async () => {
   const origin = `http://127.0.0.1:${port}`;
   const nextBin = process.platform === 'win32' ? 'node_modules/.bin/next.cmd' : 'node_modules/.bin/next';
   const server = spawn(nextBin, ['start', '-p', String(port)], {
+    shell: process.platform === 'win32',
     env: { ...process.env, NEXT_PUBLIC_DEMO_MODE: 'true' },
     stdio: 'ignore',
   });
