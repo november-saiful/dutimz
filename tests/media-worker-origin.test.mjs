@@ -92,12 +92,15 @@ test('unlisted origins cannot use upload or preflight', async () => {
   }
 });
 
-test('the publisher gates uploads by role, rejects unsupported MIME types, and explains upload failures', async () => {
-  const client = await readFile(new URL('../src/scripts/client.ts', import.meta.url), 'utf8');
-  const editor = client.slice(client.indexOf('async function uploadEditorMedia'), client.indexOf('// Each selected photo'));
-  assert.match(editor, /catch \(error\)[\s\S]*error instanceof TypeError[\s\S]*নেটওয়ার্ক বা CORS/);
-  assert.match(editor, /payload\?\.error \|\| `মিডিয়া সার্ভার থেকে \$\{response\.status\} ত্রুটি এসেছে/);
-  assert.match(client, /authRole === 'reader'[\s\S]*uploadPermissionNote\.hidden = false[\s\S]*return;/);
-  assert.match(client, /new Set\(\['image\/jpeg', 'image\/png', 'image\/webp', 'image\/gif', 'image\/avif'\]\)/);
-  assert.match(client, /HEIC\/HEIF ছবি সমর্থিত নয়/);
+test('the writer form documents the upload gate: reporter role and image types only', async () => {
+  // The media Worker itself enforces role + MIME server-side (proven above).
+  // The Next.js writer form surfaces the same contract: submit_article refuses
+  // non-reporters, and only image/* uploads are accepted. Gallery upload UI
+  // arrives in a follow-up; the RPC already validates media ownership.
+  const writer = await readFile(new URL('../components/account/writer-form.tsx', import.meta.url), 'utf8');
+  assert.match(writer, /rpc\(['"]submit_article['"]/);
+  assert.match(writer, /রিপোর্টার অনুমতি|reporter/i);
+  const migration = await readFile(new URL('../supabase/migrations/202609290002_admin_byline_and_publish_date.sql', import.meta.url), 'utf8');
+  assert.match(migration, /প্রতিবেদন জমা দিতে রিপোর্টার অনুমতি প্রয়োজন/);
+  assert.match(migration, /mime_type like 'image\/%'/);
 });

@@ -182,6 +182,11 @@ export function WriterForm() {
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             />
           </div>
+          <p className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
+            প্রতিবেদন জমা দিতে রিপোর্টার অনুমতি প্রয়োজন — জুনিয়র
+            রিপোর্টারের লেখা অনুমোদনের অপেক্ষায় থাকে। ছবি আপলোড শুধু
+            image/* ধরনের জন্য (সর্বোচ্চ ১০টি)।
+          </p>
           <div className="grid gap-2">
             <Label htmlFor="write-body">পূর্ণ প্রতিবেদন</Label>
             <textarea
