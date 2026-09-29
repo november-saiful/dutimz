@@ -11,3 +11,9 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+
+// Makes Cloudflare bindings available to server code during `next dev`.
+// No bindings are used yet; the call is here so the first binding only
+// needs a wrangler.jsonc entry, not a config change.
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+initOpenNextCloudflareForDev();

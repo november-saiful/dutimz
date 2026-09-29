@@ -1,11 +1,12 @@
 node_modules/
 dist/
-.astro/
+.open-next/
 .wrangler/
 .dev.vars
 .env
 .env.*
 !.env.example
+.dev.vars
 supabase/.temp/
 
 # Local tooling state

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { RoleGate } from "@/components/account/role-gate";
+import { ModerationQueue } from "@/components/account/moderation-queue";
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
 
 export const metadata: Metadata = {
@@ -12,11 +12,7 @@ export const metadata: Metadata = {
 export default function ModerationPage() {
   return (
     <DutimzShell title="মডারেশন ডেস্ক" crumbs={[{ label: "মডারেশন" }]}>
-      <RoleGate
-        roles={["moderator", "admin"]}
-        title="মডারেশন ডেস্ক"
-        description="এই ডেস্ক কেবল মডারেটর ও অ্যাডমিনদের জন্য।"
-      />
+      <ModerationQueue />
     </DutimzShell>
   );
 }

@@ -98,7 +98,36 @@ test('articles are submitted through the audited RPC, never a direct insert', as
   const writer = await readProjectFile('components/account/writer-form.tsx');
   assert.match(writer, /rpc\(['"]submit_article['"]/);
   assert.match(writer, /p_is_anonymous/);
+  assert.match(writer, /p_questionnaire_answers/);
+  assert.match(writer, /p_questionnaire_version_id/);
+  assert.match(writer, /p_media_keys/);
+  assert.match(writer, /p_hero_media_key/);
   assert.doesNotMatch(writer, /\.from\(['"]articles['"]\)\.insert/);
+  const questionnaire = await readProjectFile('components/account/questionnaire-fields.tsx');
+  assert.match(questionnaire, /get_active_article_questionnaire|QuestionnaireVersion/);
+  assert.match(questionnaire, /condition/);
+  const gallery = await readProjectFile('components/account/gallery-uploader.tsx');
+  assert.match(gallery, /\/upload/);
+  assert.match(gallery, /HEIC/);
+  const application = await readProjectFile('components/account/reporter-application.tsx');
+  assert.match(application, /rpc\(['"]apply_reporter['"]/);
+});
+
+test('money and moderation flow through the audited RPCs', async () => {
+  const balance = await readProjectFile('components/account/balance-view.tsx');
+  assert.match(balance, /rpc\(['"]request_withdrawal['"]/);
+  assert.match(balance, /p_amount_tk/);
+  assert.match(balance, /p_method/);
+  assert.match(balance, /p_payout_number/);
+  const moderation = await readProjectFile('components/account/moderation-queue.tsx');
+  assert.match(moderation, /rpc\(['"]moderate_article['"]/);
+  assert.match(moderation, /rpc\(['"]moderate_comment['"]/);
+  assert.match(moderation, /status.*pending|eq\(['"]status['"], ['"]pending['"]\)/);
+  const admin = await readProjectFile('components/account/admin-dashboard.tsx');
+  assert.match(admin, /rpc\(['"]admin_member_records['"]/);
+  assert.match(admin, /rpc\(['"]review_withdrawal['"]/);
+  assert.match(admin, /rpc\(['"]assign_user_role['"]/);
+  assert.match(admin, /rpc\(['"]admin_adjust_balance['"]/);
 });
 
 test('article reader keeps reactions, bookmarks, share, corrections, and comments', async () => {
