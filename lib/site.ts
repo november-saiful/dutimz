@@ -1,9 +1,14 @@
+// NEXT_PUBLIC_* values are inlined into the bundle when the build runs, and a build
+// environment that carries them as *empty* strings (CI exporting an unset repository
+// variable) is inlined as "" — which neither `??` nor a Worker `vars` binding can undo.
+// Empty therefore has to mean "unset", or the media host silently becomes "" and every
+// image URL degrades to a relative /media/... path the portal cannot serve.
 export const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://dutimz.com"
+  process.env.NEXT_PUBLIC_SITE_URL || "https://dutimz.com"
 ).replace(/\/$/, "");
 
 export const MEDIA_URL = (
-  process.env.NEXT_PUBLIC_MEDIA_URL ?? "https://media.dutimz.com"
+  process.env.NEXT_PUBLIC_MEDIA_URL || "https://media.dutimz.com"
 ).replace(/\/$/, "");
 
 export const DEMO_MODE =
