@@ -29,6 +29,9 @@ test('Astro dev serves its client module and production emits versioned asset UR
   const version = (await readProjectFile('src/generated/asset-version.ts')).match(/ASSET_VERSION = '([^']+)'/)?.[1];
   assert.ok(version, 'generated asset version module must exist');
   const homepage = await readProjectFile('dist/index.html');
+  // CI builds with PUBLIC_DEMO_MODE=false, which leaves the static homepage without
+  // demo stories, so the carousel assertions below only hold for a demo build.
+  assert.match(homepage, /data-demo-mode="true"/, 'the tested build must be a demo build so preview stories render');
   const reelStyles = await readProjectFile('public/site.css');
   const homepageWithStyles = homepage.replace('</head>', `<style>${reelStyles}</style></head>`);
   assert.match(homepage, /data-connected-carousel/, 'the built homepage should contain the new server-rendered carousel');
@@ -78,8 +81,6 @@ test('Astro dev serves its client module and production emits versioned asset UR
       element.dispatchEvent(new TouchEvent('touchend', { changedTouches: [new Touch({ identifier: 1, target: element, clientX: 80, clientY: 120 })], bubbles: true }));
     });
     await page.waitForFunction((index) => document.querySelector('[data-carousel-active]')?.getAttribute('data-active-index') !== index, beforeSwipe);
-
-    await page.locator('[data-connected-carousel]').focus();
 
     await page.locator('[data-connected-carousel]').focus();
     const beforeKeyboardTitle = await page.locator('[data-carousel-title]').textContent();

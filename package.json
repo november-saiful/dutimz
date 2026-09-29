@@ -11,7 +11,7 @@
     "check": "astro check",
     "prebuild": "node scripts/write-asset-version.mjs",
     "build": "astro build && node scripts/build-client.mjs",
-    "test:ui": "npm run build && node --test tests/*.test.mjs",
+    "test:ui": "PUBLIC_DEMO_MODE=true npm run build && node --test tests/*.test.mjs",
     "preview": "wrangler pages dev dist",
     "check:worker": "tsc --noEmit -p worker/tsconfig.json",
     "deploy:pages": "wrangler pages deploy dist --project-name=dutimz",

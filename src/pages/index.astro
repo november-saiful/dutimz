@@ -20,7 +20,6 @@ const carouselStories = demoMode ? previewStories : [];
     {carouselStories.length ? (
       <ConnectedCarousel
         items={carouselStories.map((story) => ({
-          id: story.slug,
           stat: story.title,
           href: `/news/${story.slug}/`,
           imageClass: story.imageClass,
@@ -89,7 +88,7 @@ const carouselStories = demoMode ? previewStories : [];
           )}
         </div>
         <div class="recommended-list" id="recommended-list">
-          {demoMode && sideStories.slice(1).map((story, index) => (
+          {demoMode && sideStories.slice(1).map((story) => (
             <article class="recommended-item" data-story-id={story.slug}>
               <a href={`/news/${story.slug}/`} class="recommended-item__copy">
                 <span class="story-meta"><span>{story.category}</span><span aria-hidden="true">·</span><time>প্রিভিউ</time></span>

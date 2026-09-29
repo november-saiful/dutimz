@@ -15,7 +15,7 @@ const formatTime = (value: string) => {
 };
 const slugClass = (value: string) => value.includes('culture') || value.includes('opinion') ? 'art-culture' : value.includes('university') ? 'art-library' : value.includes('student') ? 'art-student' : 'art-campus';
 
-function card(story: Story, rank: number) {
+function card(story: Story) {
   const category = one(story.category) ?? { slug: 'campus', title_bn: 'ক্যাম্পাস' };
   const author = credit(one(story.profiles), story.is_anonymous);
   const url = `/news/${encodeURIComponent(story.slug)}/`;
@@ -50,7 +50,6 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, waitUntil
   const carouselItems = reelStories.map((story) => {
     const category = one(story.category) ?? { slug: 'campus', title_bn: 'ক্যাম্পাস' };
     return {
-      id: story.id,
       stat: story.title,
       href: `/news/${encodeURIComponent(story.slug)}/`,
       imageUrl: story.hero_media_key ? `https://media.dutimz.com/media/${encodeURIComponent(story.hero_media_key)}` : undefined,
@@ -61,7 +60,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, waitUntil
   const reelMarkup = reelStories.length
     ? renderConnectedCarousel(carouselItems, 'নির্বাচিত সাম্প্রতিক প্রতিবেদন')
     : `<section class="lead-story lead-story--empty" aria-labelledby="featured-title"><div class="lead-story__copy"><span class="lead-label"><span class="lead-label__mark">ঢা</span> ক্যাম্পাসের খবর, ক্যাম্পাসের কণ্ঠে</span><h1 id="featured-title">ঢাকা বিশ্ববিদ্যালয়ের প্রতিটি গল্পের নিজস্ব একটি মঞ্চ।</h1><p>ক্যাম্পাসের সংবাদ, শিক্ষার্থীদের কণ্ঠ, সংস্কৃতি ও মতামত—সম্পাদিত ও যাচাই করা প্রতিবেদন পড়ুন DUTIMZ-এ।</p><a class="read-button" href="/account/write/"><span>আপনার প্রতিবেদন পাঠান</span><span class="read-button__arrow">→</span></a></div><div class="lead-art lead-art--placeholder" aria-hidden="true"><span class="placeholder-seal">ঢা<br><i>বি</i></span><span class="placeholder-ring placeholder-ring--one"></span><span class="placeholder-ring placeholder-ring--two"></span><span class="placeholder-caption">ক্যাম্পাসের কণ্ঠস্বর</span></div></section>`;
-  const cards = side.length ? side.slice(0, 3).map((story, index) => card(story, index + 1)).join('') : '<div class="feed-empty"><span class="feed-empty__icon">ঢা</span><strong>প্রথম প্রতিবেদনটি আসছে</strong><p>সম্পাদকীয় ডেস্কের যাচাই করা খবর এখানে দেখানো হবে।</p></div>';
+  const cards = side.length ? side.slice(0, 3).map((story) => card(story)).join('') : '<div class="feed-empty"><span class="feed-empty__icon">ঢা</span><strong>প্রথম প্রতিবেদনটি আসছে</strong><p>সম্পাদকীয় ডেস্কের যাচাই করা খবর এখানে দেখানো হবে।</p></div>';
   const recommended = side.length ? side.slice(0, 1).map((story) => `<a class="recommended-feature__art story-art" href="/news/${encodeURIComponent(story.slug)}/"><span class="story-art__visual ${slugClass(one(story.category)?.slug ?? '')}"><span class="story-art__halo"></span><span class="story-art__seal">ঢা<br><i>বি</i></span><span class="recommended-feature__copy"><span>${escapeHtml(one(story.category)?.title_bn ?? 'ক্যাম্পাস')} · ${escapeHtml(formatTime(story.published_at))}</span><strong>${escapeHtml(story.title)}</strong></span></span></a>`).join('') : '';
   const recommendedList = side.slice(1, 6).map((story) => {
     const category = one(story.category) ?? { slug: 'campus', title_bn: 'ক্যাম্পাস' };
