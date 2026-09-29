@@ -45,7 +45,8 @@ import {
   previewStories,
 } from "@/lib/stories";
 import { bn, CATEGORIES, mediaUrlFor } from "@/lib/site";
-import { storyCategory } from "@/lib/supabase";
+import { storyCategory, type Story } from "@/lib/supabase";
+import type { PreviewStory } from "@/lib/stories";
 
 export const revalidate = 30;
 
@@ -58,8 +59,10 @@ export default async function HomePage() {
   const demo = isDemoMode();
   const stories = demo ? [] : await getLatestStories(25);
   const stats = await getDashboardStats(stories);
-  const featured = demo ? previewStories[0] : stories[0];
-  const side = demo ? previewStories.slice(1) : stories.slice(1, 7);
+  const featured = demo ? previewStories[0] : stories[0] ?? null;
+  const side: (Story | PreviewStory)[] = demo
+    ? previewStories.slice(1)
+    : stories.slice(1, 7);
   const breaking = (demo ? previewStories : stories).slice(0, 5).map((s) => ({
     href: `/news/${"slug" in s ? s.slug : ""}/`,
     title: s.title,
@@ -142,9 +145,9 @@ export default async function HomePage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <Badge>
-                {"category" in featured && typeof featured.category === "string"
+                {"categorySlug" in featured
                   ? featured.category
-                  : storyCategory(featured as never).title_bn}
+                  : storyCategory(featured).title_bn}
               </Badge>
               <span className="text-xs text-muted-foreground">
                 নির্বাচিত প্রতিবেদন
