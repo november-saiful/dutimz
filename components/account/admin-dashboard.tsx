@@ -1,11 +1,30 @@
 "use client";
 
 import * as React from "react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Pencil } from "lucide-react";
 
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { supabaseBrowser } from "@/lib/supabase";
 import { bn, formatDateBn } from "@/lib/site";
 
@@ -30,27 +49,105 @@ type Withdrawal = {
   profiles: { username: string; display_name: string } | null;
 };
 
+type SortState = {
+  column: string;
+  direction: "ascending" | "descending";
+};
+
+const ROLE_LABELS: Record<string, string> = {
+  reader: "রিডার",
+  reporter: "রিপোর্টার",
+  moderator: "মডারেটর",
+  admin: "অ্যাডমিন",
+};
+
+const TIER_LABELS: Record<string, string> = {
+  junior: "জুনিয়র",
+  general: "জেনারেল",
+  executive: "এক্সিকিউটিভ",
+};
+
+function roleBadgeVariant(
+  role: string,
+): "default" | "secondary" | "destructive" | "outline" {
+  switch (role) {
+    case "admin":
+      return "destructive";
+    case "moderator":
+      return "secondary";
+    case "reporter":
+      return "default";
+    default:
+      return "outline";
+  }
+}
+
+function SortableHead({
+  id,
+  label,
+  sort,
+  onSort,
+  className,
+}: {
+  id: string;
+  label: string;
+  sort: SortState;
+  onSort: (column: string) => void;
+  className?: string;
+}) {
+  const active = sort.column === id;
+  const Icon = active
+    ? sort.direction === "ascending"
+      ? ArrowUp
+      : ArrowDown
+    : ArrowUpDown;
+  return (
+    <TableHead
+      className={className}
+      aria-sort={
+        active
+          ? sort.direction === "ascending"
+            ? "ascending"
+            : "descending"
+          : undefined
+      }
+    >
+      <button
+        type="button"
+        onClick={() => onSort(id)}
+        className="inline-flex items-center gap-1 hover:text-foreground"
+        aria-label={`${label} অনুযায়ী সাজান`}
+      >
+        {label}
+        <Icon className="size-3.5 opacity-60" aria-hidden />
+      </button>
+    </TableHead>
+  );
+}
+
 export function AdminDashboard() {
   const [allowed, setAllowed] = React.useState<boolean | null>(null);
-  const [tab, setTab] = React.useState<"members" | "finance" | "roles">(
-    "members",
-  );
+  const [tab, setTab] = React.useState<"members" | "finance">("members");
   const [query, setQuery] = React.useState("");
   const [members, setMembers] = React.useState<Member[]>([]);
   const [total, setTotal] = React.useState(0);
   const [offset, setOffset] = React.useState(0);
   const [withdrawals, setWithdrawals] = React.useState<Withdrawal[]>([]);
   const [reasons, setReasons] = React.useState<Record<string, string>>({});
-  const [roleUserId, setRoleUserId] = React.useState("");
-  const [roleName, setRoleName] = React.useState("reporter");
-  const [tier, setTier] = React.useState("general");
-  const [roleReason, setRoleReason] = React.useState("");
   const [adjustUserId, setAdjustUserId] = React.useState("");
   const [adjustAmount, setAdjustAmount] = React.useState("");
   const [adjustReason, setAdjustReason] = React.useState("");
   const [error, setError] = React.useState("");
   const [notice, setNotice] = React.useState("");
   const [busy, setBusy] = React.useState<string | null>(null);
+  const [sort, setSort] = React.useState<SortState>({
+    column: "created_at",
+    direction: "descending",
+  });
+  const [editing, setEditing] = React.useState<Member | null>(null);
+  const [editRole, setEditRole] = React.useState("reporter");
+  const [editTier, setEditTier] = React.useState("general");
+  const [editReason, setEditReason] = React.useState("");
 
   const pageSize = 20;
 
@@ -154,36 +251,6 @@ export function AdminDashboard() {
     }
   }
 
-  async function assignRole(event: React.FormEvent) {
-    event.preventDefault();
-    setError("");
-    setNotice("");
-    if (!roleUserId.trim() || roleReason.trim().length < 3) {
-      setError("সদস্যের আইডি ও কারণ (অন্তত ৩ অক্ষর) আবশ্যক।");
-      return;
-    }
-    setBusy("role");
-    try {
-      const supabase = supabaseBrowser();
-      const { error } = await supabase.rpc("assign_user_role", {
-        p_user_id: roleUserId.trim(),
-        p_role: roleName,
-        p_tier: roleName === "reporter" ? tier : null,
-        p_reason: roleReason.trim(),
-      });
-      if (error) {
-        setError(error.message);
-        return;
-      }
-      setNotice("ভূমিকা হালনাগাদ হয়েছে।");
-      setRoleUserId("");
-      setRoleReason("");
-      await loadMembers(offset, query);
-    } finally {
-      setBusy(null);
-    }
-  }
-
   async function adjustBalance(event: React.FormEvent) {
     event.preventDefault();
     setError("");
@@ -209,6 +276,91 @@ export function AdminDashboard() {
       setAdjustUserId("");
       setAdjustAmount("");
       setAdjustReason("");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // The server page is the unit the RPC returns, so sorting applies to the
+  // loaded page exactly like the reference table sorts its loaded items.
+  const sortedMembers = React.useMemo(() => {
+    const factor = sort.direction === "descending" ? -1 : 1;
+    const valueOf = (member: Member): string | number => {
+      switch (sort.column) {
+        case "name":
+          return (member.display_name || member.username).toLowerCase();
+        case "role":
+          return member.role;
+        case "tier":
+          return member.reporter_tier ?? "";
+        case "completion":
+          return member.completion_percent;
+        case "created_at":
+        default:
+          return member.created_at;
+      }
+    };
+    return [...members].sort((a, b) => {
+      const first = valueOf(a);
+      const second = valueOf(b);
+      if (typeof first === "number" && typeof second === "number") {
+        return (first - second) * factor;
+      }
+      return String(first).localeCompare(String(second)) * factor;
+    });
+  }, [members, sort]);
+
+  function toggleSort(column: string) {
+    setSort((prev) =>
+      prev.column === column
+        ? {
+            column,
+            direction: prev.direction === "ascending" ? "descending" : "ascending",
+          }
+        : { column, direction: "ascending" },
+    );
+  }
+
+  const page = Math.floor(offset / pageSize) + 1;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pageWindow = React.useMemo(() => {
+    const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+    return Array.from({ length: Math.min(5, totalPages) }, (_, i) => start + i);
+  }, [page, totalPages]);
+
+  function openEditor(member: Member) {
+    setEditing(member);
+    setEditRole(member.role);
+    setEditTier(member.reporter_tier ?? "general");
+    setEditReason("");
+  }
+
+  // Role editing happens on the member's own row now: the audited RPC needs
+  // the member id, which the table already holds, so no UUID pasting.
+  async function saveRole() {
+    if (!editing) return;
+    setError("");
+    setNotice("");
+    if (editReason.trim().length < 3) {
+      setError("সিদ্ধান্তের কারণ লিখুন (অন্তত ৩ অক্ষর)।");
+      return;
+    }
+    setBusy(`role-${editing.id}`);
+    try {
+      const supabase = supabaseBrowser();
+      const { error } = await supabase.rpc("assign_user_role", {
+        p_user_id: editing.id,
+        p_role: editRole,
+        p_tier: editRole === "reporter" ? editTier : null,
+        p_reason: editReason.trim(),
+      });
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      setNotice("ভূমিকা হালনাগাদ হয়েছে।");
+      setEditing(null);
+      await loadMembers(offset, query);
     } finally {
       setBusy(null);
     }
@@ -251,7 +403,6 @@ export function AdminDashboard() {
           [
             ["members", "সদস্য"],
             ["finance", "অর্থ"],
-            ["roles", "ভূমিকা"],
           ] as const
         ).map(([key, label]) => (
           <Button
@@ -267,183 +418,308 @@ export function AdminDashboard() {
       </div>
 
       {tab === "members" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>সদস্য তালিকা (মোট {bn(total)}জন)</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <form
-              className="flex gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void loadMembers(0, query);
-              }}
-            >
-              <Input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="নাম বা ইউজারনেম খুঁজুন…"
-              />
-              <Button type="submit">খুঁজুন</Button>
-            </form>
-            {members.map((member) => (
-              <div
-                key={member.id}
-                className="flex flex-wrap items-center gap-2 border-b py-2 text-sm last:border-0"
-              >
-                <strong>{member.display_name || `@${member.username}`}</strong>
-                <span className="text-muted-foreground">@{member.username}</span>
-                <span className="text-muted-foreground">· {member.role}</span>
-                {member.reporter_tier && (
-                  <span className="text-muted-foreground">
-                    · {member.reporter_tier}
-                  </span>
-                )}
-                <span className="ml-auto text-xs text-muted-foreground">
-                  {bn(member.completion_percent)}% ·{" "}
-                  {formatDateBn(member.created_at)}
-                </span>
-              </div>
-            ))}
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                disabled={offset === 0}
-                onClick={() => void loadMembers(Math.max(0, offset - pageSize), query)}
-              >
-                ← আগের
-              </Button>
-              <Button
-                variant="outline"
-                disabled={offset + pageSize >= total}
-                onClick={() => void loadMembers(offset + pageSize, query)}
-              >
-                পরের →
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {tab === "finance" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              অপেক্ষমাণ উত্তোলন ({bn(withdrawals.length)}টি)
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {withdrawals.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                নিষ্পত্তির অপেক্ষায় কোনো অনুরোধ নেই।
-              </p>
-            )}
-            {withdrawals.map((withdrawal) => (
-              <div key={withdrawal.id} className="rounded-md border p-4">
-                <p className="text-sm font-medium">
-                  {withdrawal.profiles?.display_name ??
-                    `@${withdrawal.profiles?.username ?? "সদস্য"}`}{" "}
-                  · {bn(withdrawal.amount_tk)} টাকা ·{" "}
-                  {withdrawal.method === "nagad" ? "নগদ" : "বিকাশ"}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {formatDateBn(withdrawal.created_at)}
-                </p>
-                <div className="mt-2 grid gap-2">
-                  <Label htmlFor={`wreason-${withdrawal.id}`}>
-                    সিদ্ধান্তের কারণ (আবশ্যক)
-                  </Label>
-                  <textarea
-                    id={`wreason-${withdrawal.id}`}
-                    value={reasons[withdrawal.id] ?? ""}
-                    onChange={(e) =>
-                      setReasons({ ...reasons, [withdrawal.id]: e.target.value })
-                    }
-                    rows={2}
-                    minLength={3}
-                    maxLength={500}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      disabled={busy === withdrawal.id}
-                      onClick={() => void reviewWithdrawal(withdrawal.id, "approve")}
-                    >
-                      পরিশোধ
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      disabled={busy === withdrawal.id}
-                      onClick={() => void reviewWithdrawal(withdrawal.id, "reject")}
-                    >
-                      প্রত্যাখ্যান
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
-      {tab === "roles" && (
-        <div className="grid gap-4 md:grid-cols-2">
+        <>
           <Card>
             <CardHeader>
-              <CardTitle>ভূমিকা নির্ধারণ</CardTitle>
+              <CardTitle>সদস্য তালিকা (মোট {bn(total)}জন)</CardTitle>
             </CardHeader>
-            <CardContent>
-              <form onSubmit={assignRole} className="grid gap-2">
-                <Label htmlFor="role-user">সদস্যের আইডি (UUID)</Label>
+            <CardContent className="flex flex-col gap-3">
+              <form
+                className="flex gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void loadMembers(0, query);
+                }}
+              >
                 <Input
-                  id="role-user"
-                  value={roleUserId}
-                  onChange={(e) => setRoleUserId(e.target.value)}
-                  placeholder="সদস্য তালিকা থেকে আইডি নিন"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="নাম বা ইউজারনেম খুঁজুন…"
+                  className="min-w-0"
                 />
-                <Label htmlFor="role-name">ভূমিকা</Label>
-                <select
-                  id="role-name"
-                  value={roleName}
-                  onChange={(e) => setRoleName(e.target.value)}
-                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                <Button type="submit">খুঁজুন</Button>
+              </form>
+              <Table aria-label="সদস্য তালিকা">
+                <TableHeader>
+                  <TableRow>
+                    <SortableHead
+                      id="name"
+                      label="সদস্য"
+                      sort={sort}
+                      onSort={toggleSort}
+                    />
+                    <SortableHead
+                      id="role"
+                      label="ভূমিকা"
+                      sort={sort}
+                      onSort={toggleSort}
+                    />
+                    <SortableHead
+                      id="tier"
+                      label="স্তর"
+                      sort={sort}
+                      onSort={toggleSort}
+                    />
+                    <SortableHead
+                      id="completion"
+                      label="সম্পূর্ণ"
+                      sort={sort}
+                      onSort={toggleSort}
+                    />
+                    <SortableHead
+                      id="created_at"
+                      label="যোগদান"
+                      sort={sort}
+                      onSort={toggleSort}
+                      className="hidden md:table-cell"
+                    />
+                    <TableHead className="w-12">
+                      <span className="sr-only">পদক্ষেপ</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedMembers.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={6}
+                        className="py-8 text-center text-muted-foreground"
+                      >
+                        কোনো সদস্য পাওয়া যায়নি।
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {sortedMembers.map((member) => {
+                    const name = member.display_name || `@${member.username}`;
+                    return (
+                      <TableRow key={member.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Avatar className="size-8 shrink-0">
+                              <AvatarFallback className="text-xs">
+                                {name.replace(/^@/, "").slice(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">
+                                {name}
+                              </p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                @{member.username}
+                              </p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={roleBadgeVariant(member.role)}>
+                            {ROLE_LABELS[member.role] ?? member.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {member.reporter_tier ? (
+                            <Badge variant="secondary">
+                              {TIER_LABELS[member.reporter_tier] ??
+                                member.reporter_tier}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="tabular-nums">
+                          {bn(member.completion_percent)}%
+                        </TableCell>
+                        <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">
+                          {formatDateBn(member.created_at)}
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => openEditor(member)}
+                            aria-label={`${name}-এর ভূমিকা সম্পাদনা`}
+                            title="ভূমিকা সম্পাদনা"
+                          >
+                            <Pencil className="size-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+              <nav
+                className="flex flex-wrap items-center justify-center gap-1"
+                aria-label="সদস্য পৃষ্ঠা"
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => void loadMembers((page - 2) * pageSize, query)}
+                  aria-label="আগের পৃষ্ঠা"
                 >
-                  <option value="reader">রিডার</option>
-                  <option value="reporter">রিপোর্টার</option>
-                  <option value="moderator">মডারেটর</option>
-                  <option value="admin">অ্যাডমিন</option>
-                </select>
-                {roleName === "reporter" && (
-                  <>
-                    <Label htmlFor="role-tier">রিপোর্টার স্তর</Label>
+                  ←
+                </Button>
+                {pageWindow.map((p) => (
+                  <Button
+                    key={p}
+                    variant={p === page ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => void loadMembers((p - 1) * pageSize, query)}
+                    aria-label={`পৃষ্ঠা ${p}`}
+                    aria-current={p === page ? "page" : undefined}
+                  >
+                    {bn(p)}
+                  </Button>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={() => void loadMembers(page * pageSize, query)}
+                  aria-label="পরের পৃষ্ঠা"
+                >
+                  →
+                </Button>
+              </nav>
+            </CardContent>
+          </Card>
+
+          <Dialog
+            open={editing !== null}
+            onOpenChange={(open) => {
+              if (!open) setEditing(null);
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>ভূমিকা সম্পাদনা</DialogTitle>
+                <DialogDescription>
+                  {editing && (
+                    <>
+                      @{editing.username} — বর্তমান ভূমিকা:{" "}
+                      {ROLE_LABELS[editing.role] ?? editing.role}
+                    </>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="edit-role">ভূমিকা</Label>
+                  <select
+                    id="edit-role"
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value)}
+                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="reader">রিডার</option>
+                    <option value="reporter">রিপোর্টার</option>
+                    <option value="moderator">মডারেটর</option>
+                    <option value="admin">অ্যাডমিন</option>
+                  </select>
+                </div>
+                {editRole === "reporter" && (
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="edit-tier">রিপোর্টার স্তর</Label>
                     <select
-                      id="role-tier"
-                      value={tier}
-                      onChange={(e) => setTier(e.target.value)}
+                      id="edit-tier"
+                      value={editTier}
+                      onChange={(e) => setEditTier(e.target.value)}
                       className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                     >
                       <option value="junior">জুনিয়র</option>
                       <option value="general">জেনারেল</option>
                       <option value="executive">এক্সিকিউটিভ</option>
                     </select>
-                  </>
+                  </div>
                 )}
-                <Label htmlFor="role-reason">কারণ (আবশ্যক)</Label>
-                <textarea
-                  id="role-reason"
-                  value={roleReason}
-                  onChange={(e) => setRoleReason(e.target.value)}
-                  rows={2}
-                  minLength={3}
-                  maxLength={500}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-                <Button type="submit" disabled={busy === "role"}>
-                  ভূমিকা সংরক্ষণ করুন
+                <div className="grid gap-1.5">
+                  <Label htmlFor="edit-reason">কারণ (আবশ্যক)</Label>
+                  <textarea
+                    id="edit-reason"
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value)}
+                    rows={2}
+                    minLength={3}
+                    maxLength={500}
+                    placeholder="কেন এই ভূমিকা দেওয়া হচ্ছে…"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEditing(null)}>
+                  বাতিল
                 </Button>
-              </form>
+                <Button onClick={() => void saveRole()} disabled={busy !== null}>
+                  {busy !== null ? "সংরক্ষণ হচ্ছে…" : "ভূমিকা সংরক্ষণ করুন"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
+      )}
+
+      {tab === "finance" && (
+        <div className="flex flex-col gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                অপেক্ষমাণ উত্তোলন ({bn(withdrawals.length)}টি)
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              {withdrawals.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  নিষ্পত্তির অপেক্ষায় কোনো অনুরোধ নেই।
+                </p>
+              )}
+              {withdrawals.map((withdrawal) => (
+                <div key={withdrawal.id} className="rounded-md border p-4">
+                  <p className="text-sm font-medium">
+                    {withdrawal.profiles?.display_name ??
+                      `@${withdrawal.profiles?.username ?? "সদস্য"}`}{" "}
+                    · {bn(withdrawal.amount_tk)} টাকা ·{" "}
+                    {withdrawal.method === "nagad" ? "নগদ" : "বিকাশ"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatDateBn(withdrawal.created_at)}
+                  </p>
+                  <div className="mt-2 grid gap-2">
+                    <Label htmlFor={`wreason-${withdrawal.id}`}>
+                      সিদ্ধান্তের কারণ (আবশ্যক)
+                    </Label>
+                    <textarea
+                      id={`wreason-${withdrawal.id}`}
+                      value={reasons[withdrawal.id] ?? ""}
+                      onChange={(e) =>
+                        setReasons({ ...reasons, [withdrawal.id]: e.target.value })
+                      }
+                      rows={2}
+                      minLength={3}
+                      maxLength={500}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        disabled={busy === withdrawal.id}
+                        onClick={() => void reviewWithdrawal(withdrawal.id, "approve")}
+                      >
+                        পরিশোধ
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={busy === withdrawal.id}
+                        onClick={() => void reviewWithdrawal(withdrawal.id, "reject")}
+                      >
+                        প্রত্যাখ্যান
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </CardContent>
           </Card>
           <Card>
