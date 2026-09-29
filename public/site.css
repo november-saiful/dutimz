@@ -97,10 +97,10 @@ svg { display: block; width: calc(21px * var(--box-scale)); height: calc(21px * 
 .breaking-bar { display: flex; align-items: stretch; min-height: 34px; margin: 0; overflow: hidden; border: 0; background: var(--breaking); color: #fff; font-size: max(var(--type-floor), calc(13px * var(--type-scale))); }
 .breaking-bar__label { display: inline-flex; flex: 0 0 auto; align-items: center; gap: calc(7px * var(--space-scale)); padding: 0 calc(15px * var(--space-scale)); background: var(--breaking-deep); font-size: max(var(--type-floor), calc(11px * var(--type-scale))); font-weight: 700; white-space: nowrap; }
 .breaking-bar__dot { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: #fff; animation: breaking-pulse 1.7s ease-in-out infinite; }
-.breaking-bar__viewport { position: relative; flex: 1 1 auto; min-width: 0; overflow: hidden; }
-.breaking-bar__track { display: flex; width: max-content; animation: breaking-scroll 32s linear infinite; will-change: transform; }
+.breaking-bar__viewport { position: relative; display: flex; flex: 1 1 auto; min-width: 0; align-items: center; overflow: hidden; }
+.breaking-bar__track { display: flex; align-items: center; width: max-content; animation: breaking-scroll 32s linear infinite; will-change: transform; }
 .breaking-bar:hover .breaking-bar__track, .breaking-bar:focus-within .breaking-bar__track { animation-play-state: paused; }
-.breaking-bar__group { display: flex; align-items: stretch; }
+.breaking-bar__group { display: flex; align-items: center; }
 .breaking-bar__item { display: inline-flex; align-items: center; padding: 0 calc(28px * var(--space-scale)) 0 0; color: #fff; font-weight: 600; white-space: nowrap; }
 .breaking-bar__item::before { margin-right: 11px; color: rgba(255,255,255,.5); content: "•"; }
 .breaking-bar__item:hover { text-decoration: underline; }
@@ -918,7 +918,7 @@ svg { display: block; width: calc(21px * var(--box-scale)); height: calc(21px * 
 /* Responsive editorial navigation, adapted from the supplied header concept. */
 .site-topbar { z-index: 70; border-bottom: 1px solid rgba(95,35,103,.11); background: rgba(250,245,249,.92); backdrop-filter: blur(18px); }
 .breaking-bar { max-height: 40px; transition: max-height .2s ease, opacity .16s ease, visibility .2s; }
-.site-topbar.is-stuck .breaking-bar { max-height: 0; min-height: 0; opacity: 0; visibility: hidden; pointer-events: none; }
+.site-topbar.is-stuck .breaking-bar { max-height: 40px; opacity: 1; visibility: visible; }
 .site-header { width: min(1280px,100%); margin: 0 auto !important; }
 .header-inner { display: flex; min-height: 72px; align-items: center; justify-content: space-between; gap: clamp(14px,2.6vw,38px); padding: calc(10px * var(--space-scale)) clamp(15px,3vw,36px); }
 .brand { flex: 0 0 auto; display: grid; gap: calc(3px * var(--space-scale)); }

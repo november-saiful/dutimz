@@ -2,6 +2,6 @@
 // Committed so typecheck and CI builds compile before regeneration runs; every
 // `npm run build` rewrites it. The value changes whenever site.css or the client
 // sources change, which is what makes each deployment's asset URLs unique.
-export const ASSET_VERSION = 'f958acb6be3aea35';
+export const ASSET_VERSION = 'c69ecd1109213071';
 export const siteCssHref = `/site.css?v=${ASSET_VERSION}`;
 export const clientJsSrc = `/client.js?v=${ASSET_VERSION}`;

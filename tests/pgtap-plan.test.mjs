@@ -82,6 +82,10 @@ test('the member records migration stays administrator-only and off the dropped 
   assert.ok(!/d\.completion_percent/.test(migration), 'the migration reads a column an earlier migration dropped');
   assert.ok(migration.includes('public.profile_completion_for(p.id)'), 'completion should come from the live function');
   assert.ok(migration.includes('(select count(*) from matching)'), 'the directory reports the total count for pagination');
+  // A bare `select id` reads against the RETURNS TABLE column of the same name and aborts
+  // the directory listing (CI run #26); the CTE column has to stay qualified.
+  assert.ok(migration.includes('select matching.id from matching'), 'the directory filter must qualify the CTE column');
+  assert.ok(!/\(select id from matching\)/.test(migration), 'no unqualified id may leak back into the directory filter');
   assert.ok(migration.includes('left join public.profile_details d on d.user_id = p.id'), 'directory pagination reads complete private details');
   assert.ok(migration.includes('order by p.created_at desc, p.id desc'), 'directory pagination has stable ordering for tied timestamps');
   assert.ok(migration.includes('p_offset'), 'the directory has an offset for pagination');

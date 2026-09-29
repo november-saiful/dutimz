@@ -153,7 +153,9 @@ test('responsive DUTIMZ header keeps its routes and accessible mobile navigation
   assert.match(css, /\.primary-navigation\s*\{[^}]*justify-content:\s*center/s);
   assert.match(css, /\.mobile-menu-backdrop\s*\{[^}]*position:\s*fixed/s);
   assert.match(css, /\.mobile-menu-toggle\s*\{[^}]*display:\s*grid/s);
-  assert.match(responsiveNavigation, /\.site-topbar\.is-stuck \.breaking-bar\s*\{[^}]*max-height:\s*0[^}]*visibility:\s*hidden/s, 'breaking ticker collapses after the header sticks');
+  assert.match(responsiveNavigation, /\.site-topbar\.is-stuck \.breaking-bar\s*\{[^}]*max-height:\s*40px[^}]*visibility:\s*visible/s, 'breaking ticker stays pinned after the header sticks');
+  assert.match(css, /\.breaking-bar__viewport\s*\{[^}]*align-items:\s*center/s, 'ticker content stays vertically centered');
+  assert.match(css, /\.breaking-bar__track\s*\{[^}]*align-items:\s*center/s, 'ticker track stays vertically centered');
   assert.ok(responsiveNavigation.includes('.header-actions > .header-search-trigger { display: none;'), 'mobile search uses the dock rather than duplicating the header action');
   const layout = await readProjectFile('src/layouts/BaseLayout.astro');
   assert.match(layout, /data-open-search-popup/);

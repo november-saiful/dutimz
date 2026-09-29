@@ -61,7 +61,9 @@ begin
       cross join terms
       left join public.user_roles r on r.user_id = p.id
       left join public.profile_details d on d.user_id = p.id
-     where p.id in (select id from matching)
+     -- Qualified: the RETURNS TABLE column `id` is also a PL/pgSQL variable, so a bare
+     -- `select id` reads as ambiguous and aborts the whole directory listing.
+     where p.id in (select matching.id from matching)
      order by p.created_at desc, p.id desc
      limit greatest(1, least(coalesce(p_limit, 50), 100))
     offset greatest(coalesce(p_offset, 0), 0);
@@ -103,11 +105,11 @@ begin
   end if;
   -- An unrecognised field is a client bug. Refusing it is what keeps a renamed or mistyped
   -- input from looking like it saved while the value was quietly dropped.
-  select key into unknown_key from jsonb_object_keys(coalesce(p_profile, '{}'::jsonb)) as key
-   where key <> all (allowed_profile) limit 1;
+  select candidate.key into unknown_key from jsonb_object_keys(coalesce(p_profile, '{}'::jsonb)) as candidate(key)
+   where candidate.key <> all (allowed_profile) limit 1;
   if unknown_key is not null then raise exception 'অচেনা প্রোফাইল ঘর: %', unknown_key; end if;
-  select key into unknown_key from jsonb_object_keys(coalesce(p_details, '{}'::jsonb)) as key
-   where key <> all (allowed_details) limit 1;
+  select candidate.key into unknown_key from jsonb_object_keys(coalesce(p_details, '{}'::jsonb)) as candidate(key)
+   where candidate.key <> all (allowed_details) limit 1;
   if unknown_key is not null then raise exception 'অচেনা তথ্যের ঘর: %', unknown_key; end if;
 
   select * into before_profile from public.profiles where id = p_user_id for update;
