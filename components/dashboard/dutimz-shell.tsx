@@ -1,7 +1,8 @@
 import * as React from "react";
 
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarInset } from "@/components/ui/sidebar";
 import { DutimzSidebar } from "@/components/dashboard/dutimz-sidebar";
+import { SidebarState } from "@/components/dashboard/sidebar-state";
 import {
   DashboardHeader,
   type Crumb,
@@ -19,7 +20,7 @@ export function DutimzShell({
   children: React.ReactNode;
 }) {
   return (
-    <SidebarProvider>
+    <SidebarState>
       <DutimzSidebar />
       {/*
         min-w-0: the inset is a flex item, and a flex item's min-width is `auto`, so it
@@ -61,6 +62,6 @@ export function DutimzShell({
           <p className="mt-2">© {new Date().getFullYear()} DUTIMZ</p>
         </footer>
       </SidebarInset>
-    </SidebarProvider>
+    </SidebarState>
   );
 }

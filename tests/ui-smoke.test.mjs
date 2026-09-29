@@ -157,9 +157,23 @@ test('the config endpoint keeps the public shape and never leaks secrets', async
   assert.match(route, /no-store/);
 });
 
+test('the sidebar starts minimized on desktop and remembers expansion', async () => {
+  // The rail is the default everywhere; expanding writes the sidebar_state
+  // cookie (see SidebarProvider), and the shell boots from it on every page.
+  const sidebar = await readProjectFile('components/dashboard/dutimz-sidebar.tsx');
+  assert.match(sidebar, /collapsible="icon"/);
+  const state = await readProjectFile('components/dashboard/sidebar-state.tsx');
+  assert.match(state, /sidebar_state/);
+  assert.match(state, /defaultOpen/);
+  assert.doesNotMatch(state, /defaultOpen\s*=\s*true/);
+  const shell = await readProjectFile('components/dashboard/dutimz-shell.tsx');
+  assert.match(shell, /SidebarState/);
+  assert.doesNotMatch(shell, /<SidebarProvider>/);
+});
+
 test('the dashboard shell wraps every page with the DUTIMZ sidebar', async () => {
   const shell = await readProjectFile('components/dashboard/dutimz-shell.tsx');
-  assert.match(shell, /SidebarProvider/);
+  assert.match(shell, /SidebarState/);
   assert.match(shell, /DutimzSidebar/);
   assert.match(shell, /SidebarInset/);
   const sidebar = await readProjectFile('components/dashboard/dutimz-sidebar.tsx');
