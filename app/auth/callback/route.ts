@@ -18,9 +18,11 @@ export async function GET(request: Request) {
     {
       cookies: {
         getAll: () => cookieStore.getAll(),
-        setAll: (toSet) => {
-          for (const { name, value, options } of toSet) {
-            cookieStore.set(name, value, options);
+        setAll: (
+          toSet: { name: string; value: string; options?: object }[],
+        ) => {
+          for (const { name, value } of toSet) {
+            cookieStore.set(name, value);
           }
         },
       },
