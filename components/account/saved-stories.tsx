@@ -93,7 +93,8 @@ export function SavedStories() {
   if (state === "error") {
     return (
       <Card>
-        <CardContent className="py-8 text-center text-sm text-destructive">
+        {/* break-all: raw error text (URLs, tokens) must not set min-content width on phones. */}
+        <CardContent className="break-all py-8 text-center text-sm text-destructive">
           সংরক্ষিত প্রতিবেদন লোড করা যায়নি: {message}
         </CardContent>
       </Card>
