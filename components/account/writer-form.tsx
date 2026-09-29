@@ -62,24 +62,22 @@ export function WriterForm() {
         window.location.assign("/auth/sign-in");
         return;
       }
-      const { data: category } = await supabase
-        .from("categories")
-        .select("id")
-        .eq("slug", categorySlug)
-        .eq("active", true)
-        .maybeSingle();
-      if (!category) {
-        setError("বিভাগটি সক্রিয় নেই।");
-        return;
-      }
-      const result = await supabase.from("articles").insert({
-        title,
-        excerpt,
-        body,
-        category_id: (category as { id: string }).id,
-        author_id: user.id,
-        status: "pending",
-        is_anonymous: data.get("is_anonymous") === "on",
+      // Clients hold no direct write grant on articles: the SECURITY DEFINER
+      // RPC allocates the slug, validates the questionnaire, records the
+      // revision, and sets pending/published by reporter tier.
+      const { data: questionnaire } = await supabase.rpc(
+        "get_active_article_questionnaire",
+      );
+      const questionnaireVersion = (
+        questionnaire as { id?: string; version_id?: string } | null
+      )?.id;
+      void questionnaireVersion;
+      const result = await supabase.rpc("submit_article", {
+        p_category_slug: categorySlug,
+        p_title: title,
+        p_excerpt: excerpt,
+        p_body: body,
+        p_is_anonymous: data.get("is_anonymous") === "on",
       });
       if (result.error) {
         setError(result.error.message);
