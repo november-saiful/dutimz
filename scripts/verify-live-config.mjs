@@ -268,6 +268,47 @@ async function routeProblems(base) {
     }
   }
 
+  // Whatever robots.txt advertises has to exist. The previous site went on advertising a
+  // sitemap that every path answered 404 for, and nothing noticed because nothing looked.
+  try {
+    const robots = await fetchText(`${base}/robots.txt`);
+    const advertised = [...robots.matchAll(/^\s*sitemap:\s*(\S+)\s*$/gim)].map(
+      (match) => match[1],
+    );
+    if (advertised.length === 0) {
+      problems.push(`${base}/robots.txt advertises no sitemap`);
+    }
+
+    for (const declaration of advertised) {
+      // The declaration names the public host; while checking the Worker's own host, ask there.
+      const target = new URL(new URL(declaration).pathname, base).toString();
+      const { chain, loop, response } = await walk(target);
+      if (loop || response.status !== 200) {
+        problems.push(
+          `${target} is advertised by robots.txt but did not answer 200: ${describeChain(chain)}`,
+        );
+        continue;
+      }
+
+      const xml = await response.text();
+      const locations = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]);
+      if (!/<(urlset|sitemapindex)\b/.test(xml)) {
+        problems.push(`${target} is advertised by robots.txt but is not a sitemap`);
+      } else if (locations.length === 0) {
+        problems.push(`${target} is advertised by robots.txt but lists no URLs`);
+      } else {
+        console.log(`  ${target} advertises ${locations.length} URLs`);
+        // One of them has to be a real page, in the canonical shape the site links to.
+        const sample = locations
+          .map((location) => new URL(location).pathname)
+          .find((path) => path.startsWith('/news/'));
+        if (sample) await checkCanonical(sample);
+      }
+    }
+  } catch (error) {
+    problems.push(`${base}/robots.txt could not be read (${error.message})`);
+  }
+
   return problems;
 }
 

@@ -95,10 +95,57 @@ test('every portal route exists in the App Router', async () => {
     'app/account/admin/page.tsx',
     'app/u/[username]/page.tsx',
     'app/profile/me/page.tsx',
+    'app/sitemap.ts',
+    'app/robots.ts',
   ]) {
     assert.ok(await exists(route), `${route} must exist`);
   }
   void projectRoot;
+});
+
+test('robots and the sitemap are generated from the same site URL', async () => {
+  // The port deleted Astro's sitemap integration but left public/robots.txt advertising
+  // /sitemap-index.xml, so every sitemap path answered 404 while robots.txt kept pointing at
+  // it. Generating both from SITE_URL is what keeps the pointer and the file in step.
+  assert.ok(await exists('app/robots.ts'), 'app/robots.ts must generate robots.txt');
+  assert.ok(await exists('app/sitemap.ts'), 'app/sitemap.ts must generate the advertised sitemap');
+  await assert.rejects(
+    () => exists('public/robots.txt'),
+    'a static public/robots.txt would shadow the generated one',
+  );
+
+  const robots = await readProjectFile('app/robots.ts');
+  assert.match(
+    robots,
+    /sitemap: `\$\{SITE_URL\}\/sitemap\.xml`/,
+    'robots.txt must advertise the path Next serves for app/sitemap.ts, not the retired Astro one',
+  );
+  for (const path of ['/account/', '/auth/', '/api/']) {
+    assert.ok(robots.includes(`"${path}"`), `robots.txt must disallow ${path}`);
+  }
+});
+
+test('the sitemap lists canonical, reader-visible URLs only', async () => {
+  const sitemap = await readProjectFile('app/sitemap.ts');
+  const code = sitemap.replace(/\/\/[^\n]*/g, '');
+  assert.match(
+    sitemap,
+    /force-dynamic/,
+    'a sitemap frozen at deploy time lists only what existed then, and crawlers trust it',
+  );
+  // Every advertised URL must be the trailing-slash canonical the site redirects to, or the
+  // crawler is sent through a redirect on each page.
+  assert.match(code, /\/news\/\$\{article\.slug\}\//);
+  assert.match(code, /\/category\/\$\{slug\}\//);
+  for (const forbidden of ['/account', '/auth', '/api', '/saved', '/profile/me']) {
+    assert.ok(
+      !code.includes(forbidden),
+      `the sitemap must not advertise the reader-only ${forbidden}`,
+    );
+  }
+  const stories = await readProjectFile('lib/stories.ts');
+  assert.match(stories, /getSitemapArticles/);
+  assert.match(stories, /getSitemapCategorySlugs/);
 });
 
 test('the config endpoint keeps the public shape and never leaks secrets', async () => {
