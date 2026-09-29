@@ -1,20 +1,20 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "dutimz",
-  "pages_build_output_dir": "./dist",
+  "pages_build_output_dir": "./.open-next",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
   "vars": {
-    "PUBLIC_DEMO_MODE": "false",
-    "SITE_URL": "https://dutimz.com",
-    "MEDIA_URL": "https://media.dutimz.com",
+    "NEXT_PUBLIC_DEMO_MODE": "false",
+    "NEXT_PUBLIC_SITE_URL": "https://dutimz.com",
+    "NEXT_PUBLIC_MEDIA_URL": "https://media.dutimz.com",
     "MEDIA_WORKER_URL": "https://media.dutimz.com"
   },
   "env": {
     "preview": {
       "vars": {
-        "PUBLIC_DEMO_MODE": "true",
-        "SITE_URL": "https://dutimz.com"
+        "NEXT_PUBLIC_DEMO_MODE": "true",
+        "NEXT_PUBLIC_SITE_URL": "https://dutimz.com"
       }
     }
   }

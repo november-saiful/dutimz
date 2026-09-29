@@ -12,7 +12,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const CONFIG_PATH = new URL('../wrangler.jsonc', import.meta.url);
-const REQUIRED = ['SUPABASE_URL', 'SUPABASE_ANON_KEY'];
+const REQUIRED = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'];
 
 if (!process.env.CI && !process.argv.includes('--force')) {
   console.error(
@@ -28,7 +28,7 @@ if (missing.length > 0) {
     `Cannot deploy a Pages project without ${missing.join(' and ')}.\n` +
       'Set them as GitHub repository variables (Settings -> Secrets and variables -> Actions -> Variables),\n' +
       'or as repository secrets with the same names. Without them every visitor gets an empty\n' +
-      '/api/config.json: no sign-in and no article content.',
+      '/api/config: no sign-in and no article content.',
   );
   process.exit(1);
 }

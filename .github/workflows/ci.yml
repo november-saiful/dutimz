@@ -15,10 +15,11 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-  PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
-  PUBLIC_MEDIA_URL: ${{ vars.MEDIA_URL }}
-  PUBLIC_DEMO_MODE: "false"
+  NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+  NEXT_PUBLIC_MEDIA_URL: ${{ vars.MEDIA_URL }}
+  NEXT_PUBLIC_SITE_URL: https://dutimz.com
+  NEXT_PUBLIC_DEMO_MODE: "false"
 
 jobs:
   verify:
@@ -36,17 +37,15 @@ jobs:
         run: npm ci
       - name: Install media worker dependencies
         run: npm ci --prefix worker
-      - name: Verify Astro pages and types
+      - name: Verify Next.js types
         run: npm run check
       - name: Verify media worker types
         run: npm run check --prefix worker
       - name: Build production portal
         run: npm run build
       - name: Install the Chromium used by the layout checks
-        # The overflow guard measures real layout, so it needs a real engine.
         run: npx playwright install --with-deps chromium
       - name: Run interface and layout tests
-        # test:ui rebuilds, so this also re-checks the pages the guard measures.
         run: npm run test:ui
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
@@ -77,21 +76,21 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Build preview portal
-        run: npm run build
+        run: npx @opennextjs/cloudflare build
         env:
-          PUBLIC_DEMO_MODE: "true"
+          NEXT_PUBLIC_DEMO_MODE: "true"
       - name: Deploy Pages preview
         # --branch must not be the project's production branch: wrangler treats a
         # deployment with no branch as production, which would overwrite dutimz.com
         # with a demo-mode build straight from an unmerged pull request.
-        run: npx wrangler pages deploy dist --project-name=dutimz --branch=preview
+        run: npx wrangler pages deploy .open-next --project-name=dutimz --branch=preview
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
-          PUBLIC_MEDIA_URL: ${{ vars.MEDIA_URL }}
-          PUBLIC_DEMO_MODE: "true"
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_MEDIA_URL: ${{ vars.MEDIA_URL }}
+          NEXT_PUBLIC_DEMO_MODE: "true"
 
   release:
     name: Apply database migrations and deploy Cloudflare
@@ -111,8 +110,6 @@ jobs:
         run: npm ci
       - name: Install media worker dependencies
         run: npm ci --prefix worker
-      - name: Build the production portal
-        run: npm run build
       - name: Install Supabase CLI
         uses: supabase/setup-cli@v1
         with:
@@ -136,9 +133,6 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
       - name: Configure the bootstrap administrators
-        # The addresses are personal data and this repository is public, so they live in a
-        # repository secret and are written into app_settings through the management API.
-        # This also reconciles owners who signed in before the list was configured.
         run: node scripts/sync-bootstrap-admins.mjs
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -150,19 +144,19 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Materialise the Pages variables
-        # The Pages Functions read their configuration from this deployment, not from the
-        # dashboard, so the Supabase values have to be in wrangler.jsonc at deploy time.
+        # The deployment reads its configuration from wrangler.jsonc at deploy time,
+        # so the Supabase values have to be present under their NEXT_PUBLIC_ keys.
         # Injecting them here keeps them out of the repository.
         run: node scripts/inject-pages-vars.mjs
         env:
-          SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+      - name: Build the production portal
+        run: npx @opennextjs/cloudflare build
       - name: Deploy the Pages production build
-        run: npx wrangler pages deploy dist --project-name=dutimz --branch=main
+        run: npx wrangler pages deploy .open-next --project-name=dutimz --branch=main
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Verify production endpoints
-        # The deployment goes live before its configuration does, so this polls for the
-        # expected content rather than for any response at all.
         run: node scripts/verify-live-config.mjs
