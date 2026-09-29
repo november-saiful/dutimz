@@ -5,7 +5,7 @@
 // The addresses are personal data, and this repository is public, so they are not committed.
 // They travel from the BOOTSTRAP_ADMIN_EMAILS repository secret straight into the database
 // through the Supabase management API (the same endpoint the SQL editor uses), in the same
-// spirit as scripts/inject-pages-vars.mjs. Removing an address here does not demote anyone —
+// spirit as scripts/inject-worker-vars.mjs. Removing an address here does not demote anyone —
 // a role change is a deliberate act, so it stays a reviewed migration or an admin action.
 //
 // The script also verifies its own work: every configured address that already has an account

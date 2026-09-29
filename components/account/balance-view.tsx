@@ -2,7 +2,10 @@
 
 import * as React from "react";
 
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { one, supabaseBrowser } from "@/lib/supabase";
 import { bn, bnMoney, formatDateBn } from "@/lib/site";
@@ -25,6 +28,49 @@ export function BalanceView() {
   const [held, setHeld] = React.useState(0);
   const [reserved, setReserved] = React.useState(0);
   const [entries, setEntries] = React.useState<LedgerEntry[]>([]);
+  const [amount, setAmount] = React.useState("");
+  const [method, setMethod] = React.useState<"bkash" | "nagad" | "">("");
+  const [payoutNumber, setPayoutNumber] = React.useState("");
+  const [withdrawError, setWithdrawError] = React.useState("");
+  const [withdrawDone, setWithdrawDone] = React.useState("");
+  const [withdrawBusy, setWithdrawBusy] = React.useState(false);
+
+  async function requestWithdrawal(event: React.FormEvent) {
+    event.preventDefault();
+    setWithdrawError("");
+    setWithdrawDone("");
+    const amountTk = Number(amount);
+    if (!Number.isInteger(amountTk) || amountTk < 3000) {
+      setWithdrawError("সর্বনিম্ন উত্তোলন ৳৩,০০০।");
+      return;
+    }
+    if (method !== "bkash" && method !== "nagad") {
+      setWithdrawError("বিকাশ বা নগদ নির্বাচন করুন।");
+      return;
+    }
+    if (!payoutNumber.trim()) {
+      setWithdrawError("পেমেন্ট নম্বর দিন (প্রোফাইলে সংরক্ষিত নম্বরের সঙ্গে মিলতে হবে)।");
+      return;
+    }
+    setWithdrawBusy(true);
+    try {
+      const supabase = supabaseBrowser();
+      const result = await supabase.rpc("request_withdrawal", {
+        p_amount_tk: amountTk,
+        p_method: method,
+        p_payout_number: payoutNumber.trim(),
+      });
+      if (result.error) {
+        setWithdrawError(result.error.message);
+        return;
+      }
+      setAmount("");
+      setPayoutNumber("");
+      setWithdrawDone("উত্তোলনের অনুরোধ পাঠানো হয়েছে। নিষ্পত্তি হলে জানানো হবে।");
+    } finally {
+      setWithdrawBusy(false);
+    }
+  }
 
   React.useEffect(() => {
     let cancelled = false;
@@ -110,6 +156,69 @@ export function BalanceView() {
           </Card>
         ))}
       </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>উত্তোলনের অনুরোধ</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={requestWithdrawal} className="grid gap-3 sm:grid-cols-4">
+            <div className="grid gap-1">
+              <Label htmlFor="withdraw-amount">টাকার পরিমাণ</Label>
+              <Input
+                id="withdraw-amount"
+                type="number"
+                min={3000}
+                step={1}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="৩০০০"
+              />
+            </div>
+            <div className="grid gap-1">
+              <Label htmlFor="withdraw-method">পদ্ধতি</Label>
+              <select
+                id="withdraw-method"
+                value={method}
+                onChange={(e) => setMethod(e.target.value as "bkash" | "nagad" | "")}
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">বেছে নিন</option>
+                <option value="bkash">বিকাশ</option>
+                <option value="nagad">নগদ</option>
+              </select>
+            </div>
+            <div className="grid gap-1 sm:col-span-2">
+              <Label htmlFor="withdraw-number">পেমেন্ট নম্বর</Label>
+              <Input
+                id="withdraw-number"
+                value={payoutNumber}
+                onChange={(e) => setPayoutNumber(e.target.value)}
+                maxLength={24}
+                placeholder="প্রোফাইলে সংরক্ষিত নম্বর"
+              />
+            </div>
+            <div className="sm:col-span-4">
+              <Button type="submit" disabled={withdrawBusy}>
+                {withdrawBusy ? "পাঠানো হচ্ছে…" : "উত্তোলনের অনুরোধ পাঠান →"}
+              </Button>
+            </div>
+          </form>
+          {withdrawError && (
+            <p className="mt-2 text-sm text-destructive" role="alert">
+              {withdrawError}
+            </p>
+          )}
+          {withdrawDone && (
+            <p className="mt-2 text-sm text-green-700" role="status">
+              {withdrawDone}
+            </p>
+          )}
+          <p className="mt-2 text-xs text-muted-foreground">
+            প্রথম উত্তোলনে অন্তত ৩৫টি প্রকাশিত প্রতিবেদন ও ১০০% সম্পূর্ণ
+            প্রোফাইল প্রয়োজন।
+          </p>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>লেনদেনের ইতিহাস</CardTitle>

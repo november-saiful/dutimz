@@ -4,12 +4,10 @@
 
 ## Architecture
 
-- Astro static editorial shell deployed to Cloudflare Pages; Cloudflare Pages Functions power request-time APIs and article/profile pages.
+- Next.js 15 App Router portal (React + Tailwind + shadcn) deployed to Cloudflare Workers via `@opennextjs/cloudflare`. Every route renders inside the dashboard shell (sidebar + inset header + cards + chart).
 - A separate Cloudflare Worker authenticates media requests, resolves every asset through the audited `get_media_asset` database function, and reads/writes a private R2 bucket. Originals are never replaced. When `OPTIMIZE_IMAGES=true`, Cloudflare Images may additionally store a smaller WebP derivative that is used for delivery only, and only after the Worker verifies it is smaller than the source. Cloudflare Images exposes no provable lossless mode, so this is a delivery optimization, not a lossless recompression.
 - Supabase Auth (Google only) and Postgres. All production schema edits are committed SQL migrations protected by RLS.
-- GitHub Actions is the production release controller: protected `main` merge → CI/type checks/database tests/build → Supabase migrations → media Worker deployment → Pages deployment → smoke tests. Disable separate automatic production deployments in both Cloudflare and any linked provider integrations.
-
-Astro's current Cloudflare adapter deploys to Workers rather than Pages. This repository intentionally uses a static Astro shell on Pages and the supported Pages Functions runtime for dynamic endpoints. It does not rely on the adapter's retired Pages target.
+- GitHub Actions is the production release controller: protected `main` merge → CI/type checks/database tests/build → Supabase migrations → media Worker deployment → portal Worker deployment → smoke tests. Disable separate automatic production deployments in both Cloudflare and any linked provider integrations.
 
 ## Local development
 
@@ -21,11 +19,11 @@ Astro's current Cloudflare adapter deploys to Workers rather than Pages. This re
    npm ci --prefix worker
    ```
 
-3. Create a Supabase project (or run `supabase start`). Enable **Google only** under Authentication → Providers → Google, and add the local callback URL `http://localhost:4321/auth/callback/` to the Supabase and Google OAuth redirect allowlists.
-4. Copy `.env.example` to `.env` and set the Supabase project URL and publishable/anon key. These are public browser credentials; never put a secret/service-role key in a `PUBLIC_` variable or the Git repository.
-5. Start the site: `npm run dev`. Local editorial preview content is clearly marked as illustrative. To use live content, migrate/reset the local database and set `PUBLIC_DEMO_MODE=false`.
+3. Create a Supabase project (or run `supabase start`). Enable **Google only** under Authentication → Providers → Google, and add the local callback URL `http://localhost:3000/auth/callback/` to the Supabase and Google OAuth redirect allowlists.
+4. Copy `.env.example` to `.env.local` and set the Supabase project URL and publishable/anon key. These are public browser credentials; never put a secret/service-role key in a `NEXT_PUBLIC_` variable or the Git repository.
+5. Start the site: `npm run dev`. Local editorial preview content is clearly marked as illustrative. To use live content, migrate/reset the local database and set `NEXT_PUBLIC_DEMO_MODE=false`.
 6. Start the local Supabase stack and apply/test migrations with `supabase start`, `supabase db reset`, and `supabase test db`.
-7. Preview Cloudflare Pages Functions with `npm run build && npm run preview`. Wrangler uses local bindings by default. The standalone media service can be run with `npm run dev --prefix worker` once local Worker secrets are configured.
+7. Preview the Workers runtime with `npm run preview` (builds with OpenNext and serves locally). Wrangler uses local bindings by default. The standalone media service can be run with `npm run dev --prefix worker` once local Worker secrets are configured.
 
 ## Supabase configuration
 
@@ -38,20 +36,20 @@ Astro's current Cloudflare adapter deploys to Workers rather than Pages. This re
 
 ## Cloudflare setup
 
-Create a Cloudflare Pages project named `dutimz` (production branch `main`) and a private R2 bucket named `dutimz-media`. Connect `dutimz.com` to the Pages project and configure `media.dutimz.com` to route to the `dutimz-media` Worker. Enable the Cloudflare Images binding for image processing. Add a Cloudflare Redirect Rule for `www.dutimz.com/*` to `https://dutimz.com/$1` with status 301; this is required for static assets and routes that do not execute a Pages Function. The public `_redirects` file only handles path redirects. The Pages Functions also redirect dynamic HTML requests on the `www` host to the apex. The Pages project itself holds no storage binding: all media is written and served by the Worker, so the site cannot reach R2 directly.
+Create a Cloudflare Workers project named `dutimz` and a private R2 bucket named `dutimz-media`. Connect `dutimz.com` to the Worker and configure `media.dutimz.com` to route to the `dutimz-media` Worker. Enable the Cloudflare Images binding for image processing. Keep the Cloudflare Redirect Rule for `www.dutimz.com/*` to `https://dutimz.com/$1` with status 301 as a second layer; the Next.js `middleware.ts` also redirects dynamic requests on the `www` host to the apex. The public `_redirects` file only handles path redirects. The portal Worker itself holds no storage binding: all media is written and served by the media Worker, so the site cannot reach R2 directly.
 
-`wrangler.jsonc` is the source of truth for the Pages project configuration, which means the Cloudflare dashboard is **not**: a deployment reads the variables in `env.production`, and anything set only in the dashboard is shadowed rather than merged. `wrangler pages download config dutimz` prints what a project actually has. Because of that:
+`wrangler.jsonc` is the source of truth for the portal Worker configuration, which means the Cloudflare dashboard is **not**: non-secret vars live in the file, and anything set only in the dashboard is shadowed rather than merged. Because of that:
 
-- Everything except credentials lives in `wrangler.jsonc`: `SITE_URL`, `MEDIA_URL`, `MEDIA_WORKER_URL`, `PUBLIC_DEMO_MODE`.
-- `SUPABASE_URL` and `SUPABASE_ANON_KEY` are credentials, so they are not committed. The release workflow calls `scripts/inject-pages-vars.mjs`, which folds them (from the GitHub repository variables or secrets) into `wrangler.jsonc` in the ephemeral runner just before `wrangler pages deploy`. Deploying by hand therefore needs those two variables exported, and the script refuses to write them into a tracked file outside CI.
-- `env.preview` pins preview deployments to `PUBLIC_DEMO_MODE: "true"` so unmerged pull-request code can never read the production database.
+- Everything except credentials lives in `wrangler.jsonc`: `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_MEDIA_URL`, `NEXT_PUBLIC_DEMO_MODE`.
+- `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are credentials baked in at build time, so they are not committed. The release workflow calls `scripts/inject-worker-vars.mjs`, which writes them (from the GitHub repository variables or secrets) into an untracked `.env.production` file in the ephemeral runner just before `opennextjs-cloudflare deploy`. Deploying by hand therefore needs those two variables exported, and the script refuses to write them outside CI.
+- `env.preview` pins preview deployments to `NEXT_PUBLIC_DEMO_MODE: "true"` so unmerged pull-request code can never read the production database.
 - Media Worker R2 binding: `MEDIA_BUCKET`; Cloudflare Images binding `IMAGES`; public variables `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `ALLOWED_ORIGINS` (a comma-separated exact-origin allowlist, including both apex and `www` site hosts).
 - Worker secret `SUPABASE_JWT_SECRET` is deliberately not used. Verify user access by calling Supabase Auth's `/auth/v1/user` endpoint with the presented bearer token; do not trust unsigned claims.
 - Bindings and variables must be configured for production **and** preview environments. Keep a separate staging Supabase project and media bucket when possible.
 
 Configure private Worker keys with Wrangler secrets, not in `wrangler.jsonc`, and leave `OPTIMIZE_IMAGES` at `false` unless you want smaller delivery derivatives. Disable the zone's **Email Address Obfuscation** (Scrape Shield) so the published contact address stays readable rather than being rewritten into a `/cdn-cgi/l/email-protection` link.
 
-Configure GitHub Actions environment variables `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `MEDIA_URL`, `MEDIA_WORKER_URL`, and the protected secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_ID`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, and `BOOTSTRAP_ADMIN_EMAILS` (the comma separated list of the portal owners' Google addresses). Use a least-privilege Cloudflare token limited to the needed Pages/Workers/R2/Images resources. The Pages project’s dashboard-based **Builds/automatic production deployments must be disabled** so GitHub Actions is the single trigger.
+Configure GitHub Actions environment variables `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `MEDIA_URL`, and the protected secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_ID`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, and `BOOTSTRAP_ADMIN_EMAILS` (the comma separated list of the portal owners' Google addresses). Use a least-privilege Cloudflare token limited to the needed Workers/R2/Images resources. The Worker’s dashboard-based **Builds/automatic production deployments must be disabled** so GitHub Actions is the single trigger.
 
 The release ends with `scripts/verify-live-config.mjs`, which polls the live configuration (a deployment serves requests before it serves its own configuration) and then repeats a signed-out visitor's anonymous reads against Supabase REST. That last part is not decoration: a row level security policy that calls a function the `anon` role cannot execute refuses the entire query with `42501`, so a missing `grant execute` takes the whole public feed down while the site still returns HTTP 200. Run it locally with `node scripts/verify-live-config.mjs`.
 

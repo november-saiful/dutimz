@@ -75,15 +75,15 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
-      - name: Build preview portal
-        run: npx @opennextjs/cloudflare build
+      - name: Materialise the preview variables
+        run: node scripts/inject-worker-vars.mjs --env preview
         env:
-          NEXT_PUBLIC_DEMO_MODE: "true"
-      - name: Deploy Pages preview
-        # --branch must not be the project's production branch: wrangler treats a
-        # deployment with no branch as production, which would overwrite dutimz.com
-        # with a demo-mode build straight from an unmerged pull request.
-        run: npx wrangler pages deploy .open-next --project-name=dutimz --branch=preview
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+      - name: Deploy Workers preview
+        # --env preview serves the staging environment, never production: an
+        # unmerged pull request must not overwrite dutimz.com with a demo build.
+        run: npx @opennextjs/cloudflare deploy --env preview
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -143,18 +143,16 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Materialise the Pages variables
-        # The deployment reads its configuration from wrangler.jsonc at deploy time,
-        # so the Supabase values have to be present under their NEXT_PUBLIC_ keys.
+      - name: Materialise the Worker variables
+        # NEXT_PUBLIC_* values are inlined at build time, so the Supabase values
+        # have to be present in the environment when opennextjs-cloudflare builds.
         # Injecting them here keeps them out of the repository.
-        run: node scripts/inject-pages-vars.mjs
+        run: node scripts/inject-worker-vars.mjs
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
-      - name: Build the production portal
-        run: npx @opennextjs/cloudflare build
-      - name: Deploy the Pages production build
-        run: npx wrangler pages deploy .open-next --project-name=dutimz --branch=main
+      - name: Deploy the production Worker
+        run: npx @opennextjs/cloudflare deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

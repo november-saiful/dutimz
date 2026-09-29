@@ -7,6 +7,15 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  QuestionnaireFields,
+  type QuestionnaireVersion,
+} from "@/components/account/questionnaire-fields";
+import {
+  GalleryUploader,
+  type GalleryItem,
+} from "@/components/account/gallery-uploader";
+import { ReporterApplication } from "@/components/account/reporter-application";
 import { supabaseBrowser } from "@/lib/supabase";
 import { CATEGORIES } from "@/lib/site";
 
@@ -19,15 +28,33 @@ export function WriterForm() {
   );
   const [busy, setBusy] = React.useState(false);
   const [done, setDone] = React.useState("");
+  const [questionnaire, setQuestionnaire] =
+    React.useState<QuestionnaireVersion | null>(null);
+  const [answers, setAnswers] = React.useState<Record<string, unknown>>({});
+  const [gallery, setGallery] = React.useState<GalleryItem[]>([]);
 
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
-      const supabase = supabaseBrowser();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!cancelled) setSignedIn(Boolean(user));
+      try {
+        const supabase = supabaseBrowser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (cancelled) return;
+        setSignedIn(Boolean(user));
+        if (!user) return;
+        const { data } = await supabase.rpc(
+          "get_active_article_questionnaire",
+        );
+        if (cancelled) return;
+        const row = Array.isArray(data) ? data[0] : data;
+        if (row && typeof row === "object") {
+          setQuestionnaire(row as QuestionnaireVersion);
+        }
+      } catch {
+        if (!cancelled) setSignedIn(false);
+      }
     })();
     return () => {
       cancelled = true;
@@ -65,18 +92,20 @@ export function WriterForm() {
       // Clients hold no direct write grant on articles: the SECURITY DEFINER
       // RPC allocates the slug, validates the questionnaire, records the
       // revision, and sets pending/published by reporter tier.
-      const { data: questionnaire } = await supabase.rpc(
-        "get_active_article_questionnaire",
-      );
-      const questionnaireVersion = (
-        questionnaire as { id?: string; version_id?: string } | null
-      )?.id;
-      void questionnaireVersion;
+      if (!questionnaire) {
+        setError("প্রশ্নমালা এখনো প্রস্তুত নয়। পাতা রিফ্রেশ করে আবার চেষ্টা করুন।");
+        return;
+      }
+      const mediaIds = gallery.map((item) => item.id);
       const result = await supabase.rpc("submit_article", {
         p_category_slug: categorySlug,
         p_title: title,
         p_excerpt: excerpt,
         p_body: body,
+        p_media_keys: mediaIds.length ? mediaIds : null,
+        p_hero_media_key: mediaIds[0] ?? null,
+        p_questionnaire_answers: answers,
+        p_questionnaire_version_id: questionnaire.id,
         p_is_anonymous: data.get("is_anonymous") === "on",
       });
       if (result.error) {
@@ -85,6 +114,9 @@ export function WriterForm() {
       }
       form.reset();
       setSlugPreview("/news/…");
+      setAnswers({});
+      for (const item of gallery) URL.revokeObjectURL(item.objectUrl);
+      setGallery([]);
       setDone("আপনার প্রতিবেদন পর্যালোচনার জন্য পাঠানো হয়েছে।");
       setStatus("প্রতিবেদন পাঠানো হয়েছে।");
     } finally {
@@ -204,6 +236,29 @@ export function WriterForm() {
               তথ্য প্রকাশ করবেন না।
             </p>
           </div>
+          {questionnaire && (
+            <section aria-live="polite" className="flex flex-col gap-2">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">
+                  প্রতিবেদনের তথ্য
+                </p>
+                <h2 className="text-lg font-semibold">
+                  ঘটনা ও কার্যক্রমের বিবরণ
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  যা জানা নেই তা ফাঁকা রাখুন। ভুক্তভোগী ও অভিযুক্তের পরিচিতি
+                  কেবল প্রশাসনিক পর্যালোচনার জন্য; জনসমক্ষে শুধু পরিচয়বিহীন
+                  সামগ্রিক পরিসংখ্যান দেখানো হবে।
+                </p>
+              </div>
+              <QuestionnaireFields
+                questionnaire={questionnaire}
+                answers={answers}
+                onChange={setAnswers}
+              />
+            </section>
+          )}
+          <GalleryUploader items={gallery} onChange={setGallery} />
           <label className="flex items-start gap-2 text-sm">
             <input type="checkbox" name="is_anonymous" className="mt-1" />
             <span>
@@ -232,6 +287,7 @@ export function WriterForm() {
           </div>
         </CardContent>
       </Card>
+      <ReporterApplication />
     </form>
   );
 }

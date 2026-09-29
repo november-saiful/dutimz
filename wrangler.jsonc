@@ -1,14 +1,23 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
+  "main": ".open-next/worker.js",
   "name": "dutimz",
-  "pages_build_output_dir": "./.open-next",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "dutimz"
+    }
+  ],
   "vars": {
     "NEXT_PUBLIC_DEMO_MODE": "false",
     "NEXT_PUBLIC_SITE_URL": "https://dutimz.com",
-    "NEXT_PUBLIC_MEDIA_URL": "https://media.dutimz.com",
-    "MEDIA_WORKER_URL": "https://media.dutimz.com"
+    "NEXT_PUBLIC_MEDIA_URL": "https://media.dutimz.com"
   },
   "env": {
     "preview": {
