@@ -14,10 +14,11 @@ concurrency:
   group: dutimz-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Only genuinely deployment-wide values belong here. NEXT_PUBLIC_* values are inlined into
+# the bundle when the build runs, and an *empty* process variable wins over the real value
+# written to .env.production — exporting an unset repository variable at this level once
+# produced a production build that served illustrative content with blank media URLs.
 env:
-  NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
-  NEXT_PUBLIC_MEDIA_URL: ${{ vars.MEDIA_URL }}
   NEXT_PUBLIC_SITE_URL: https://dutimz.com
   NEXT_PUBLIC_DEMO_MODE: "false"
 
@@ -76,10 +77,13 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Materialise the preview variables
+        # Deliberately *not* the production credentials: a preview has to stay a demo build,
+        # so this step is allowed to come up empty and the script then reports demo mode.
+        # Point it at a staging Supabase project instead of production when one exists.
         run: node scripts/inject-worker-vars.mjs --env preview
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.PREVIEW_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.PREVIEW_SUPABASE_ANON_KEY }}
       - name: Deploy Workers preview
         # --env preview serves the staging environment, never production: an
         # unmerged pull request must not overwrite dutimz.com with a demo build.
@@ -87,9 +91,8 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
-          NEXT_PUBLIC_MEDIA_URL: ${{ vars.MEDIA_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.PREVIEW_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.PREVIEW_SUPABASE_ANON_KEY }}
           NEXT_PUBLIC_DEMO_MODE: "true"
 
   release:
@@ -152,9 +155,14 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
       - name: Deploy the production Worker
+        # The Supabase values have to be in the build environment as well as in
+        # .env.production: `next build` inlines NEXT_PUBLIC_* into the bundle, and an empty
+        # variable in the environment is inlined as an empty string rather than ignored.
         run: npx @opennextjs/cloudflare deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
       - name: Verify production endpoints
         run: node scripts/verify-live-config.mjs

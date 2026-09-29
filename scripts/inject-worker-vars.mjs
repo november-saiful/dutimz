@@ -7,9 +7,10 @@
 // `next build`, and opennextjs-cloudflare invokes `next build` itself.
 //
 // Usage: node scripts/inject-worker-vars.mjs [--env preview]
-//   Default writes .env.production. --env preview writes .env.preview,
-//   which is NOT loaded by Next.js automatically — the preview job passes the
-//   same values as step env so both build and runtime agree on demo mode.
+//   Default writes .env.production and fails when the credentials are absent.
+//   --env preview writes .env.preview (not loaded automatically by Next.js) and treats
+//   absent credentials as "build a demo preview" instead of an error, because a preview
+//   must never carry the production database credentials.
 //
 // Refuses to run outside CI unless --force is passed, so a local run never
 // leaves credentials on disk where a later `git add -A` could sweep them up.
@@ -25,8 +26,19 @@ if (!process.env.CI && !process.argv.includes('--force')) {
   process.exit(1);
 }
 
+const preview = process.argv.includes('--env') && process.argv[process.argv.indexOf('--env') + 1] === 'preview';
+
 const missing = REQUIRED.filter((name) => !process.env[name]);
 if (missing.length > 0) {
+  if (preview) {
+    // A preview deployment deliberately runs without credentials: it serves illustrative
+    // content in demo mode so an unmerged branch can never read the production database.
+    // There is nothing to inject, and failing here would just turn every pull request red.
+    console.log(
+      `No ${missing.join(' or ')} was provided, so this preview will be built in demo mode.`,
+    );
+    process.exit(0);
+  }
   console.error(
     `Cannot deploy the portal without ${missing.join(' and ')}.\n` +
       'Set them as GitHub repository variables (Settings -> Secrets and variables -> Actions -> Variables),\n' +
@@ -36,7 +48,6 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-const preview = process.argv.includes('--env') && process.argv[process.argv.indexOf('--env') + 1] === 'preview';
 const target = preview ? '.env.preview' : '.env.production';
 const lines = REQUIRED.map((name) => `${name}=${process.env[name]}`);
 writeFileSync(target, `${lines.join('\n')}\n`);
