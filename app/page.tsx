@@ -1,11 +1,5 @@
 import Link from "next/link";
-import {
-  BarChart3,
-  ClipboardList,
-  FileText,
-  MessagesSquare,
-  Users,
-} from "lucide-react";
+import { BarChart3 } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -31,7 +25,7 @@ import {
   isDemoMode,
   previewStories,
 } from "@/lib/stories";
-import { bn, CATEGORIES, mediaUrlFor } from "@/lib/site";
+import { CATEGORIES, mediaUrlFor } from "@/lib/site";
 import { storyCategory, type Story } from "@/lib/supabase";
 import type { PreviewStory } from "@/lib/stories";
 
@@ -50,51 +44,12 @@ export default async function HomePage() {
     title: s.title,
   }));
 
-  const statCards = [
-    {
-      label: "মোট প্রতিবেদন",
-      value: demo ? String(previewStories.length) : bn(stats.stories),
-      hint: demo ? "প্রিভিউ সংস্করণ" : "সর্বশেষ ২৫টি থেকে",
-      icon: FileText,
-    },
-    {
-      label: "সক্রিয় বিভাগ",
-      value: demo ? bn(CATEGORIES.length - 1) : bn(stats.categories),
-      hint: "সংবাদ বিভাগ",
-      icon: ClipboardList,
-    },
-    {
-      label: "লেখক",
-      value: demo ? "সম্পাদকীয় ডেস্ক" : bn(stats.authors),
-      hint: demo ? "প্রিভিউ" : "সাম্প্রতিক লেখক",
-      icon: Users,
-    },
-    {
-      label: "মন্তব্য",
-      value: demo ? "০" : bn(stats.comments),
-      hint: "পাঠকের আলোচনা",
-      icon: MessagesSquare,
-    },
-  ];
-
+  // The desk-wide counts (reports, sections, authors, comments) live in the
+  // admin dashboard, not on the public homepage: they answer an editorial
+  // question, not a reader one. The homepage keeps the flow chart and the
+  // recent-activity feed, which still read from the same stats object.
   return (
     <DutimzShell title="স্বাগতম" breaking={breaking}>
-      {/* Stat cards (App1 STATS, wired to real counts) */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {statCards.map((stat) => (
-          <Card key={stat.label}>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-sm font-medium">{stat.label}</CardTitle>
-              <stat.icon aria-hidden className="size-5 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-semibold tabular-nums">{stat.value}</p>
-              <p className="text-xs text-muted-foreground">{stat.hint}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
       {/* Featured hero */}
       {featured && (
         <Card className="overflow-hidden">
