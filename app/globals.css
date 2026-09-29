@@ -61,4 +61,12 @@
   .article-body p + p {
     margin-top: 1.25rem;
   }
+  /* Hide scrollbars on dropdown surfaces that manage their own overflow. */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
 }
