@@ -29,7 +29,13 @@ export function DutimzShell({
       */}
       <SidebarInset className="min-w-0">
         <DashboardHeader title={title} crumbs={crumbs} breaking={breaking} />
-        <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
+        {/*
+          min-w-0 again: this main is itself a flex item of the column flex
+          container above. Without it, an unbreakable string (e.g. a raw error
+          message in a card) sets the min-content width and stretches the whole
+          document past the viewport on phones.
+        */}
+        <main className="flex min-w-0 flex-1 flex-col gap-6 p-4 sm:p-6">
           {children}
         </main>
         <footer className="border-t px-4 py-6 text-center text-xs text-muted-foreground sm:px-6">
