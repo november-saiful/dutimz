@@ -30,6 +30,48 @@ test('middleware redirects www to the apex', async () => {
   assert.match(middleware, /301/);
 });
 
+test('worker-rendered responses carry the headers _headers only applies to assets', async () => {
+  // The assets layer applies public/_headers to static files. HTML rendered by the Worker
+  // never passes through it, so dropping these from middleware silently removes clickjacking
+  // and MIME-sniffing protection from every article, section and account page.
+  const headers = await readProjectFile('public/_headers');
+  const middleware = await readProjectFile('middleware.ts');
+  for (const name of [
+    'X-Content-Type-Options',
+    'Referrer-Policy',
+    'X-Frame-Options',
+    'Permissions-Policy',
+  ]) {
+    assert.ok(headers.includes(name), `public/_headers must declare ${name}`);
+    assert.ok(middleware.includes(name), `middleware must set ${name} for Worker-rendered pages`);
+  }
+});
+
+test('the trailing-slash shape agrees between the redirects file and next.config', async () => {
+  // public/_redirects normalises to trailing-slash URLs, which is also every page's canonical
+  // form. With Next left on its default (trailingSlash: false) it answered the slashed URL
+  // with a 308 back to the unslashed one while the redirects file answered that with a 301,
+  // so every article, section and profile URL looped forever. The two must agree.
+  const config = await readProjectFile('next.config.ts');
+  assert.match(
+    config,
+    /trailingSlash:\s*true/,
+    'next.config must normalise to the trailing-slash canonicals',
+  );
+
+  const redirects = await readProjectFile('public/_redirects');
+  const rules = redirects
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith('#'));
+  assert.ok(rules.length > 0, 'the redirects file must still declare its path redirects');
+  for (const rule of rules) {
+    const [from, to, code] = rule.split(/\s+/);
+    assert.ok(to?.endsWith('/'), `_redirects must send ${from} to the trailing-slash form`);
+    assert.match(code ?? '', /^30[18]$/, `${from} must be a permanent redirect`);
+  }
+});
+
 test('every portal route exists in the App Router', async () => {
   for (const route of [
     'app/page.tsx',
