@@ -159,7 +159,7 @@ export default async function ArticlePage({
                 <StoryArt
                   slug={category.slug}
                   title={article.title}
-                  className="aspect-[16/9] w-full rounded-lg"
+                  className="aspect-video w-full rounded-lg"
                 />
               )}
               <div className="article-body max-w-[68ch] text-[17px] leading-8">
@@ -296,7 +296,7 @@ export default async function ArticlePage({
       </div>
 
       {/* Mobile sticky action bar */}
-      <div className="sticky bottom-0 -mx-4 border-t bg-background/95 px-4 py-2 backdrop-blur sm:-mx-6 sm:px-6 lg:hidden">
+      <div className="sticky bottom-0 -mx-4 border-t bg-background/95 px-4 py-2 backdrop-blur-sm sm:-mx-6 sm:px-6 lg:hidden">
         <ArticleActions
           articleId={article.id}
           articleTitle={article.title}

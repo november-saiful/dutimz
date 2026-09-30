@@ -69,7 +69,7 @@ const TIER_LABELS: Record<string, string> = {
 
 function roleBadgeVariant(
   role: string,
-): "default" | "secondary" | "destructive" | "outline" {
+): "default" | "secondary" | "destructive" | "outline-solid" {
   switch (role) {
     case "admin":
       return "destructive";
@@ -78,7 +78,7 @@ function roleBadgeVariant(
     case "reporter":
       return "default";
     default:
-      return "outline";
+      return "outline-solid";
   }
 }
 
@@ -409,7 +409,7 @@ export function AdminDashboard() {
             key={key}
             role="tab"
             aria-selected={tab === key}
-            variant={tab === key ? "default" : "outline"}
+            variant={tab === key ? "default" : "outline-solid"}
             onClick={() => setTab(key)}
           >
             {label}
@@ -563,7 +563,7 @@ export function AdminDashboard() {
                 {pageWindow.map((p) => (
                   <Button
                     key={p}
-                    variant={p === page ? "default" : "outline"}
+                    variant={p === page ? "default" : "outline-solid"}
                     size="sm"
                     onClick={() => void loadMembers((p - 1) * pageSize, query)}
                     aria-label={`পৃষ্ঠা ${p}`}

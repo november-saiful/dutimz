@@ -1,6 +1,117 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@plugin 'tailwindcss-animate';
+
+@custom-variant dark (&:is(.dark *));
+
+@utility container {
+  margin-inline: auto;
+  padding-inline: 2rem;
+  @media (width >= --theme(--breakpoint-sm)) {
+    max-width: none;
+  }
+  @media (width >= 1400px) {
+    max-width: 1400px;
+  }
+}
+
+@theme {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --font-serif: var(--font-bengali), Georgia, serif;
+  --font-sans: var(--font-bengali), system-ui, sans-serif;
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
+  }
+  @keyframes accordion-up {
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
+  }
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@utility story-art-fallback {
+  /* Fallback story art when no hero image: brand gradient + seal. */
+  background: linear-gradient(145deg, #ece0e9, #b3a0b0 54%, #7b3a80);
+}
+
+@utility article-body {
+  /* News body copy is justified by default. Long tokens (links, hashtags)
+     still wrap instead of pushing the page past the viewport on phones. */
+  text-align: justify;
+  overflow-wrap: break-word;
+  & p + p {
+    margin-top: 1.25rem;
+  }
+}
+
+@utility no-scrollbar {
+  /* Hide scrollbars on dropdown surfaces that manage their own overflow. */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
 
 @layer base {
   :root {
@@ -50,30 +161,6 @@
   h3 {
     font-family: var(--font-bengali);
     text-wrap: balance;
-  }
-}
-
-@layer components {
-  /* Fallback story art when no hero image: brand gradient + seal. */
-  .story-art-fallback {
-    background: linear-gradient(145deg, #ece0e9, #b3a0b0 54%, #7b3a80);
-  }
-  /* News body copy is justified by default. Long tokens (links, hashtags)
-     still wrap instead of pushing the page past the viewport on phones. */
-  .article-body {
-    text-align: justify;
-    overflow-wrap: break-word;
-  }
-  .article-body p + p {
-    margin-top: 1.25rem;
-  }
-  /* Hide scrollbars on dropdown surfaces that manage their own overflow. */
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
   }
 }
 

@@ -62,7 +62,7 @@ export function StoryCard({ story }: { story: Story }) {
             story.hero_media_key ? mediaUrlFor(story.hero_media_key) : null
           }
           title={story.title}
-          className="aspect-[16/9] w-full"
+          className="aspect-video w-full"
         />
       </Link>
       <CardContent className="flex flex-col gap-2 pt-4">
@@ -115,7 +115,7 @@ export function PreviewStoryCard({
           slug={story.categorySlug}
           imageUrl={story.imageUrl}
           title={story.title}
-          className="aspect-[16/9] w-full"
+          className="aspect-video w-full"
         />
       </Link>
       <CardContent className="flex flex-col gap-2 pt-4">
