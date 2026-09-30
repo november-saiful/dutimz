@@ -180,7 +180,7 @@ export function DashboardHeader({
   }
 
   return (
-    <div className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
+    <div className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur-sm">
       <header className="flex h-16 items-center gap-3 px-4 sm:px-6">
         <SidebarTrigger aria-label="Toggle navigation" />
         <div className="min-w-0">

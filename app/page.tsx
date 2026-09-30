@@ -66,7 +66,7 @@ export default async function HomePage() {
                     : null
                 }
                 title={featured.title}
-                className="aspect-[21/9] w-full"
+                className="aspect-21/9 w-full"
               />
             ) : (
               <StoryArt
@@ -75,7 +75,7 @@ export default async function HomePage() {
                 }
                 imageUrl={"imageUrl" in featured ? featured.imageUrl : null}
                 title={featured.title}
-                className="aspect-[21/9] w-full"
+                className="aspect-21/9 w-full"
               />
             )}
           </Link>

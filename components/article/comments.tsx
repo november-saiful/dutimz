@@ -98,7 +98,7 @@ export function Comments({ articleId }: { articleId: string }) {
           required
           rows={3}
           placeholder="শ্রদ্ধাশীল ভাষায় আপনার মতামত লিখুন…"
-          className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         />
         <Button type="submit" disabled={submitting} className="self-start">
           {submitting ? "প্রকাশ হচ্ছে…" : "মন্তব্য করুন →"}
@@ -143,7 +143,7 @@ export function Comments({ articleId }: { articleId: string }) {
                   <span aria-hidden>·</span>
                   <time className="shrink-0">{relativeTimeBn(comment.created_at)}</time>
                 </div>
-                <p className="mt-1 break-words text-sm">{comment.body}</p>
+                <p className="mt-1 wrap-break-word text-sm">{comment.body}</p>
               </div>
             </article>
           );
