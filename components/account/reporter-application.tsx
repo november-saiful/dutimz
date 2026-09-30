@@ -4,7 +4,8 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
+import { Field, FormMessage } from "@/components/ui/field";
+import { Textarea } from "@/components/ui/textarea";
 import { supabaseBrowser } from "@/lib/supabase";
 
 export function ReporterApplication() {
@@ -79,28 +80,24 @@ export function ReporterApplication() {
           সম্পাদকীয় দল আপনার আবেদন পর্যালোচনা করে উপযুক্ত রিপোর্টার স্তর
           নির্ধারণ করবে। স্তর অনুমোদনের পর পারিশ্রমিক কার্যকর হবে।
         </p>
-        <form onSubmit={submit} className="flex flex-col gap-2">
-          <Label htmlFor="reporter-motivation">লেখার অভিজ্ঞতা ও আগ্রহ</Label>
-          <textarea
-            id="reporter-motivation"
-            value={motivation}
-            onChange={(e) => setMotivation(e.target.value)}
-            rows={4}
-            maxLength={1500}
-            required
-            placeholder="আপনি কী ধরনের প্রতিবেদন করতে চান? আগের কাজ থাকলে সংক্ষেপে লিখুন।"
-            className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          />
-          {error && (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          )}
-          {done && (
-            <p className="text-sm text-green-700" role="status">
-              {done}
-            </p>
-          )}
+        <form onSubmit={submit} className="flex flex-col gap-4">
+          <Field
+            label="লেখার অভিজ্ঞতা ও আগ্রহ"
+            htmlFor="reporter-motivation"
+            hint="কী ধরনের প্রতিবেদন করতে চান, আর আগের কাজ থাকলে সংক্ষেপে লিখুন।"
+          >
+            <Textarea
+              id="reporter-motivation"
+              value={motivation}
+              onChange={(e) => setMotivation(e.target.value)}
+              rows={4}
+              maxLength={1500}
+              required
+              placeholder="আপনি কী ধরনের প্রতিবেদন করতে চান? আগের কাজ থাকলে সংক্ষেপে লিখুন।"
+            />
+          </Field>
+          {error && <FormMessage>{error}</FormMessage>}
+          {done && <FormMessage tone="success">{done}</FormMessage>}
           <Button type="submit" variant="outline" disabled={busy} className="self-start">
             {busy ? "পাঠানো হচ্ছে…" : "আবেদন পাঠান →"}
           </Button>

@@ -4,9 +4,15 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Field,
+  FieldGrid,
+  FieldSection,
+  FormMessage,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Textarea } from "@/components/ui/textarea";
 import { supabaseBrowser } from "@/lib/supabase";
 import { bn } from "@/lib/site";
 
@@ -151,76 +157,85 @@ export function ProfileEditor() {
           <Progress value={completion} />
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="profile-name">পূর্ণ নাম</Label>
-            <Input
-              id="profile-name"
-              value={values.display_name}
-              onChange={(e) =>
-                setValues({ ...values, display_name: e.target.value })
-              }
-              maxLength={80}
-              required
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="profile-username">ইউজারনেম</Label>
-            <Input
-              id="profile-username"
-              value={values.username}
-              onChange={(e) =>
-                setValues({ ...values, username: e.target.value })
-              }
-              maxLength={24}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="profile-bio">সংক্ষিপ্ত পরিচিতি</Label>
-            <textarea
-              id="profile-bio"
-              value={values.bio}
-              onChange={(e) => setValues({ ...values, bio: e.target.value })}
-              rows={3}
-              maxLength={500}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="profile-dept">বিভাগ</Label>
-              <Input
-                id="profile-dept"
-                value={values.department}
-                onChange={(e) =>
-                  setValues({ ...values, department: e.target.value })
-                }
-                maxLength={100}
-                placeholder="যেমন: গণযোগাযোগ ও সাংবাদিকতা"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="profile-session">শিক্ষাবর্ষ / সেশন</Label>
-              <Input
-                id="profile-session"
-                value={values.session}
-                onChange={(e) =>
-                  setValues({ ...values, session: e.target.value })
-                }
-                maxLength={24}
-                placeholder="যেমন: ২০২২–২৩"
-              />
-            </div>
-          </div>
-          {error && (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          )}
-          {done && (
-            <p className="text-sm text-green-700" role="status">
-              {done}
-            </p>
-          )}
+          <FieldSection
+            title="পরিচিতি"
+            description="পাঠকের কাছে আপনার নাম ও লেখক-পরিচয় এভাবেই দেখানো হবে।"
+          >
+            <FieldGrid>
+              <Field label="পূর্ণ নাম" htmlFor="profile-name">
+                <Input
+                  id="profile-name"
+                  value={values.display_name}
+                  onChange={(e) =>
+                    setValues({ ...values, display_name: e.target.value })
+                  }
+                  maxLength={80}
+                  required
+                />
+              </Field>
+              <Field
+                label="ইউজারনেম"
+                htmlFor="profile-username"
+                hint="প্রোফাইল লিংকে এই নামটিই থাকবে।"
+              >
+                <Input
+                  id="profile-username"
+                  value={values.username}
+                  onChange={(e) =>
+                    setValues({ ...values, username: e.target.value })
+                  }
+                  maxLength={24}
+                />
+              </Field>
+              <Field
+                label="বিভাগ"
+                htmlFor="profile-dept"
+                hint="যেমন: গণযোগাযোগ ও সাংবাদিকতা"
+              >
+                <Input
+                  id="profile-dept"
+                  value={values.department}
+                  onChange={(e) =>
+                    setValues({ ...values, department: e.target.value })
+                  }
+                  maxLength={100}
+                  placeholder="যেমন: গণযোগাযোগ ও সাংবাদিকতা"
+                />
+              </Field>
+              <Field
+                label="শিক্ষাবর্ষ / সেশন"
+                htmlFor="profile-session"
+                hint="যেমন: ২০২২–২৩"
+              >
+                <Input
+                  id="profile-session"
+                  value={values.session}
+                  onChange={(e) =>
+                    setValues({ ...values, session: e.target.value })
+                  }
+                  maxLength={24}
+                  placeholder="যেমন: ২০২২–২৩"
+                />
+              </Field>
+              <Field
+                label="সংক্ষিপ্ত পরিচিতি"
+                htmlFor="profile-bio"
+                wide
+              >
+                <Textarea
+                  id="profile-bio"
+                  value={values.bio}
+                  onChange={(e) =>
+                    setValues({ ...values, bio: e.target.value })
+                  }
+                  rows={3}
+                  maxLength={500}
+                />
+              </Field>
+            </FieldGrid>
+          </FieldSection>
+          {error && <FormMessage>{error}</FormMessage>}
+          {done && <FormMessage tone="success">{done}</FormMessage>}
           <Button type="submit" disabled={busy} className="self-start">
             {busy ? "সংরক্ষণ হচ্ছে…" : "তথ্য সংরক্ষণ করুন →"}
           </Button>

@@ -3,6 +3,8 @@
 import * as React from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Field, FormMessage } from "@/components/ui/field";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { one, supabaseBrowser } from "@/lib/supabase";
 import { relativeTimeBn } from "@/lib/site";
@@ -87,27 +89,25 @@ export function Comments({ articleId }: { articleId: string }) {
   return (
     <div>
       <form onSubmit={submit} className="flex flex-col gap-2">
-        <label htmlFor="comment-body" className="sr-only">
-          আপনার মন্তব্য
-        </label>
-        <textarea
-          id="comment-body"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          maxLength={2000}
-          required
-          rows={3}
-          placeholder="শ্রদ্ধাশীল ভাষায় আপনার মতামত লিখুন…"
-          className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        />
+        <Field label="আপনার মন্তব্য" htmlFor="comment-body" hideLabel>
+          <Textarea
+            id="comment-body"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            maxLength={2000}
+            required
+            rows={3}
+            placeholder="শ্রদ্ধাশীল ভাষায় আপনার মতামত লিখুন…"
+          />
+        </Field>
         <Button type="submit" disabled={submitting} className="self-start">
           {submitting ? "প্রকাশ হচ্ছে…" : "মন্তব্য করুন →"}
         </Button>
       </form>
       {error && (
-        <p className="mt-2 text-sm text-destructive" role="alert">
-          {error}
-        </p>
+        <div className="mt-2">
+          <FormMessage>{error}</FormMessage>
+        </div>
       )}
       <div className="mt-4 flex flex-col gap-3">
         {!loaded && <p className="text-sm text-muted-foreground">লোড হচ্ছে…</p>}

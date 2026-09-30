@@ -2,8 +2,11 @@
 
 import * as React from "react";
 
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 
 export type QuestionnaireField = {
   id: string;
@@ -93,17 +96,21 @@ export function QuestionnaireFields({
   return (
     <div className="flex flex-col gap-4">
       {fields.map((field) => (
-        <div key={field.id} className="grid gap-2">
-          <Label>
-            {field.label}
-            {field.required && <span className="text-destructive"> *</span>}
-          </Label>
+        <Field
+          key={field.id}
+          label={
+            <>
+              {field.label}
+              {field.required && <span className="text-destructive"> *</span>}
+            </>
+          }
+        >
           <FieldInput
             field={field}
             value={answers[field.id]}
             onChange={(value) => set(field.id, value)}
           />
-        </div>
+        </Field>
       ))}
     </div>
   );
@@ -161,11 +168,10 @@ function FieldInput({
   }
   if (field.type === "textarea") {
     return (
-      <textarea
+      <Textarea
         value={typeof value === "string" ? value : ""}
         onChange={(e) => onChange(e.target.value)}
         rows={3}
-        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
       />
     );
   }
@@ -201,12 +207,17 @@ function FieldInput({
     };
     return (
       <div className="flex flex-col gap-3 rounded-md border p-3">
-        <div className="grid gap-2">
-          <Label>
-            {field.countLabel ?? "সংখ্যা"}
-            {field.required && <span className="text-destructive"> *</span>}
-          </Label>
+        <Field
+          label={
+            <>
+              {field.countLabel ?? "সংখ্যা"}
+              {field.required && <span className="text-destructive"> *</span>}
+            </>
+          }
+          htmlFor={`${field.id}-count`}
+        >
           <Input
+            id={`${field.id}-count`}
             type="number"
             min={0}
             max={100}
@@ -215,7 +226,7 @@ function FieldInput({
               setCount(Math.max(0, Number(e.target.value || 0)))
             }
           />
-        </div>
+        </Field>
         {Array.from({ length: Math.min(count, 100) }, (_, index) => (
           <div
             key={index}
@@ -228,12 +239,12 @@ function FieldInput({
               <div key={personField.id} className="grid gap-1">
                 <Label className="text-xs">{personField.label}</Label>
                 {personField.type === "single" ? (
-                  <select
+                  <Select
                     value={people[index]?.[personField.id] ?? ""}
                     onChange={(e) =>
                       setPerson(index, personField.id, e.target.value)
                     }
-                    className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+                    className="h-9"
                   >
                     <option value="">বেছে নিন</option>
                     {(personField.options ?? []).map((option) => (
@@ -241,7 +252,7 @@ function FieldInput({
                         {option}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 ) : (
                   <Input
                     value={people[index]?.[personField.id] ?? ""}

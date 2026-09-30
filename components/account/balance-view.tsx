@@ -4,8 +4,9 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldGrid, FormMessage } from "@/components/ui/field";
+import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { one, supabaseBrowser } from "@/lib/supabase";
 import { bn, bnMoney, formatDateBn } from "@/lib/site";
@@ -161,62 +162,69 @@ export function BalanceView() {
           <CardTitle>উত্তোলনের অনুরোধ</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={requestWithdrawal} className="grid gap-3 sm:grid-cols-4">
-            <div className="grid gap-1">
-              <Label htmlFor="withdraw-amount">টাকার পরিমাণ</Label>
-              <Input
-                id="withdraw-amount"
-                type="number"
-                min={3000}
-                step={1}
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="৩০০০"
-              />
-            </div>
-            <div className="grid gap-1">
-              <Label htmlFor="withdraw-method">পদ্ধতি</Label>
-              <select
-                id="withdraw-method"
-                value={method}
-                onChange={(e) => setMethod(e.target.value as "bkash" | "nagad" | "")}
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+          <form
+            onSubmit={requestWithdrawal}
+            className="flex flex-col gap-4"
+          >
+            <FieldGrid>
+              <Field label="টাকার পরিমাণ" htmlFor="withdraw-amount">
+                <Input
+                  id="withdraw-amount"
+                  type="number"
+                  min={3000}
+                  step={1}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="৩০০০"
+                />
+              </Field>
+              <Field label="পদ্ধতি" htmlFor="withdraw-method">
+                <Select
+                  id="withdraw-method"
+                  value={method}
+                  onChange={(e) =>
+                    setMethod(e.target.value as "bkash" | "nagad" | "")
+                  }
+                >
+                  <option value="">বেছে নিন</option>
+                  <option value="bkash">বিকাশ</option>
+                  <option value="nagad">নগদ</option>
+                </Select>
+              </Field>
+              <Field
+                label="পেমেন্ট নম্বর"
+                htmlFor="withdraw-number"
+                hint="প্রোফাইলে সংরক্ষিত নম্বর বদলাতে চাইলে এখানে লিখুন।"
               >
-                <option value="">বেছে নিন</option>
-                <option value="bkash">বিকাশ</option>
-                <option value="nagad">নগদ</option>
-              </select>
-            </div>
-            <div className="grid gap-1 sm:col-span-2">
-              <Label htmlFor="withdraw-number">পেমেন্ট নম্বর</Label>
-              <Input
-                id="withdraw-number"
-                value={payoutNumber}
-                onChange={(e) => setPayoutNumber(e.target.value)}
-                maxLength={24}
-                placeholder="প্রোফাইলে সংরক্ষিত নম্বর"
-              />
-            </div>
-            <div className="sm:col-span-4">
+                <Input
+                  id="withdraw-number"
+                  value={payoutNumber}
+                  onChange={(e) => setPayoutNumber(e.target.value)}
+                  maxLength={24}
+                  placeholder="প্রোফাইলে সংরক্ষিত নম্বর"
+                />
+              </Field>
+            </FieldGrid>
+            <div className="flex flex-wrap items-center gap-3">
               <Button type="submit" disabled={withdrawBusy}>
                 {withdrawBusy ? "পাঠানো হচ্ছে…" : "উত্তোলনের অনুরোধ পাঠান →"}
               </Button>
+              <span className="text-xs text-muted-foreground">
+                প্রথম উত্তোলনে অন্তত ৩৫টি প্রকাশিত প্রতিবেদন ও ১০০% সম্পূর্ণ
+                প্রোফাইল প্রয়োজন।
+              </span>
             </div>
           </form>
           {withdrawError && (
-            <p className="mt-2 text-sm text-destructive" role="alert">
-              {withdrawError}
-            </p>
+            <FormMessage>
+              <span className="mt-2 block">{withdrawError}</span>
+            </FormMessage>
           )}
           {withdrawDone && (
-            <p className="mt-2 text-sm text-green-700" role="status">
-              {withdrawDone}
-            </p>
+            <FormMessage tone="success">
+              <span className="mt-2 block">{withdrawDone}</span>
+            </FormMessage>
           )}
-          <p className="mt-2 text-xs text-muted-foreground">
-            প্রথম উত্তোলনে অন্তত ৩৫টি প্রকাশিত প্রতিবেদন ও ১০০% সম্পূর্ণ
-            প্রোফাইল প্রয়োজন।
-          </p>
         </CardContent>
       </Card>
       <Card>
