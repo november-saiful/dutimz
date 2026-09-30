@@ -330,6 +330,21 @@ test('the homepage leads with the report carousel and keeps the breaking ticker'
   assert.match(carousel, /aria-roledescription="carousel"/);
   assert.match(carousel, /role="tablist"/);
   assert.match(carousel, /ArrowLeft/);
+  // One ring drawn in design units and scaled to the room the page gives it — not
+  // three hand-tuned layouts, which is what shipped upstream and made a phone a
+  // different arrangement of the card rather than a smaller copy of it.
+  assert.match(carousel, /RING_WIDTH/);
+  assert.match(carousel, /new ResizeObserver/);
+  assert.match(carousel, /transform: `scale\(/);
+  assert.doesNotMatch(carousel, /ScreenTier|peekW/, 'the phone-only geometry must be gone');
+  // The box is reserved in CSS, so the ring appearing does not move the page.
+  assert.match(carousel, /aspectRatio:/);
+  // At phone scale the card's smaller type would print too small, so it keeps the
+  // headline and the picture only.
+  assert.match(carousel, /DETAIL_MIN_SCALE/);
+  assert.match(carousel, /\{showDetail && \(/);
+  // The dots scale with the ring but are the only way to move the deck on a phone.
+  assert.match(carousel, /dotHit/);
   // An auto-rotating deck has to stop when the reader asks motion to stop.
   assert.match(carousel, /prefers-reduced-motion/);
   // Its accessible names speak the site's language, like every other label.

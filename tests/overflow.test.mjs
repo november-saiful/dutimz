@@ -118,6 +118,64 @@ test('every route stays inside the viewport at common widths', async () => {
             failures.push(`${route} at ${width}px: uncaught client error — ${pageErrors[0]}`);
             break;
           }
+          // The homepage deck is one layout — the desktop one — scaled to the box
+          // it is given, so a phone shows a smaller copy of the desktop deck rather
+          // than a rearrangement of it. When the card gets too small for its own
+          // smaller type, that type is dropped instead of printed unreadably.
+          if (route === '/') {
+            await page
+              .waitForFunction(
+                () =>
+                  document.querySelector(
+                    '[aria-roledescription="carousel"] #carousel-view-panel > div > div',
+                  )?.style.opacity === '1',
+                null,
+                { timeout: 5000 },
+              )
+              .catch(() => {});
+            const deck = await page.evaluate(() => {
+              const root = document.querySelector('[aria-roledescription="carousel"]');
+              const surface = root?.querySelector('#carousel-view-panel > div > div');
+              const active = surface?.querySelector('[data-offset="0"]');
+              if (!surface || !active) return null;
+              const card = active.getBoundingClientRect();
+              const chips = [...active.querySelectorAll('span')].filter((span) =>
+                String(span.className).includes('rounded-[4px]'),
+              ).length;
+              return {
+                scale: Number(/scale\(([\d.]+)\)/.exec(surface.style.transform)?.[1] ?? 0),
+                // The ring is drawn at most 1:1, so its box is capped at the design's
+                // own 1012px however wide the page gets.
+                box: Math.min(1, root.clientWidth / 1012),
+                width: card.width,
+                height: card.height,
+                quote: !!active.querySelector('p'),
+                chips,
+              };
+            });
+            // Allow a pixel of rounding either way on a measured box.
+            const near = (a, b) => Math.abs(a - b) <= 1;
+            if (!deck) {
+              failures.push(`${route} at ${width}px: the deck did not render`);
+            } else {
+              if (!near(deck.scale, deck.box)) {
+                failures.push(
+                  `${route} at ${width}px: the deck is not scaled to its own box (scale ${deck.scale} for a ${deck.box} box)`,
+                );
+              }
+              if (!near(deck.width, 762 * deck.scale) || !near(deck.height, 513 * deck.scale)) {
+                failures.push(
+                  `${route} at ${width}px: the card in focus is not the desktop card scaled (${Math.round(deck.width)}×${Math.round(deck.height)} at scale ${deck.scale})`,
+                );
+              }
+              const detailed = deck.scale >= 12 / 18;
+              if (deck.quote !== detailed || (deck.chips > 0) !== detailed) {
+                failures.push(
+                  `${route} at ${width}px: the card's smaller type is ${detailed ? 'missing' : 'still rendered'} at scale ${deck.scale}`,
+                );
+              }
+            }
+          }
           const result = await page.evaluate(measure);
           if (!result.overflow) continue;
           const detail = result.offenders.map((o) => `${o.name} (right ${o.right}, ${o.width} wide)`).join(', ') || 'no single element reported';
