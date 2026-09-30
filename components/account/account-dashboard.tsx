@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { supabaseBrowser } from "@/lib/supabase";
+import { isSupabaseConfigured, supabaseBrowser } from "@/lib/supabase";
 import { bn, bnMoney } from "@/lib/site";
 
 type Role = "reader" | "reporter" | "moderator" | "admin";
@@ -33,6 +33,17 @@ export function AccountDashboard() {
   React.useEffect(() => {
     let cancelled = false;
     (async () => {
+      /*
+        Demo builds and pull-request previews run without Supabase credentials,
+        and supabaseBrowser() throws in that case instead of handing back a dead
+        client. This effect finishes in a `finally` with no `catch`, so without
+        this guard the throw escapes the effect, reaches the error boundary and
+        replaces the page with Next's error document.
+      */
+      if (!isSupabaseConfigured()) {
+        setLoading(false);
+        return;
+      }
       try {
         const supabase = supabaseBrowser();
         const {
