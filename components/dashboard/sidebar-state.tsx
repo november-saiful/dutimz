@@ -14,12 +14,21 @@ function readSidebarCookie(): boolean {
 }
 
 /**
- * Desktop sidebar state for every page. The rail is the default: minimized
- * unless the reader expanded it. The provider writes the same cookie on every
- * toggle (see SidebarProvider), so reading it back here remembers an expanded
- * sidebar across all pages for a week.
+ * Desktop sidebar state for every page. The rail is the default: the first
+ * paint always matches the server (minimized), and an effect restores an
+ * expanded sidebar from the cookie the provider writes on every toggle. The
+ * restore is a plain update rather than an initial value, so the first paint
+ * can never disagree with the server HTML. The cookie is path-scoped to /,
+ * so the preference holds across all pages for a week.
  */
 export function SidebarState({ children }: { children: React.ReactNode }) {
-  const [defaultOpen] = React.useState(readSidebarCookie);
-  return <SidebarProvider defaultOpen={defaultOpen}>{children}</SidebarProvider>;
+  const [open, setOpen] = React.useState(false);
+  React.useEffect(() => {
+    if (readSidebarCookie()) setOpen(true);
+  }, []);
+  return (
+    <SidebarProvider open={open} onOpenChange={setOpen}>
+      {children}
+    </SidebarProvider>
+  );
 }

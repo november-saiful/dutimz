@@ -164,8 +164,9 @@ test('the sidebar starts minimized on desktop and remembers expansion', async ()
   assert.match(sidebar, /collapsible="icon"/);
   const state = await readProjectFile('components/dashboard/sidebar-state.tsx');
   assert.match(state, /sidebar_state/);
-  assert.match(state, /defaultOpen/);
-  assert.doesNotMatch(state, /defaultOpen\s*=\s*true/);
+  assert.match(state, /onOpenChange/);
+  assert.match(state, /useState\(false\)/);
+  assert.doesNotMatch(state, /defaultOpen/);
   const shell = await readProjectFile('components/dashboard/dutimz-shell.tsx');
   assert.match(shell, /SidebarState/);
   assert.doesNotMatch(shell, /<SidebarProvider>/);
