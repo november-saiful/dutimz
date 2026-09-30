@@ -49,9 +49,11 @@ test('worker-rendered responses carry the headers _headers only applies to asset
 
 test('news body copy is justified by default', async () => {
   const css = await readProjectFile('app/globals.css');
+  // Tailwind 4 declares the rule as a `@utility` (`.article-body` in the old
+  // CSS-variable setup), so accept either shape.
   assert.match(
     css,
-    /\.article-body\s*\{[^}]*text-align:\s*justify/,
+    /(?:@utility\s+article-body|\.article-body)\s*\{[^}]*text-align:\s*justify/,
     'the article body must be justified',
   );
   const article = await readProjectFile('app/news/[slug]/page.tsx');
