@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Field, FormMessage } from "@/components/ui/field";
+import { errorMessage } from "@/lib/errors";
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/avif";
 const MAX_FILES = 10;
@@ -39,9 +40,8 @@ export function GalleryUploader({
       process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
     );
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw sessionError;
     if (!session) throw new Error("ছবি পাঠাতে আগে গুগল দিয়ে প্রবেশ করুন।");
     const response = await fetch(`${mediaBase()}/upload`, {
       method: "POST",
@@ -85,7 +85,13 @@ export function GalleryUploader({
         const item = await uploadOne(file);
         onChange([...itemsRef.current, item]);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "ছবি আপলোড করা যায়নি।");
+        setError(
+          errorMessage(
+            "gallery upload",
+            err,
+            "ছবি আপলোড করা যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
       } finally {
         setBusy(false);
       }

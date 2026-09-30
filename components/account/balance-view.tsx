@@ -8,6 +8,7 @@ import { Field, FieldGrid, FormMessage } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { errorMessage, reportError } from "@/lib/errors";
 import { one, supabaseBrowser } from "@/lib/supabase";
 import { bn, bnMoney, formatDateBn } from "@/lib/site";
 
@@ -35,6 +36,7 @@ export function BalanceView() {
   const [withdrawError, setWithdrawError] = React.useState("");
   const [withdrawDone, setWithdrawDone] = React.useState("");
   const [withdrawBusy, setWithdrawBusy] = React.useState(false);
+  const [loadError, setLoadError] = React.useState("");
 
   async function requestWithdrawal(event: React.FormEvent) {
     event.preventDefault();
@@ -62,12 +64,20 @@ export function BalanceView() {
         p_payout_number: payoutNumber.trim(),
       });
       if (result.error) {
-        setWithdrawError(result.error.message);
+        setWithdrawError(
+          errorMessage(
+            "withdrawal request",
+            result.error,
+            "উত্তোলনের অনুরোধ পাঠানো যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
         return;
       }
       setAmount("");
       setPayoutNumber("");
       setWithdrawDone("উত্তোলনের অনুরোধ পাঠানো হয়েছে। নিষ্পত্তি হলে জানানো হবে।");
+    } catch (err) {
+      setWithdrawError(errorMessage("withdrawal request", err, "উত্তোলনের অনুরোধ পাঠানো যায়নি। আবার চেষ্টা করুন।"));
     } finally {
       setWithdrawBusy(false);
     }
@@ -78,9 +88,15 @@ export function BalanceView() {
     (async () => {
       try {
         const supabase = supabaseBrowser();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) {
+          reportError("balance session", authError);
+          if (!cancelled) {
+            setLoadError("আয়ের তথ্য লোড করা যায়নি। আবার চেষ্টা করুন।");
+            setState("denied");
+          }
+          return;
+        }
         if (cancelled) return;
         if (!user) {
           setState("denied");
@@ -98,6 +114,13 @@ export function BalanceView() {
             .limit(60),
         ]);
         if (cancelled) return;
+        if (walletResult.error) reportError("balance wallet", walletResult.error);
+        if (ledgerResult.error) reportError("balance ledger", ledgerResult.error);
+        if (walletResult.error || ledgerResult.error) {
+          setLoadError("আয়ের তথ্য লোড করা যায়নি। আবার চেষ্টা করুন।");
+          setState("denied");
+          return;
+        }
         const wallet = walletResult.data as {
           available?: number;
           held?: number;
@@ -108,8 +131,12 @@ export function BalanceView() {
         setReserved(Number(wallet?.reserved ?? 0));
         setEntries((ledgerResult.data as unknown as LedgerEntry[]) ?? []);
         setState("ready");
-      } catch {
-        if (!cancelled) setState("denied");
+      } catch (err) {
+        reportError("balance view", err);
+        if (!cancelled) {
+          setLoadError("আয়ের তথ্য লোড করা যায়নি। আবার চেষ্টা করুন।");
+          setState("denied");
+        }
       }
     })();
     return () => {
@@ -131,7 +158,7 @@ export function BalanceView() {
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          আয়ের তথ্য দেখতে অ্যাকাউন্টে প্রবেশ করুন।
+          <p>{loadError || "আয়ের তথ্য দেখতে অ্যাকাউন্টে প্রবেশ করুন।"}</p>
         </CardContent>
       </Card>
     );

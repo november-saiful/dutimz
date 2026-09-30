@@ -1,3 +1,4 @@
+import { reportError } from "./errors";
 import { isSupabaseConfigured, supabaseServer, type Story } from "./supabase";
 
 export type PreviewStory = {
@@ -80,12 +81,12 @@ export async function getLatestStories(limit = 25): Promise<Story[]> {
       .order("published_at", { ascending: false })
       .limit(limit);
     if (error) {
-      console.warn("Homepage feed is not available yet", error.message);
+      reportError("homepage feed", error);
       return [];
     }
     return (data ?? []) as unknown as Story[];
   } catch (error) {
-    console.warn("Homepage feed is not available yet", error);
+    reportError("homepage feed", error);
     return [];
   }
 }
@@ -94,21 +95,26 @@ export async function getStoryBySlug(
   slug: string,
 ): Promise<(Story & { body: string }) | null> {
   if (isDemoMode()) return null;
-  const supabase = supabaseServer();
-  const { data, error } = await supabase
-    .from("articles")
-    .select(
-      "id,slug,title,excerpt,body,author_id,is_anonymous,hero_media_key,published_at,article_media(media_id,position),category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url)",
-    )
-    .eq("status", "published")
-    .eq("slug", slug)
-    .limit(1)
-    .maybeSingle();
-  if (error) {
-    console.warn("Article fetch failed", error.message);
+  try {
+    const supabase = supabaseServer();
+    const { data, error } = await supabase
+      .from("articles")
+      .select(
+        "id,slug,title,excerpt,body,author_id,is_anonymous,hero_media_key,published_at,article_media(media_id,position),category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url)",
+      )
+      .eq("status", "published")
+      .eq("slug", slug)
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      reportError("article fetch", error);
+      return null;
+    }
+    return data as unknown as (Story & { body: string }) | null;
+  } catch (error) {
+    reportError("article fetch", error);
     return null;
   }
-  return data as unknown as (Story & { body: string }) | null;
 }
 
 export async function getCategoryStories(slug: string): Promise<{
@@ -119,30 +125,40 @@ export async function getCategoryStories(slug: string): Promise<{
   const fallbackTitle = slug;
   if (isDemoMode())
     return { title: fallbackTitle, description: "", stories: [] };
-  const supabase = supabaseServer();
-  const { data: category } = await supabase
-    .from("categories")
-    .select("slug,title_bn,description_bn")
-    .eq("slug", slug)
-    .eq("active", true)
-    .limit(1)
-    .maybeSingle();
-  if (!category)
+  try {
+    const supabase = supabaseServer();
+    const { data: category, error: categoryError } = await supabase
+      .from("categories")
+      .select("slug,title_bn,description_bn")
+      .eq("slug", slug)
+      .eq("active", true)
+      .limit(1)
+      .maybeSingle();
+    if (categoryError) {
+      reportError("category lookup", categoryError);
+      return { title: fallbackTitle, description: "", stories: [] };
+    }
+    if (!category)
+      return { title: fallbackTitle, description: "", stories: [] };
+    const { data, error: articlesError } = await supabase
+      .from("articles")
+      .select(
+        "id,slug,title,excerpt,published_at,is_anonymous,hero_media_key,category:categories!inner(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name)",
+      )
+      .eq("category.slug", slug)
+      .eq("status", "published")
+      .order("published_at", { ascending: false })
+      .limit(40);
+    if (articlesError) reportError("category stories", articlesError);
+    return {
+      title: (category as { title_bn: string }).title_bn,
+      description: (category as { description_bn: string }).description_bn ?? "",
+      stories: ((data ?? []) as unknown as Story[]) ?? [],
+    };
+  } catch (error) {
+    reportError("category stories", error);
     return { title: fallbackTitle, description: "", stories: [] };
-  const { data } = await supabase
-    .from("articles")
-    .select(
-      "id,slug,title,excerpt,published_at,is_anonymous,hero_media_key,category:categories!inner(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name)",
-    )
-    .eq("category.slug", slug)
-    .eq("status", "published")
-    .order("published_at", { ascending: false })
-    .limit(40);
-  return {
-    title: (category as { title_bn: string }).title_bn,
-    description: (category as { description_bn: string }).description_bn ?? "",
-    stories: ((data ?? []) as unknown as Story[]) ?? [],
-  };
+  }
 }
 
 export type DashboardStats = {
@@ -198,12 +214,14 @@ export async function getDashboardStats(
   let comments = 0;
   try {
     const supabase = supabaseServer();
-    const { count } = await supabase
+    const { count, error } = await supabase
       .from("comments")
       .select("id", { count: "exact", head: true })
       .eq("status", "visible");
+    if (error) reportError("dashboard comment count", error);
     comments = count ?? 0;
-  } catch {
+  } catch (error) {
+    reportError("dashboard comment count", error);
     comments = 0;
   }
   const recentActivity = stories.slice(0, 5).map((story) => {
@@ -257,12 +275,12 @@ export async function getSitemapArticles(
       .order("published_at", { ascending: false })
       .limit(limit);
     if (error) {
-      console.warn("Sitemap article list is not available", error.message);
+      reportError("sitemap article list", error);
       return [];
     }
     return (data ?? []) as unknown as SitemapArticle[];
   } catch (error) {
-    console.warn("Sitemap article list is not available", error);
+    reportError("sitemap article list", error);
     return [];
   }
 }
@@ -278,12 +296,12 @@ export async function getSitemapCategorySlugs(): Promise<string[]> {
       .eq("active", true)
       .order("slug");
     if (error) {
-      console.warn("Sitemap section list is not available", error.message);
+      reportError("sitemap section list", error);
       return [];
     }
     return ((data ?? []) as { slug: string }[]).map((row) => row.slug);
   } catch (error) {
-    console.warn("Sitemap section list is not available", error);
+    reportError("sitemap section list", error);
     return [];
   }
 }

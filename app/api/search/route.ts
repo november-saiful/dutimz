@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import type { SearchHit, SearchResponse } from "@/lib/search";
+import { reportError } from "@/lib/errors";
 import { isDemoMode, previewStories } from "@/lib/stories";
 import { supabaseServer, storyCategory, type Story } from "@/lib/supabase";
 
@@ -80,9 +81,9 @@ export async function GET(request: Request) {
       p_limit: LIMIT,
     });
     if (error) {
-      console.warn("Palette search failed", error.message);
+      reportError("palette search", error);
       return NextResponse.json<SearchResponse>(
-        { demo: false, results: [] },
+        { demo: false, unavailable: true, results: [] },
         { headers },
       );
     }
@@ -91,9 +92,9 @@ export async function GET(request: Request) {
       { headers },
     );
   } catch (error) {
-    console.warn("Palette search failed", error);
+    reportError("palette search", error);
     return NextResponse.json<SearchResponse>(
-      { demo: false, results: [] },
+      { demo: false, unavailable: true, results: [] },
       { headers },
     );
   }

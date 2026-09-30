@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { reportError } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
 import { bn } from "@/lib/site";
 
@@ -28,11 +29,13 @@ export function PublicStats() {
         );
         if (cancelled) return;
         if (error) {
+          reportError("public statistics", error);
           setFailed(true);
           return;
         }
         setRows((data as StatRow[] | null) ?? []);
-      } catch {
+      } catch (err) {
+        reportError("public statistics", err);
         if (!cancelled) setFailed(true);
       }
     })();

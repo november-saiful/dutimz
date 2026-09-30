@@ -5,6 +5,7 @@ import * as React from "react";
 import { StoryCard } from "@/components/dashboard/story-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
+import { reportError } from "@/lib/errors";
 import { supabaseBrowser, type Story } from "@/lib/supabase";
 
 type Profile = {
@@ -40,6 +41,7 @@ export function PublicProfile({ username }: { username: string }) {
           .maybeSingle();
         if (cancelled) return;
         if (result.error || !result.data) {
+          if (result.error) reportError("public profile", result.error);
           setStatus("missing");
           setMessage(
             result.error
@@ -60,11 +62,17 @@ export function PublicProfile({ username }: { username: string }) {
           .eq("status", "published")
           .order("published_at", { ascending: false })
           .limit(30);
-        if (!cancelled) {
-          setStories((feed.data as unknown as Story[]) ?? []);
+        if (cancelled) return;
+        if (feed.error) {
+          reportError("public profile stories", feed.error);
+          setStories([]);
           setStatus("ready");
+          return;
         }
-      } catch {
+        setStories((feed.data as unknown as Story[]) ?? []);
+        setStatus("ready");
+      } catch (err) {
+        reportError("public profile", err);
         if (!cancelled) {
           setStatus("missing");
           setMessage("প্রোফাইলটি এখন লোড করা যাচ্ছে না।");

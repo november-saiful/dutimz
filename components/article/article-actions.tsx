@@ -4,6 +4,7 @@ import * as React from "react";
 import { Bookmark, Heart, Share2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { errorMessage, reportError } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
 
 export function ArticleActions({
@@ -26,30 +27,43 @@ export function ArticleActions({
     (async () => {
       try {
         const supabase = supabaseBrowser();
-        const { data: stats } = await supabase.rpc("get_article_stats", {
+        const { data: stats, error: statsError } = await supabase.rpc("get_article_stats", {
           p_article_id: articleId,
         });
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        if (statsError) {
+          setNotice(errorMessage("article stats", statsError, "পছন্দের সংখ্যা লোড করা যায়নি।"));
+        }
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) {
+          setNotice(errorMessage("article actions session", authError, "অ্যাকাউন্ট যাচাই করা যায়নি। আবার চেষ্টা করুন।"));
+        }
         if (cancelled) return;
         const likesCount = (stats as { likes?: number } | null)?.likes ?? 0;
         setLikes(likesCount);
-        if (!user) return;
-        const { data: reactions } = await supabase
+        if (authError || !user) return;
+        const { data: reactions, error: reactionsError } = await supabase
           .from("reactions")
           .select("reaction")
           .eq("article_id", articleId)
           .eq("user_id", user.id);
+        if (reactionsError) {
+          setNotice(errorMessage("article reaction state", reactionsError, "আপনার প্রতিক্রিয়া লোড করা যায়নি।"));
+          return;
+        }
         if (!cancelled) setReacted(Boolean(reactions?.length));
-        const { data: saved } = await supabase
+        const { data: saved, error: savedError } = await supabase
           .from("bookmarks")
           .select("article_id")
           .eq("article_id", articleId)
           .eq("user_id", user.id)
           .maybeSingle();
+        if (savedError) {
+          setNotice(errorMessage("article bookmark state", savedError, "সংরক্ষণের অবস্থা লোড করা যায়নি।"));
+          return;
+        }
         if (!cancelled) setBookmarked(Boolean(saved));
-      } catch {
+      } catch (err) {
+        reportError("article actions", err);
         if (!cancelled) setLikes(0);
       }
     })();
@@ -60,9 +74,8 @@ export function ArticleActions({
 
   async function requireUser() {
     const supabase = supabaseBrowser();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user }, error } = await supabase.auth.getUser();
+    if (error) throw error;
     if (!user) {
       sessionStorage.setItem(
         "dutimz-after-auth",
@@ -76,56 +89,80 @@ export function ArticleActions({
   }
 
   async function toggleReaction() {
-    const session = await requireUser();
-    if (!session || busy) return;
+    if (busy) return;
     setBusy(true);
-    const { supabase, user } = session;
-    const result = reacted
-      ? await supabase
-          .from("reactions")
-          .delete()
-          .eq("article_id", articleId)
-          .eq("user_id", user.id)
-          .eq("reaction", "like")
-      : await supabase.from("reactions").insert({
-          article_id: articleId,
-          user_id: user.id,
-          reaction: "like",
-        });
-    setBusy(false);
-    if (result.error) {
-      setNotice(result.error.message);
-      return;
+    try {
+      const session = await requireUser();
+      if (!session) return;
+      const { supabase, user } = session;
+      const result = reacted
+        ? await supabase
+            .from("reactions")
+            .delete()
+            .eq("article_id", articleId)
+            .eq("user_id", user.id)
+            .eq("reaction", "like")
+        : await supabase.from("reactions").insert({
+            article_id: articleId,
+            user_id: user.id,
+            reaction: "like",
+          });
+      if (result.error) {
+        setNotice(
+          errorMessage(
+            "reaction",
+            result.error,
+            "প্রতিক্রিয়া সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
+        return;
+      }
+      setReacted(!reacted);
+      setLikes((count) => Math.max(0, (count ?? 0) + (reacted ? -1 : 1)));
+    } catch (err) {
+      setNotice(errorMessage("reaction", err, "প্রতিক্রিয়া সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।"));
+    } finally {
+      setBusy(false);
     }
-    setReacted(!reacted);
-    setLikes((count) => Math.max(0, (count ?? 0) + (reacted ? -1 : 1)));
   }
 
   async function toggleBookmark() {
-    const session = await requireUser();
-    if (!session || busy) return;
+    if (busy) return;
     setBusy(true);
-    const { supabase, user } = session;
-    const result = bookmarked
-      ? await supabase
-          .from("bookmarks")
-          .delete()
-          .eq("article_id", articleId)
-          .eq("user_id", user.id)
-      : await supabase
-          .from("bookmarks")
-          .insert({ article_id: articleId, user_id: user.id });
-    setBusy(false);
-    if (result.error) {
-      setNotice(result.error.message);
-      return;
+    try {
+      const session = await requireUser();
+      if (!session) return;
+      const { supabase, user } = session;
+      const result = bookmarked
+        ? await supabase
+            .from("bookmarks")
+            .delete()
+            .eq("article_id", articleId)
+            .eq("user_id", user.id)
+        : await supabase
+            .from("bookmarks")
+            .insert({ article_id: articleId, user_id: user.id });
+      if (result.error) {
+        setNotice(
+          errorMessage(
+            "bookmark",
+            result.error,
+            "সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
+        return;
+      }
+      setBookmarked(!bookmarked);
+      setNotice(
+        bookmarked
+          ? "সংরক্ষিত তালিকা থেকে সরানো হয়েছে।"
+          : "প্রতিবেদনটি সংরক্ষণ করা হয়েছে।",
+      );
+    } catch (err) {
+      setNotice(errorMessage("bookmark", err, "সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।"));
+    } finally {
+      setBusy(false);
     }
-    setBookmarked(!bookmarked);
-    setNotice(
-      bookmarked
-        ? "সংরক্ষিত তালিকা থেকে সরানো হয়েছে।"
-        : "প্রতিবেদনটি সংরক্ষণ করা হয়েছে।",
-    );
   }
 
   async function share() {
@@ -133,7 +170,7 @@ export function ArticleActions({
       try {
         await navigator.share({ title: articleTitle, url: location.href });
       } catch {
-        /* dismissed */
+        /* the reader dismissed the share sheet — not a failure */
       }
     } else {
       await navigator.clipboard?.writeText(location.href);

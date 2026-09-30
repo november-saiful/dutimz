@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { errorMessage, isUniqueViolation, reportError } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
 import { bn } from "@/lib/site";
 
@@ -35,9 +36,12 @@ export function ProfileEditor() {
     (async () => {
       try {
         const supabase = supabaseBrowser();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) {
+          reportError("profile editor session", authError);
+          if (!cancelled) setSignedIn(false);
+          return;
+        }
         if (!user) {
           if (!cancelled) setSignedIn(false);
           return;
@@ -58,6 +62,20 @@ export function ProfileEditor() {
             supabase.rpc("get_my_profile_completion"),
           ]);
         if (cancelled) return;
+        let loadError = "";
+        if (profileResult.error) {
+          reportError("profile editor profile load", profileResult.error);
+          loadError = "আপনার প্রোফাইল লোড করা যায়নি। আবার চেষ্টা করুন।";
+        }
+        if (detailsResult.error) {
+          reportError("profile editor details load", detailsResult.error);
+          loadError = "প্রোফাইলের অতিরিক্ত তথ্য লোড করা যায়নি। আবার চেষ্টা করুন।";
+        }
+        if (completionResult.error) {
+          reportError("profile completion load", completionResult.error);
+          loadError = "প্রোফাইলের অগ্রগতি লোড করা যায়নি। আবার চেষ্টা করুন।";
+        }
+        if (loadError) setError(loadError);
         const profile = profileResult.data as {
           username?: string;
           display_name?: string;
@@ -75,7 +93,8 @@ export function ProfileEditor() {
           session: String(details?.session ?? ""),
         });
         setCompletion(Number(completionResult.data ?? 0));
-      } catch {
+      } catch (err) {
+        reportError("profile editor load", err);
         if (!cancelled) setSignedIn(false);
       }
     })();
@@ -91,9 +110,11 @@ export function ProfileEditor() {
     setBusy(true);
     try {
       const supabase = supabaseBrowser();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) {
+        setError(errorMessage("profile save session", authError, "আপনার তথ্য সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।"));
+        return;
+      }
       if (!user) {
         window.location.assign("/auth/sign-in");
         return;
@@ -105,7 +126,17 @@ export function ProfileEditor() {
         bio: values.bio.trim() || null,
       });
       if (profileResult.error) {
-        setError(profileResult.error.message);
+        // The only unique key a reader can collide with here is their username.
+        reportError("profile save", profileResult.error);
+        setError(
+          isUniqueViolation(profileResult.error)
+            ? "এই ইউজারনেমটি ইতিমধ্যে ব্যবহৃত। অন্য একটি বেছে নিন।"
+            : errorMessage(
+                "profile save",
+                profileResult.error,
+                "আপনার তথ্য সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
+              ),
+        );
         return;
       }
       const detailsResult = await supabase.from("profile_details").upsert({
@@ -114,14 +145,26 @@ export function ProfileEditor() {
         session: values.session.trim() || null,
       });
       if (detailsResult.error) {
-        setError(detailsResult.error.message);
+        setError(
+          errorMessage(
+            "profile details save",
+            detailsResult.error,
+            "আপনার তথ্য সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
         return;
       }
       const completionResult = await supabase.rpc(
         "get_my_profile_completion",
       );
-      setCompletion(Number(completionResult.data ?? completion));
+      if (completionResult.error) {
+        reportError("profile completion refresh", completionResult.error);
+      } else {
+        setCompletion(Number(completionResult.data ?? completion));
+      }
       setDone("আপনার তথ্য সংরক্ষণ করা হয়েছে।");
+    } catch (err) {
+      setError(errorMessage("profile save", err, "আপনার তথ্য সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।"));
     } finally {
       setBusy(false);
     }

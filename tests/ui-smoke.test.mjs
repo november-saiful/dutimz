@@ -6,12 +6,14 @@
 // config endpoint keeps its shape, and the anonymity byline helper never
 // hands an anonymous story a profile link.
 import assert from 'node:assert/strict';
+import { readdirSync } from 'node:fs';
 import { access } from 'node:fs/promises';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
 
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
+const componentsDir = fileURLToPath(new URL('../components', import.meta.url));
 const readProjectFile = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 const exists = async (path) => {
   await access(new URL(`../${path}`, import.meta.url));
@@ -170,19 +172,31 @@ test('the config endpoint keeps the public shape and never leaks secrets', async
   assert.match(route, /no-store/);
 });
 
-test('the sidebar starts minimized on desktop and remembers expansion', async () => {
-  // The rail is the default everywhere; expanding writes the sidebar_state
-  // cookie (see SidebarProvider), and the shell boots from it on every page.
-  const sidebar = await readProjectFile('components/dashboard/dutimz-sidebar.tsx');
-  assert.match(sidebar, /collapsible="icon"/);
+test('the desktop sidebar is fixed and expanded; phones keep the drawer', async () => {
+  // The rail used to be a minimizable icon rail backed by a cookie. It is now
+  // fixed and always expanded on desktop, while the phone drawer still works
+  // through the Sidebar's own Sheet.
   const state = await readProjectFile('components/dashboard/sidebar-state.tsx');
-  assert.match(state, /sidebar_state/);
-  assert.match(state, /onOpenChange/);
-  assert.match(state, /useState\(false\)/);
-  assert.doesNotMatch(state, /defaultOpen/);
+  assert.match(state, /SidebarProvider/);
+  assert.match(state, /open/);
+  assert.doesNotMatch(state, /sidebar_state/);
+  assert.doesNotMatch(state, /useState/);
+  const sidebar = await readProjectFile('components/dashboard/dutimz-sidebar.tsx');
+  assert.match(sidebar, /collapsible="offcanvas"/);
+  assert.doesNotMatch(sidebar, /collapsible="none"/);
   const shell = await readProjectFile('components/dashboard/dutimz-shell.tsx');
   assert.match(shell, /SidebarState/);
   assert.doesNotMatch(shell, /<SidebarProvider>/);
+  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
+  assert.match(header, /SidebarTrigger/);
+  assert.match(header, /md:hidden/, 'the desktop rail has no minimize trigger');
+  const provider = await readProjectFile('components/ui/sidebar.tsx');
+  assert.match(provider, /Sheet open=\{openMobile\}/, 'phones must still get the drawer');
+  assert.match(
+    provider,
+    /setOpenMobile\(\(current\) => !current\)/,
+    'the toggle must drive the mobile drawer',
+  );
 });
 
 test('the dashboard shell wraps every page with the DUTIMZ sidebar', async () => {
@@ -210,10 +224,135 @@ test('the header account menu is the session dropdown with DUTIMZ routes', async
   assert.match(header, /supabaseBrowser/);
   assert.match(header, /onAuthStateChange/);
   assert.match(header, /hiddenActions/);
+  // Actions and destinations live in one shared table, so the menu and the
+  // handler cannot drift apart.
+  const table = await readProjectFile('lib/account-menu.ts');
+  assert.match(header, /@\/lib\/account-menu/, 'the header must route through the shared table');
+  assert.match(dropdown, /@\/lib\/account-menu/, 'the menu must read the shared table');
   for (const route of ['/profile/me/', '/account/', '/saved/', '/about/', '/auth/sign-in/']) {
-    assert.ok(header.includes(`"${route}"`), `header menu must link ${route}`);
+    assert.ok(table.includes(`"${route}"`), `the account route table must include ${route}`);
   }
   assert.match(header, /signOut/);
+});
+
+test('the signed-out account menu offers sign-in and hides session-only entries', async () => {
+  // A visitor with no session is still a reader: the account menu must open for
+  // them and lead somewhere real. It must offer sign-in, and it must not offer
+  // the entries that presuppose a session (profile, settings, notifications,
+  // switch account, log out) — those belong behind the signed-in branch only.
+  const dropdown = await readProjectFile('components/ui/user-dropdown.tsx');
+  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
+
+  // The menu branches on whether a session user is present.
+  assert.match(dropdown, /isGuest/, 'the dropdown must distinguish a signed-out visitor');
+
+  // The header always mounts the menu, passing null when signed out — never a
+  // bare avatar that drops the visitor on a page they cannot use.
+  assert.match(header, /user=\{menuUser\s*\?\s*\{/);
+  assert.match(header, /:\s*null\}/);
+  assert.doesNotMatch(header, /<Link href="\/account"/, 'signed-out must not fall back to a bare /account link');
+
+  // Isolate the guest menu entries (the `guest`, `guestExplore` and `guestInfo`
+  // arrays) and prove they are separate from the session-only definitions.
+  const guestStart = dropdown.indexOf('guest: [');
+  const guestEnd = dropdown.indexOf('};', dropdown.indexOf('guestInfo: ['));
+  assert.ok(guestStart > -1 && guestEnd > guestStart, 'the guest menu entries must exist');
+  const guestMenu = dropdown.slice(guestStart, guestEnd);
+
+  const guestActions = [...guestMenu.matchAll(/action:\s*"([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(guestActions.includes('sign-in'), 'the guest menu must offer sign-in');
+
+  // Every guest entry must map to a real route in the shared table, so the menu
+  // is never a dead end.
+  const table = await readProjectFile('lib/account-menu.ts');
+  const routesBlock = table.slice(
+    table.indexOf('export const ACCOUNT_ROUTES'),
+    table.indexOf('}', table.indexOf('export const ACCOUNT_ROUTES')),
+  );
+  const routeKeys = [...routesBlock.matchAll(/(?:^|[\s,{])"?([a-z][a-z-]*)"?\s*:/g)].map((m) => m[1]);
+  for (const action of guestActions) {
+    assert.ok(routeKeys.includes(action), `the account route table must aim ${action} at a real route`);
+  }
+
+  // None of the session-only actions may leak into the guest menu.
+  for (const sessionOnly of ['logout', 'switch', 'profile', 'settings', 'notifications']) {
+    assert.doesNotMatch(
+      guestMenu,
+      new RegExp(`"${sessionOnly}"`),
+      `the guest menu must not offer ${sessionOnly}`,
+    );
+  }
+
+  // The session-only group is gated on a signed-in user.
+  assert.match(
+    dropdown,
+    /\{!isGuest && accountItems\.length > 0 && \(/,
+    'switch account / log out must only render when signed in',
+  );
+});
+
+test('the signed-in account menu maps every entry to a route or an explicit hide', async () => {
+  // The counterpart to the signed-out guard. When a user exists the menu offers
+  // the session entries; each one must either route somewhere real or be an entry
+  // the header deliberately hides (there is no presence system, theming or
+  // premium tier to back the others). Session-only entries must stay behind the
+  // signed-in branch so they never surface to a visitor without a session.
+  const dropdown = await readProjectFile('components/ui/user-dropdown.tsx');
+  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
+
+  // The session definitions sit between the `profile` array and the guest arrays.
+  const sessionStart = dropdown.indexOf('profile: [');
+  const sessionEnd = dropdown.indexOf('guest: [');
+  assert.ok(sessionStart > -1 && sessionEnd > sessionStart, 'the session menu entries must exist');
+  const sessionMenu = dropdown.slice(sessionStart, sessionEnd);
+
+  const sessionActions = [...sessionMenu.matchAll(/action:\s*"([^"]+)"/g)].map((m) => m[1]);
+  for (const required of ['profile', 'settings', 'notifications', 'switch', 'logout']) {
+    assert.ok(sessionActions.includes(required), `the signed-in menu must define ${required}`);
+  }
+
+  // The table names the actions the site hides on purpose, so a missing route is
+  // always an explicit decision rather than an oversight.
+  const table = await readProjectFile('lib/account-menu.ts');
+  const routesBlock = table.slice(
+    table.indexOf('export const ACCOUNT_ROUTES'),
+    table.indexOf('}', table.indexOf('export const ACCOUNT_ROUTES')),
+  );
+  const signOutBlock = table.slice(
+    table.indexOf('export const ACCOUNT_SIGN_OUT_ROUTES'),
+    table.indexOf('}', table.indexOf('export const ACCOUNT_SIGN_OUT_ROUTES')),
+  );
+  const routeKeys = [routesBlock, signOutBlock].flatMap((block) =>
+    [...block.matchAll(/(?:^|[\s,{])"?([a-z][a-z-]*)"?\s*:/g)].map((m) => m[1]),
+  );
+  const hiddenStart = table.indexOf('export const ACCOUNT_HIDDEN_ACTIONS = [');
+  const hiddenEnd = table.indexOf(']', hiddenStart);
+  assert.ok(hiddenStart > -1 && hiddenEnd > hiddenStart, 'the shared table must declare hidden actions');
+  const hidden = [...table.slice(hiddenStart, hiddenEnd).matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+
+  for (const action of sessionActions) {
+    assert.ok(
+      hidden.includes(action) || routeKeys.includes(action),
+      `signed-in action ${action} must be routed or explicitly hidden`,
+    );
+  }
+
+  // Logging out must actually end the session, not merely navigate away.
+  assert.match(header, /signOut/);
+  assert.match(sessionMenu, /"logout"/);
+
+  // The signed-out branch renders no session entries, and the account group is
+  // gated on a user — so log out and switch account appear only when signed in.
+  const guestBranchStart = dropdown.indexOf('{isGuest ? (');
+  const guestBranchEnd = dropdown.indexOf(') : (', guestBranchStart);
+  assert.ok(guestBranchStart > -1 && guestBranchEnd > guestBranchStart, 'the signed-out branch must exist');
+  const guestBranch = dropdown.slice(guestBranchStart, guestBranchEnd);
+  assert.doesNotMatch(guestBranch, /accountItems/, 'the signed-out branch must not render the account group');
+  assert.match(
+    dropdown,
+    /\{!isGuest && accountItems\.length > 0 && \(/,
+    'the account group must be gated on a session',
+  );
 });
 
 test('the header search is a command palette over the archive', async () => {
@@ -244,7 +383,29 @@ test('the wordmark is centred in the top bar and gone from the rail', async () =
   assert.match(header, /grid-cols-\[minmax\(0,1fr\)_auto_minmax\(0,1fr\)\]/);
   const sidebar = await readProjectFile('components/dashboard/dutimz-sidebar.tsx');
   assert.doesNotMatch(sidebar, /dutimz-text-logo\.svg/);
-  assert.match(sidebar, /brand-icon\.svg/);
+  assert.doesNotMatch(sidebar, /brand-icon\.svg/, 'the rail carries no branding');
+});
+
+test('the header bookmark button previews saved reports in a popover', async () => {
+  // The header used to show a bell that linked straight to /saved, which read as
+  // notifications for a feature the site does not have. It is now a bookmark
+  // that opens a popover of the reader's saved reports.
+  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
+  assert.match(header, /SavedPopover/);
+  assert.doesNotMatch(header, /Bell/, 'the notification bell is gone');
+  assert.doesNotMatch(header, /aria-label="Notifications"/);
+  assert.ok(await exists('components/ui/popover.tsx'), 'the popover primitive must exist');
+  const popover = await readProjectFile('components/dashboard/saved-popover.tsx');
+  assert.match(popover, /PopoverTrigger/);
+  assert.match(popover, /useSavedStories/);
+  assert.match(popover, /\/saved/);
+  assert.match(popover, /\/auth\/sign-in/);
+  // The /saved page and the header preview must share one query, not drift.
+  const saved = await readProjectFile('components/account/saved-stories.tsx');
+  assert.match(saved, /useSavedStories/);
+  const hook = await readProjectFile('lib/use-saved-stories.ts');
+  assert.match(hook, /bookmarks/);
+  assert.match(hook, /isSupabaseConfigured/);
 });
 
 test('every form renders through the shared field primitives', async () => {
@@ -330,6 +491,11 @@ test('the homepage leads with the report carousel and keeps the breaking ticker'
   assert.match(carousel, /aria-roledescription="carousel"/);
   assert.match(carousel, /role="tablist"/);
   assert.match(carousel, /ArrowLeft/);
+  assert.match(carousel, /onTouchStart=\{handleTouchStart\}/);
+  assert.match(carousel, /onTouchEnd=\{handleTouchEnd\}/);
+  assert.match(carousel, /onTouchCancel/);
+  assert.match(carousel, /Math\.abs\(deltaX\) < Math\.abs\(deltaY\) \* 1\.25/);
+  assert.match(carousel, /if \(total === 1 && offset !== 0\) return null/);
   // One ring drawn in design units and scaled to the room the page gives it — not
   // three hand-tuned layouts, which is what shipped upstream and made a phone a
   // different arrangement of the card rather than a smaller copy of it.
@@ -343,7 +509,7 @@ test('the homepage leads with the report carousel and keeps the breaking ticker'
   // headline and the picture only.
   assert.match(carousel, /DETAIL_MIN_SCALE/);
   assert.match(carousel, /\{showDetail && \(/);
-  // The dots scale with the ring but are the only way to move the deck on a phone.
+  // The dots keep their thumb-sized hit area; swipes are an additional phone control.
   assert.match(carousel, /dotHit/);
   // An auto-rotating deck has to stop when the reader asks motion to stop.
   assert.match(carousel, /prefers-reduced-motion/);
@@ -447,8 +613,159 @@ test('statistics expose only aggregate counts, never identities', async () => {
   assert.match(corrections, /list_corrections/);
 });
 
+test("every overlay and disclosure animates at the dropdown's 150ms", async () => {
+  // Each surface used to carry its own timing — the mobile drawer slid in over
+  // half a second, the tree unfolded over 300ms, and the account dropdown took
+  // 150ms — so the same tap felt different everywhere. They all match now.
+  for (const primitive of [
+    'dropdown-menu',
+    'popover',
+    'dialog',
+    'sheet',
+    'tooltip',
+    'animated-file-tree',
+  ]) {
+    const source = await readProjectFile(`components/ui/${primitive}.tsx`);
+    assert.ok(source.includes('duration-150'), `${primitive} must animate at 150ms`);
+    assert.doesNotMatch(
+      source,
+      /duration-(?:200|300|500|700|1000)\b/,
+      `${primitive} must not ship a slower duration`,
+    );
+  }
+});
+
+test('reader-facing errors never show raw provider text', async () => {
+  // A misconfigured build used to print the provider's own words to readers:
+  // "@supabase/ssr: Your project's URL and API key are required to create a
+  // Supabase client!" landed verbatim on /saved and in the header bookmark
+  // popover. Supabase-backed UI logs errors through @/lib/errors and renders
+  // fixed, operation-specific Bengali text rather than provider messages.
+  const surfaces = [
+    'components/account/account-dashboard.tsx',
+    'components/account/admin-dashboard.tsx',
+    'components/account/balance-view.tsx',
+    'components/account/gallery-uploader.tsx',
+    'components/account/moderation-queue.tsx',
+    'components/account/reporter-application.tsx',
+    'components/account/role-gate.tsx',
+    'components/account/writer-form.tsx',
+    'components/article/article-actions.tsx',
+    'components/article/comments.tsx',
+    'components/auth/sign-in-button.tsx',
+    'components/corrections/corrections-list.tsx',
+    'components/dashboard/command-palette.tsx',
+    'components/dashboard/dashboard-header.tsx',
+    'components/profile/profile-editor.tsx',
+    'components/profile/public-profile.tsx',
+    'components/search/search-results.tsx',
+    'components/statistics/public-stats.tsx',
+    'lib/use-saved-stories.ts',
+  ];
+  for (const path of surfaces) {
+    const source = await readProjectFile(path);
+    assert.match(source, /from "@\/lib\/errors"/, `${path} must route errors through @/lib/errors`);
+  }
+
+  // Nothing under components/ may read a provider message into state or JSX.
+  const offenders = [];
+  for (const entry of readdirSync(componentsDir, { recursive: true })) {
+    const relative = String(entry).replaceAll('\\', '/');
+    if (!relative.endsWith('.tsx')) continue;
+    const source = await readProjectFile(`components/${relative}`);
+    if (/(?:\berr|\berror|\.error|\.data\.error)\.message\b/.test(source)) {
+      offenders.push(relative);
+    }
+  }
+  assert.deepEqual(offenders, [], 'components must not inspect or render exception messages');
+
+  const nonUiSupabase = [
+    'app/api/search/route.ts',
+    'lib/stories.ts',
+    'worker/src/index.ts',
+  ];
+  for (const path of nonUiSupabase) {
+    const source = await readProjectFile(path);
+    assert.ok(source.includes('reportError') || source.includes('console.error'), `${path} must keep provider detail in server-side logs`);
+  }
+  const route = await readProjectFile('app/api/search/route.ts');
+  assert.doesNotMatch(route, /error\.message|detail\s*:\s*error/);
+  assert.match(route, /unavailable:\s*true/);
+
+  const helper = await readProjectFile('lib/errors.ts');
+  assert.ok(helper.includes('console.error'), 'the raw failure detail must be logged');
+  assert.ok(helper.includes('reportError(context, error)'));
+  assert.ok(helper.includes('return fallback;'), 'reader-facing text must be a fixed fallback');
+  assert.ok(!helper.includes('error.message') && !helper.includes('String(error)'));
+  assert.ok(helper.includes('isUniqueViolation'));
+
+  // The raw-text escape hatch (break-all sized for URLs and tokens) is gone.
+  const saved = await readProjectFile('components/account/saved-stories.tsx');
+  assert.doesNotMatch(saved, /break-all/);
+  assert.doesNotMatch(saved, /লোড করা যায়নি: \{message\}/);
+  const popover = await readProjectFile('components/dashboard/saved-popover.tsx');
+  assert.doesNotMatch(popover, /break-all/);
+});
+
+test('known profile username collisions use fixed Bengali guidance', async () => {
+  const helper = await readProjectFile('lib/errors.ts');
+  assert.ok(helper.includes('23505'));
+  assert.ok(helper.includes('return fallback;'));
+  assert.ok(helper.includes('console.error'));
+  const profile = await readProjectFile('components/profile/profile-editor.tsx');
+  assert.ok(profile.includes('isUniqueViolation(profileResult.error)'));
+  assert.ok(profile.includes('এই ইউজারনেমটি ইতিমধ্যে ব্যবহৃত। অন্য একটি বেছে নিন।'));
+});
+
+test('Supabase failures use safe Bengali fallbacks and never render exception text', async () => {
+  const files = [
+    'components/account/account-dashboard.tsx',
+    'components/account/admin-dashboard.tsx',
+    'components/account/balance-view.tsx',
+    'components/account/gallery-uploader.tsx',
+    'components/account/moderation-queue.tsx',
+    'components/account/reporter-application.tsx',
+    'components/account/role-gate.tsx',
+    'components/account/writer-form.tsx',
+    'components/article/article-actions.tsx',
+    'components/article/comments.tsx',
+    'components/auth/sign-in-button.tsx',
+    'components/corrections/corrections-list.tsx',
+    'components/dashboard/command-palette.tsx',
+    'components/dashboard/dashboard-header.tsx',
+    'components/profile/profile-editor.tsx',
+    'components/profile/public-profile.tsx',
+    'components/search/search-results.tsx',
+    'components/statistics/public-stats.tsx',
+    'lib/use-saved-stories.ts',
+  ];
+  for (const path of files) {
+    const source = await readProjectFile(path);
+    assert.ok(source.includes('@/lib/errors'), `${path} must use the shared safe logger`);
+  }
+  for (const entry of readdirSync(componentsDir, { recursive: true })) {
+    const relative = String(entry).replaceAll('\\', '/');
+    if (!relative.endsWith('.tsx')) continue;
+    const source = await readProjectFile(`components/${relative}`);
+    assert.ok(!source.includes('.message'), `${relative} must not read exception messages`);
+  }
+  const palette = await readProjectFile('components/dashboard/command-palette.tsx');
+  assert.ok(palette.includes('প্রতিবেদন খোঁজা যাচ্ছে না। আবার চেষ্টা করুন।'));
+  const search = await readProjectFile('components/search/search-results.tsx');
+  assert.ok(search.includes('খবর খোঁজা যাচ্ছে না। আবার চেষ্টা করুন।'));
+  const helper = await readProjectFile('lib/errors.ts');
+  assert.ok(helper.includes('console.error'), 'raw details are logged');
+  assert.ok(helper.includes('return fallback;'), 'only fixed Bengali fallback text is returned');
+  assert.ok(!helper.includes('error.message'));
+  assert.ok(!helper.includes('String(error)'));
+  const saved = await readProjectFile('lib/use-saved-stories.ts');
+  assert.ok(saved.includes('সংরক্ষিত প্রতিবেদন লোড করা যায়নি'));
+  const profile = await readProjectFile('components/profile/profile-editor.tsx');
+  assert.ok(profile.includes('এই ইউজারনেমটি ইতিমধ্যে ব্যবহৃত। অন্য একটি বেছে নিন।'));
+});
+
 test('shadcn primitives required by the dashboard shell exist', async () => {
-  for (const primitive of ['avatar', 'badge', 'button', 'card', 'chart', 'command', 'connected-carousel', 'field', 'input', 'radio-group', 'select', 'separator', 'skeleton', 'textarea', 'tooltip', 'sheet', 'label', 'progress', 'sidebar']) {
+  for (const primitive of ['animated-file-tree', 'avatar', 'badge', 'button', 'card', 'chart', 'command', 'connected-carousel', 'field', 'input', 'popover', 'radio-group', 'select', 'separator', 'skeleton', 'textarea', 'tooltip', 'sheet', 'label', 'progress', 'sidebar']) {
     assert.ok(await exists(`components/ui/${primitive}.tsx`), `components/ui/${primitive}.tsx must exist`);
   }
 });

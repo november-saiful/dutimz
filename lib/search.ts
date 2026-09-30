@@ -18,5 +18,7 @@ export type SearchHit = {
 export type SearchResponse = {
   /** True when the results are the bundled preview stories, not the archive. */
   demo: boolean;
+  /** True when the archive could not be searched; never includes provider details. */
+  unavailable?: boolean;
   results: SearchHit[];
 };

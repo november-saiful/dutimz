@@ -2,15 +2,21 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell } from "lucide-react";
 import * as React from "react";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { CommandPalette } from "@/components/dashboard/command-palette";
+import { SavedPopover } from "@/components/dashboard/saved-popover";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { UserDropdown } from "@/components/ui/user-dropdown";
+import {
+  ACCOUNT_HIDDEN_ACTIONS,
+  ACCOUNT_ROUTES,
+  ACCOUNT_SIGN_OUT_ROUTES,
+  categoryHref,
+  isCategoryAction,
+} from "@/lib/account-menu";
+import { reportError } from "@/lib/errors";
 import { isSupabaseConfigured, supabaseBrowser } from "@/lib/supabase";
 
 export type Crumb = { label: string; href?: string };
@@ -23,19 +29,11 @@ type HeaderUser = {
 };
 
 /**
- * Menu entries with no DUTIMZ destination stay out of the header menu: there is
- * no presence system behind "status", no theming behind "appearance", and no
- * premium tier, referral programme, native app or changelog behind the
- * upsell/support entries. What remains maps to a real route in handleMenuAction.
+ * Entries with no destination for this site are hidden. The list lives with the
+ * route table so the menu, the handler and this host stay in step: adding a
+ * route there is enough to make an entry live here.
  */
-const HIDDEN_MENU_ACTIONS = [
-  "status",
-  "appearance",
-  "upgrade",
-  "referrals",
-  "download",
-  "whats-new",
-];
+const HIDDEN_MENU_ACTIONS: string[] = [...ACCOUNT_HIDDEN_ACTIONS];
 
 function initialsFor(name: string): string {
   const parts = name
@@ -58,8 +56,9 @@ export function DashboardHeader({
 }) {
   const router = useRouter();
   const pathname = usePathname() ?? "/";
-  // undefined while the session is being resolved, null when signed out: both
-  // render the plain account link so the header never shifts shape on load.
+  // undefined while the session is being resolved, null when signed out. Both
+  // render the account menu in its signed-out shape, so the header never shifts
+  // on load and a visitor always has the menu (and can sign in from it).
   const [menuUser, setMenuUser] = React.useState<HeaderUser | null | undefined>(
     undefined,
   );
@@ -85,11 +84,12 @@ export function DashboardHeader({
         return;
       }
       try {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("profiles")
           .select("username,display_name,avatar_url")
           .eq("id", userId)
           .maybeSingle();
+        if (error) reportError("header profile", error);
         if (cancelled) return;
         const profile = data as {
           username?: string;
@@ -114,19 +114,20 @@ export function DashboardHeader({
           avatar,
           initials: initialsFor(name),
         });
-      } catch {
+      } catch (err) {
+        reportError("header profile", err);
         if (!cancelled) setMenuUser(null);
       }
     }
 
     (async () => {
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) reportError("header session", error);
         if (!cancelled)
           await loadUser(user?.id ?? null, (user?.user_metadata ?? {}) as Record<string, unknown>);
-      } catch {
+      } catch (err) {
+        reportError("header session", err);
         if (!cancelled) setMenuUser(null);
       }
     })();
@@ -137,7 +138,7 @@ export function DashboardHeader({
       void loadUser(
         session?.user?.id ?? null,
         (session?.user?.user_metadata ?? {}) as Record<string, unknown>,
-      );
+      ).catch((err) => reportError("header profile refresh", err));
     });
     return () => {
       cancelled = true;
@@ -146,43 +147,41 @@ export function DashboardHeader({
   }, []);
 
   async function handleMenuAction(action?: string) {
-    switch (action) {
-      case "profile":
-        router.push("/profile/me/");
-        break;
-      case "settings":
-        router.push("/account/");
-        break;
-      case "notifications":
-        router.push("/saved/");
-        break;
-      case "help":
-        router.push("/about/");
-        break;
-      case "switch":
-      case "logout": {
-        try {
-          await supabaseBrowser().auth.signOut();
-        } catch {
-          // Signed out as far as the UI is concerned either way.
-        }
-        setMenuUser(null);
-        // "Switch account" lands on sign-in, whose Google button uses
-        // prompt=select_account, so the reader can pick another identity.
-        router.push(action === "switch" ? "/auth/sign-in/" : "/");
-        router.refresh();
-        break;
+    if (!action) return;
+
+    // Sign-out actions end the session first, then land on their route.
+    if (action in ACCOUNT_SIGN_OUT_ROUTES) {
+      try {
+        const { error } = await supabaseBrowser().auth.signOut();
+        if (error) reportError("sign out", error);
+      } catch (err) {
+        // Signed out as far as the UI is concerned either way.
+        reportError("sign out", err);
       }
-      default:
-        break;
+      setMenuUser(null);
+      router.push((ACCOUNT_SIGN_OUT_ROUTES as Record<string, string>)[action]);
+      router.refresh();
+      return;
     }
+
+    // Section entries carry their slug; everything else is a plain route from
+    // the shared table, so the menu and the handler cannot drift apart.
+    const href = isCategoryAction(action)
+      ? categoryHref(action)
+      : (ACCOUNT_ROUTES as Record<string, string>)[action];
+
+    if (href) router.push(href);
   }
 
   return (
     <div className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur-sm">
       <header className="grid h-16 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-2">
-          <SidebarTrigger aria-label="Toggle navigation" />
+          {/*
+            Phones open the rail as a drawer; on desktop the rail is fixed and
+            expanded, so the trigger is only offered where the drawer exists.
+          */}
+          <SidebarTrigger aria-label="Toggle navigation" className="md:hidden" />
           <div className="min-w-0">
             <nav
               aria-label="অবস্থান"
@@ -240,24 +239,22 @@ export function DashboardHeader({
         </Link>
         <div className="flex items-center justify-end gap-1">
           <CommandPalette />
-          <Button variant="ghost" size="icon" aria-label="Notifications" asChild>
-            <Link href="/saved">
-              <Bell />
-            </Link>
-          </Button>
-          {menuUser ? (
-            <UserDropdown
-              user={{ ...menuUser, status: "online" }}
-              onAction={handleMenuAction}
-              hiddenActions={HIDDEN_MENU_ACTIONS}
-            />
-          ) : (
-            <Link href="/account" aria-label="আমার অ্যাকাউন্ট">
-              <Avatar className="ml-1 size-8">
-                <AvatarFallback>ঢা</AvatarFallback>
-              </Avatar>
-            </Link>
-          )}
+          {/*
+            The bookmark button opens a preview of the reader's saved reports.
+            It used to be a bell that linked straight to /saved, which read as
+            notifications for a feature this site does not have.
+          */}
+          <SavedPopover />
+          {/*
+            The account menu is always present: signed-out visitors get a
+            sign-in call to action inside it instead of a bare avatar that
+            dropped them on a page they could not use.
+          */}
+          <UserDropdown
+            user={menuUser ? { ...menuUser, status: "online" } : null}
+            onAction={handleMenuAction}
+            hiddenActions={HIDDEN_MENU_ACTIONS}
+          />
         </div>
       </header>
       {pathname === "/" && breaking.length > 0 && (

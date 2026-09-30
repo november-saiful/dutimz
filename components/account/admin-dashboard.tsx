@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { errorMessage } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
 import { bn, formatDateBn } from "@/lib/site";
 
@@ -156,39 +157,59 @@ export function AdminDashboard() {
 
   const loadMembers = React.useCallback(
     async (nextOffset: number, nextQuery: string) => {
-      const supabase = supabaseBrowser();
-      const { data, error } = await supabase.rpc("admin_member_records", {
-        p_query: nextQuery.trim() || null,
-        p_limit: pageSize,
-        p_offset: nextOffset,
-      });
-      if (error) {
-        setError(error.message);
-        return;
+      try {
+        const supabase = supabaseBrowser();
+        const { data, error } = await supabase.rpc("admin_member_records", {
+          p_query: nextQuery.trim() || null,
+          p_limit: pageSize,
+          p_offset: nextOffset,
+        });
+        if (error) {
+          setError(
+            errorMessage(
+              "admin member records",
+              error,
+              "সদস্যদের তালিকা লোড করা যায়নি। আবার চেষ্টা করুন।",
+            ),
+          );
+          return;
+        }
+        const rows = (data as Member[] | null) ?? [];
+        setMembers(rows);
+        setTotal(Number(rows[0]?.total_count ?? 0));
+        setOffset(nextOffset);
+      } catch (err) {
+        setError(errorMessage("admin member records", err, "সদস্যদের তালিকা লোড করা যায়নি। আবার চেষ্টা করুন।"));
       }
-      const rows = (data as Member[] | null) ?? [];
-      setMembers(rows);
-      setTotal(Number(rows[0]?.total_count ?? 0));
-      setOffset(nextOffset);
     },
     [],
   );
 
   const loadWithdrawals = React.useCallback(async () => {
-    const supabase = supabaseBrowser();
-    const { data, error } = await supabase
-      .from("withdrawals")
-      .select(
-        "id,user_id,amount_tk,method,status,created_at,profiles:profiles!withdrawals_user_id_fkey(username,display_name)",
-      )
-      .eq("status", "pending")
-      .order("created_at", { ascending: true })
-      .limit(60);
-    if (error) {
-      setError(error.message);
-      return;
+    try {
+      const supabase = supabaseBrowser();
+      const { data, error } = await supabase
+        .from("withdrawals")
+        .select(
+          "id,user_id,amount_tk,method,status,created_at,profiles:profiles!withdrawals_user_id_fkey(username,display_name)",
+        )
+        .eq("status", "pending")
+        .order("created_at", { ascending: true })
+        .limit(60);
+      if (error) {
+        setError(
+          errorMessage(
+            "admin withdrawal requests",
+            error,
+            "উত্তোলনের অনুরোধগুলো লোড করা যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
+        return;
+      }
+      setWithdrawals((data as unknown as Withdrawal[]) ?? []);
+    } catch (err) {
+      setError(errorMessage("admin withdrawal requests", err, "উত্তোলনের অনুরোধগুলো লোড করা যায়নি। আবার চেষ্টা করুন।"));
     }
-    setWithdrawals((data as unknown as Withdrawal[]) ?? []);
   }, []);
 
   React.useEffect(() => {
@@ -196,18 +217,26 @@ export function AdminDashboard() {
     (async () => {
       try {
         const supabase = supabaseBrowser();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) {
+          setError(errorMessage("admin session", authError, "অনুমতি যাচাই করা যায়নি। আবার চেষ্টা করুন।"));
+          if (!cancelled) setAllowed(false);
+          return;
+        }
         if (!user) {
           if (!cancelled) setAllowed(false);
           return;
         }
-        const { data } = await supabase
+        const { data, error: roleError } = await supabase
           .from("user_roles")
           .select("role")
           .eq("user_id", user.id)
           .maybeSingle();
+        if (roleError) {
+          setError(errorMessage("admin role lookup", roleError, "অনুমতি যাচাই করা যায়নি। আবার চেষ্টা করুন।"));
+          if (!cancelled) setAllowed(false);
+          return;
+        }
         if (cancelled) return;
         if ((data as { role?: string } | null)?.role !== "admin") {
           setAllowed(false);
@@ -218,7 +247,13 @@ export function AdminDashboard() {
         await loadWithdrawals();
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "লোড করা যায়নি।");
+          setError(
+            errorMessage(
+              "admin dashboard",
+              err,
+              "ড্যাশবোর্ডের তথ্য লোড করা যায়নি। আবার চেষ্টা করুন।",
+            ),
+          );
           setAllowed(false);
         }
       }
@@ -244,11 +279,19 @@ export function AdminDashboard() {
         p_reason: reason,
       });
       if (error) {
-        setError(error.message);
+        setError(
+          errorMessage(
+            "withdrawal review",
+            error,
+            "সিদ্ধান্ত নথিভুক্ত করা যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
         return;
       }
       setNotice("উত্তোলনের সিদ্ধান্ত নথিভুক্ত হয়েছে।");
       await loadWithdrawals();
+    } catch (err) {
+      setError(errorMessage("withdrawal review", err, "সিদ্ধান্ত নথিভুক্ত করা যায়নি। আবার চেষ্টা করুন।"));
     } finally {
       setBusy(null);
     }
@@ -272,13 +315,21 @@ export function AdminDashboard() {
         p_reason: adjustReason.trim(),
       });
       if (error) {
-        setError(error.message);
+        setError(
+          errorMessage(
+            "balance adjustment",
+            error,
+            "জমা অর্থ সমন্বয় করা যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
         return;
       }
       setNotice("জমা অর্থ সমন্বয় করা হয়েছে।");
       setAdjustUserId("");
       setAdjustAmount("");
       setAdjustReason("");
+    } catch (err) {
+      setError(errorMessage("balance adjustment", err, "জমা অর্থ সমন্বয় করা যায়নি। আবার চেষ্টা করুন।"));
     } finally {
       setBusy(null);
     }
@@ -358,12 +409,20 @@ export function AdminDashboard() {
         p_reason: editReason.trim(),
       });
       if (error) {
-        setError(error.message);
+        setError(
+          errorMessage(
+            "role assignment",
+            error,
+            "ভূমিকা হালনাগাদ করা যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
         return;
       }
       setNotice("ভূমিকা হালনাগাদ হয়েছে।");
       setEditing(null);
       await loadMembers(offset, query);
+    } catch (err) {
+      setError(errorMessage("role assignment", err, "ভূমিকা হালনাগাদ করা যায়নি। আবার চেষ্টা করুন।"));
     } finally {
       setBusy(null);
     }
@@ -383,7 +442,7 @@ export function AdminDashboard() {
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          এই প্রশাসনিক ড্যাশবোর্ড কেবল অ্যাডমিনদের জন্য।
+          {error ? <p className="text-destructive" role="alert">{error}</p> : "এই প্রশাসনিক ড্যাশবোর্ড কেবল অ্যাডমিনদের জন্য।"}
         </CardContent>
       </Card>
     );
@@ -397,7 +456,7 @@ export function AdminDashboard() {
         </p>
       )}
       {notice && (
-        <p className="text-sm text-green-700" role="status">
+        <p className="text-sm text-success" role="status">
           {notice}
         </p>
       )}

@@ -42,7 +42,7 @@ export function StoryArt({
       aria-hidden
     >
       <span className={`story-art-fallback ${slugArtClass(slug)} absolute inset-0`} />
-      <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-white/20 text-xl font-bold text-white">
+      <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-primary-foreground/20 text-xl font-bold text-primary-foreground">
         ঢা
       </span>
     </span>

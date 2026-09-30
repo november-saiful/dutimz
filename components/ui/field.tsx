@@ -118,7 +118,7 @@ function FormMessage({
     <p
       className={cn(
         "text-sm",
-        tone === "error" ? "text-destructive" : "text-green-700",
+        tone === "error" ? "text-destructive" : "text-success",
       )}
       role={tone === "error" ? "alert" : "status"}
     >

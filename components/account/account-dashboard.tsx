@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { reportError } from "@/lib/errors";
 import { isSupabaseConfigured, supabaseBrowser } from "@/lib/supabase";
 import { bn, bnMoney } from "@/lib/site";
 
@@ -29,6 +30,7 @@ export function AccountDashboard() {
   const [role, setRole] = React.useState<Role>("reader");
   const [completion, setCompletion] = React.useState(0);
   const [balance, setBalance] = React.useState("৳০");
+  const [loadError, setLoadError] = React.useState("");
 
   React.useEffect(() => {
     let cancelled = false;
@@ -46,9 +48,16 @@ export function AccountDashboard() {
       }
       try {
         const supabase = supabaseBrowser();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) {
+          reportError("account session", authError);
+          if (!cancelled) {
+            setLoadError("ড্যাশবোর্ডের তথ্য লোড করা যায়নি। আবার চেষ্টা করুন。");
+            setSignedIn(false);
+            setLoading(false);
+          }
+          return;
+        }
         if (cancelled) return;
         if (!user) {
           setSignedIn(false);
@@ -72,6 +81,18 @@ export function AccountDashboard() {
             supabase.rpc("get_my_wallet"),
           ]);
         if (cancelled) return;
+        const queryErrors = [
+          ["account profile", profileResult.error],
+          ["account role", roleResult.error],
+          ["account completion", completionResult.error],
+          ["account wallet", walletResult.error],
+        ] as const;
+        for (const [context, error] of queryErrors) {
+          if (error) reportError(context, error);
+        }
+        if (queryErrors.some(([, error]) => error)) {
+          setLoadError("ড্যাশবোর্ডের কিছু তথ্য লোড করা যায়নি। আবার চেষ্টা করুন।");
+        }
         const profile = profileResult.data as {
           username?: string;
           display_name?: string;
@@ -101,6 +122,12 @@ export function AccountDashboard() {
               Number(wallet?.reserved ?? 0),
           ),
         );
+      } catch (err) {
+        reportError("account dashboard", err);
+        if (!cancelled) {
+          setLoadError("ড্যাশবোর্ডের তথ্য লোড করা যায়নি। আবার চেষ্টা করুন।");
+          setSignedIn(false);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -124,6 +151,7 @@ export function AccountDashboard() {
     return (
       <Card className="mx-auto max-w-md text-center">
         <CardHeader>
+          {loadError && <CardTitle className="text-destructive">{loadError}</CardTitle>}
           <CardTitle>অ্যাকাউন্টে প্রবেশ করুন</CardTitle>
           <CardDescription>
             ড্যাশবোর্ড দেখতে আগে গুগল দিয়ে প্রবেশ করুন।
@@ -178,6 +206,7 @@ export function AccountDashboard() {
 
   return (
     <div className="flex flex-col gap-4">
+      {loadError && <p className="text-sm text-destructive" role="alert">{loadError}</p>}
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardHeader>

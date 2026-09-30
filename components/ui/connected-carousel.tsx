@@ -23,8 +23,8 @@
  *    never shows a few hundred milliseconds of the deck at desktop scale. The box
  *    is reserved in CSS (`aspect-ratio`), so nothing below it moves when the deck
  *    appears. With JavaScript disabled that box stays empty;
- *  - the dots scale with the ring but keep a 24px tall hit area, because on a
- *    phone they are the only way to move the deck.
+ *  - the dots scale with the ring but keep a 24px tall hit area, alongside swipe
+ *    navigation for phone readers.
  *
  * The remaining adaptations are unchanged: the accessible names are Bengali like
  * every other label on the site, `prefers-reduced-motion` stops the auto-advance
@@ -151,6 +151,7 @@ export function CalendlyCarousel({
   const animationFrameRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number | null>(null);
   const elapsedRef = useRef<number>(0);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // State
   const [page, setPage] = useState<number>(0);
@@ -201,6 +202,12 @@ export function CalendlyCarousel({
   }, []);
 
   useEffect(() => {
+    if (total < 2) {
+      elapsedRef.current = 0;
+      lastTimeRef.current = null;
+      setProgress(0);
+      return;
+    }
     if (reduceMotion || (pauseOnHover && isHovered)) {
       lastTimeRef.current = null;
       return;
@@ -235,22 +242,24 @@ export function CalendlyCarousel({
       }
       lastTimeRef.current = null;
     };
-  }, [page, pauseOnHover, isHovered, autoPlayInterval, reduceMotion]);
+  }, [page, pauseOnHover, isHovered, autoPlayInterval, reduceMotion, total]);
 
   // Handlers
   const handlePrev = useCallback(() => {
+    if (total < 2) return;
     elapsedRef.current = 0;
     lastTimeRef.current = null;
     setProgress(0);
     setPage((curr) => curr - 1);
-  }, []);
+  }, [total]);
 
   const handleNext = useCallback(() => {
+    if (total < 2) return;
     elapsedRef.current = 0;
     lastTimeRef.current = null;
     setProgress(0);
     setPage((curr) => curr + 1);
-  }, []);
+  }, [total]);
 
   const handleSelectTab = (event: MouseEvent<HTMLButtonElement>) => {
     const indexStr = event.currentTarget.dataset.index;
@@ -303,6 +312,32 @@ export function CalendlyCarousel({
     }
   };
 
+  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length !== 1) {
+      touchStartRef.current = null;
+      return;
+    }
+    const touch = event.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start || event.changedTouches.length !== 1 || event.touches.length !== 0) return;
+
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - start.x;
+    const deltaY = touch.clientY - start.y;
+    const threshold = Math.max(36, Math.min(72, (ringWidth ?? RING_WIDTH) * 0.12));
+
+    // Ignore taps and vertical page scrolling; only a deliberate horizontal
+    // gesture that dominates its vertical movement advances the deck.
+    if (Math.abs(deltaX) < threshold || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) return;
+    if (deltaX < 0) handleNext();
+    else handlePrev();
+  };
+
   // Every hook above runs on every render, so an empty deck can leave early.
   // Without this the ring would index into `items[NaN]` and take the page down.
   if (!total) return null;
@@ -327,6 +362,11 @@ export function CalendlyCarousel({
       aria-label="সাম্প্রতিক প্রতিবেদনের ক্যারোসেল"
       tabIndex={0}
       onKeyDown={handleKeyDown}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={() => {
+        touchStartRef.current = null;
+      }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       className={cn(
@@ -366,6 +406,9 @@ export function CalendlyCarousel({
             }}
           >
             {VISIBLE_OFFSETS.map((offset) => {
+              // With a single story, rendering the neighbour slots wraps the
+              // same card around the focused card. Keep only the real focus.
+              if (total === 1 && offset !== 0) return null;
               const virtualIndex = page + offset;
               const itemIndex = ((virtualIndex % total) + total) % total;
               const item = items[itemIndex];

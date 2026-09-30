@@ -1,68 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import * as React from "react";
 
 import { StoryCard } from "@/components/dashboard/story-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { one, supabaseBrowser, type Story } from "@/lib/supabase";
+import { useSavedStories } from "@/lib/use-saved-stories";
 
 export function SavedStories() {
-  const [state, setState] = React.useState<
-    "loading" | "signed-out" | "ready" | "error"
-  >("loading");
-  const [stories, setStories] = React.useState<Story[]>([]);
-  const [message, setMessage] = React.useState("");
-
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const supabase = supabaseBrowser();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (cancelled) return;
-        if (!user) {
-          setState("signed-out");
-          return;
-        }
-        const result = await supabase
-          .from("bookmarks")
-          .select(
-            "articles:articles!bookmarks_article_id_fkey(id,slug,title,excerpt,published_at,is_anonymous,hero_media_key,category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url))",
-          )
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(60);
-        if (cancelled) return;
-        if (result.error) {
-          setState("error");
-          setMessage(result.error.message);
-          return;
-        }
-        const articles = (result.data ?? [])
-          .map((item) =>
-            one(
-              (item as { articles: Story | Story[] | null }).articles,
-            ),
-          )
-          .filter((item): item is Story => item !== null);
-        setStories(articles);
-        setState("ready");
-      } catch (err) {
-        if (!cancelled) {
-          setState("error");
-          setMessage(err instanceof Error ? err.message : "লোড করা যায়নি।");
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { state, stories, message } = useSavedStories();
 
   if (state === "loading") {
     return (
@@ -93,9 +40,8 @@ export function SavedStories() {
   if (state === "error") {
     return (
       <Card>
-        {/* break-all: raw error text (URLs, tokens) must not set min-content width on phones. */}
-        <CardContent className="break-all py-8 text-center text-sm text-destructive">
-          সংরক্ষিত প্রতিবেদন লোড করা যায়নি: {message}
+        <CardContent className="py-8 text-center text-sm text-destructive">
+          {message}
         </CardContent>
       </Card>
     );

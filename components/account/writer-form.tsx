@@ -24,6 +24,7 @@ import {
   type GalleryItem,
 } from "@/components/account/gallery-uploader";
 import { ReporterApplication } from "@/components/account/reporter-application";
+import { errorMessage, reportError } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
 import { CATEGORIES } from "@/lib/site";
 
@@ -48,21 +49,29 @@ export function WriterForm() {
     (async () => {
       try {
         const supabase = supabaseBrowser();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) {
+          reportError("writer session", authError);
+          if (!cancelled) setSignedIn(false);
+          return;
+        }
         if (cancelled) return;
         setSignedIn(Boolean(user));
         if (!user) return;
-        const { data } = await supabase.rpc(
+        const { data, error } = await supabase.rpc(
           "get_active_article_questionnaire",
         );
+        if (error) {
+          reportError("active article questionnaire", error);
+          return;
+        }
         if (cancelled) return;
         const row = Array.isArray(data) ? data[0] : data;
         if (row && typeof row === "object") {
           setQuestionnaire(row as QuestionnaireVersion);
         }
-      } catch {
+      } catch (err) {
+        reportError("writer form load", err);
         if (!cancelled) setSignedIn(false);
       }
     })();
@@ -92,9 +101,11 @@ export function WriterForm() {
     setBusy(true);
     try {
       const supabase = supabaseBrowser();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) {
+        setError(errorMessage("writer session", authError, "প্রতিবেদন জমা দেওয়া যায়নি। আবার চেষ্টা করুন।"));
+        return;
+      }
       if (!user) {
         window.location.assign("/auth/sign-in");
         return;
@@ -119,7 +130,13 @@ export function WriterForm() {
         p_is_anonymous: data.get("is_anonymous") === "on",
       });
       if (result.error) {
-        setError(result.error.message);
+        setError(
+          errorMessage(
+            "article submission",
+            result.error,
+            "প্রতিবেদন জমা দেওয়া যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
         return;
       }
       form.reset();
@@ -130,6 +147,8 @@ export function WriterForm() {
       setGallery([]);
       setDone("আপনার প্রতিবেদন পর্যালোচনার জন্য পাঠানো হয়েছে।");
       setStatus("প্রতিবেদন পাঠানো হয়েছে।");
+    } catch (err) {
+      setError(errorMessage("article submission", err, "প্রতিবেদন জমা দেওয়া যায়নি। আবার চেষ্টা করুন।"));
     } finally {
       setBusy(false);
     }

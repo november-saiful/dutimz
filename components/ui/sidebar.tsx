@@ -81,9 +81,26 @@ const SidebarProvider = React.forwardRef<
       [setOpenProp, open],
     );
 
+    // Desktop-first: the dashboard shell is permanent on tablet/desktop and a
+    // drawer on phones. Track a mobile breakpoint for the Sheet variant.
+    const [isMobile, setIsMobile] = React.useState(false);
+    React.useEffect(() => {
+      const query = window.matchMedia("(max-width: 767px)");
+      const update = () => setIsMobile(query.matches);
+      update();
+      query.addEventListener("change", update);
+      return () => query.removeEventListener("change", update);
+    }, []);
+
+    // On phones the toggle drives the Sheet; on desktop the rail is fixed and
+    // expanding is not offered, so the toggle is an inert no-op there.
     const toggleSidebar = React.useCallback(() => {
-      return setOpen((current) => !current);
-    }, [setOpen]);
+      if (isMobile) {
+        setOpenMobile((current) => !current);
+        return;
+      }
+      setOpen((current) => !current);
+    }, [isMobile, setOpen, setOpenMobile]);
 
     React.useEffect(() => {
       const handleKeyDown = (event: KeyboardEvent) => {
@@ -98,17 +115,6 @@ const SidebarProvider = React.forwardRef<
       window.addEventListener("keydown", handleKeyDown);
       return () => window.removeEventListener("keydown", handleKeyDown);
     }, [toggleSidebar]);
-
-    // Desktop-first: the dashboard shell is permanent on tablet/desktop and a
-    // drawer on phones. Track a mobile breakpoint for the Sheet variant.
-    const [isMobile, setIsMobile] = React.useState(false);
-    React.useEffect(() => {
-      const query = window.matchMedia("(max-width: 767px)");
-      const update = () => setIsMobile(query.matches);
-      update();
-      query.addEventListener("change", update);
-      return () => query.removeEventListener("change", update);
-    }, []);
 
     const state = open ? "expanded" : "collapsed";
 

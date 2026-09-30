@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Field, FormMessage } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { errorMessage, reportError } from "@/lib/errors";
 import { one, supabaseBrowser } from "@/lib/supabase";
 import { relativeTimeBn } from "@/lib/site";
 
@@ -36,11 +37,13 @@ export function Comments({ articleId }: { articleId: string }) {
         .order("created_at", { ascending: false })
         .limit(100);
       if (result.error) {
+        reportError("comment list", result.error);
         setError("মন্তব্যগুলো এখন লোড করা যাচ্ছে না।");
         return;
       }
       setComments((result.data ?? []) as unknown as Comment[]);
-    } catch {
+    } catch (err) {
+      reportError("comment list", err);
       setError("মন্তব্যগুলো এখন লোড করা যাচ্ছে না।");
     } finally {
       setLoaded(true);
@@ -59,9 +62,11 @@ export function Comments({ articleId }: { articleId: string }) {
     setError("");
     try {
       const supabase = supabaseBrowser();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) {
+        setError(errorMessage("comment session", authError, "মন্তব্য পাঠানো যায়নি। আবার চেষ্টা করুন।"));
+        return;
+      }
       if (!user) {
         sessionStorage.setItem(
           "dutimz-after-auth",
@@ -76,11 +81,19 @@ export function Comments({ articleId }: { articleId: string }) {
         body,
       });
       if (result.error) {
-        setError(result.error.message);
+        setError(
+          errorMessage(
+            "comment submit",
+            result.error,
+            "মন্তব্য পাঠানো যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
         return;
       }
       setDraft("");
       await load();
+    } catch (err) {
+      setError(errorMessage("comment submit", err, "মন্তব্য পাঠানো যায়নি। আবার চেষ্টা করুন।"));
     } finally {
       setSubmitting(false);
     }

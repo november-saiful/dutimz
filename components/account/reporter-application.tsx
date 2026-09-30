@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FormMessage } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
+import { errorMessage, reportError } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
 
 export function ReporterApplication() {
@@ -20,19 +21,26 @@ export function ReporterApplication() {
     (async () => {
       try {
         const supabase = supabaseBrowser();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) {
+          reportError("reporter application session", authError);
+          return;
+        }
         if (!user) return;
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("user_roles")
           .select("role")
           .eq("user_id", user.id)
           .maybeSingle();
+        if (error) {
+          reportError("reporter application role", error);
+          return;
+        }
         if (!cancelled && (data as { role?: string } | null)?.role === "reader")
           setVisible(true);
-      } catch {
+      } catch (err) {
         /* readers-only section stays hidden on failure */
+        reportError("reporter application visibility", err);
       }
     })();
     return () => {
@@ -55,11 +63,19 @@ export function ReporterApplication() {
         p_motivation: motivation.trim(),
       });
       if (result.error) {
-        setError(result.error.message);
+        setError(
+          errorMessage(
+            "reporter application",
+            result.error,
+            "আবেদন পাঠানো যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
         return;
       }
       setMotivation("");
       setDone("আপনার আবেদন সম্পাদকীয় দলের কাছে পাঠানো হয়েছে।");
+    } catch (err) {
+      setError(errorMessage("reporter application", err, "আবেদন পাঠানো যায়নি। আবার চেষ্টা করুন।"));
     } finally {
       setBusy(false);
     }

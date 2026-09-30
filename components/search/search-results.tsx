@@ -6,6 +6,7 @@ import { StoryCard } from "@/components/dashboard/story-card";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { reportError } from "@/lib/errors";
 import { one, supabaseBrowser, type Story } from "@/lib/supabase";
 
 type CategoryInfo = { slug: string; title_bn: string };
@@ -24,12 +25,14 @@ export function SearchResults({ initialQuery }: { initialQuery: string }) {
   const [results, setResults] = React.useState<Story[] | null>(null);
   const [searched, setSearched] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const [searchFailed, setSearchFailed] = React.useState(false);
 
   const run = React.useCallback(async (raw: string) => {
     const trimmed = raw.trim();
     if (!trimmed) {
       setResults(null);
       setSearched(null);
+      setSearchFailed(false);
       return;
     }
     setBusy(true);
@@ -40,13 +43,18 @@ export function SearchResults({ initialQuery }: { initialQuery: string }) {
         p_limit: 30,
       });
       if (error) {
+        reportError("article search", error);
         setResults([]);
+        setSearchFailed(true);
       } else {
         setResults((data ?? []) as unknown as Story[]);
+        setSearchFailed(false);
       }
       setSearched(trimmed);
-    } catch {
+    } catch (err) {
+      reportError("article search", err);
       setResults([]);
+      setSearchFailed(true);
       setSearched(trimmed);
     } finally {
       setBusy(false);
@@ -104,7 +112,12 @@ export function SearchResults({ initialQuery }: { initialQuery: string }) {
         </p>
       )}
 
-      {results !== null &&
+      {searchFailed && (
+        <p className="rounded-lg border p-8 text-center text-sm text-muted-foreground" role="status">
+          খবর খোঁজা যাচ্ছে না। আবার চেষ্টা করুন।
+        </p>
+      )}
+      {results !== null && !searchFailed &&
         (results.length ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {results.map((article) => (

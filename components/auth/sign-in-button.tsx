@@ -3,7 +3,10 @@
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { errorMessage } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
+
+const SIGN_IN_FAILED = "প্রবেশ করা যায়নি। আবার চেষ্টা করুন।";
 
 export function SignInButton() {
   const [busy, setBusy] = React.useState(false);
@@ -22,11 +25,11 @@ export function SignInButton() {
         },
       });
       if (error) {
-        setError(error.message);
+        setError(errorMessage("google sign-in", error, SIGN_IN_FAILED));
         setBusy(false);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "প্রবেশ করা যায়নি।");
+      setError(errorMessage("google sign-in", err, SIGN_IN_FAILED));
       setBusy(false);
     }
   }

@@ -5,6 +5,7 @@ import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { reportError } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
 import { formatDateBn } from "@/lib/site";
 
@@ -34,11 +35,13 @@ export function CorrectionsList() {
         });
         if (cancelled) return;
         if (error) {
+          reportError("corrections list", error);
           setFailed(true);
           return;
         }
         setRows((data as Correction[] | null) ?? []);
-      } catch {
+      } catch (err) {
+        reportError("corrections list", err);
         if (!cancelled) setFailed(true);
       }
     })();

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
+import { errorMessage } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
 import { formatDateBn } from "@/lib/site";
 
@@ -40,18 +41,26 @@ export function ModerationQueue() {
   const load = React.useCallback(async () => {
     try {
       const supabase = supabaseBrowser();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError) {
+        setError(errorMessage("moderation session", authError, "অনুমতি যাচাই করা যায়নি। আবার চেষ্টা করুন।"));
+        setAllowed(false);
+        return;
+      }
       if (!user) {
         setAllowed(false);
         return;
       }
-      const { data: role } = await supabase
+      const { data: role, error: roleError } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id)
         .maybeSingle();
+      if (roleError) {
+        setError(errorMessage("moderation role lookup", roleError, "অনুমতি যাচাই করা যায়নি। আবার চেষ্টা করুন।"));
+        setAllowed(false);
+        return;
+      }
       const roleName = (role as { role?: string } | null)?.role ?? "reader";
       if (roleName !== "moderator" && roleName !== "admin") {
         setAllowed(false);
@@ -75,7 +84,17 @@ export function ModerationQueue() {
           .limit(60),
       ]);
       if (pendingResult.error) {
-        setError(pendingResult.error.message);
+        setError(
+          errorMessage(
+            "moderation queue",
+            pendingResult.error,
+            "পর্যালোচনার তালিকা লোড করা যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
+        return;
+      }
+      if (commentResult.error) {
+        setError(errorMessage("moderation comments", commentResult.error, "মন্তব্য পর্যালোচনার তালিকা লোড করা যায়নি। আবার চেষ্টা করুন။"));
         return;
       }
       setArticles(
@@ -87,7 +106,13 @@ export function ModerationQueue() {
         ),
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "লোড করা যায়নি।");
+      setError(
+        errorMessage(
+          "moderation queue",
+          err,
+          "পর্যালোচনার তালিকা লোড করা যায়নি। আবার চেষ্টা করুন।",
+        ),
+      );
     }
   }, []);
 
@@ -123,7 +148,13 @@ export function ModerationQueue() {
               p_reason: reason,
             });
       if (result.error) {
-        setError(result.error.message);
+        setError(
+          errorMessage(
+            "moderation decision",
+            result.error,
+            "সিদ্ধান্ত নথিভুক্ত করা যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
         return;
       }
       setReasons((prev) => {
@@ -133,6 +164,8 @@ export function ModerationQueue() {
       });
       setNotice("সিদ্ধান্ত নথিভুক্ত হয়েছে।");
       await load();
+    } catch (err) {
+      setError(errorMessage("moderation decision", err, "সিদ্ধান্ত নথিভুক্ত করা যায়নি। আবার চেষ্টা করুন।"));
     } finally {
       setBusy(null);
     }
@@ -152,7 +185,7 @@ export function ModerationQueue() {
     return (
       <Card>
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          এই ডেস্ক কেবল মডারেটর ও অ্যাডমিনদের জন্য।
+          {error ? <p className="text-destructive" role="alert">{error}</p> : "এই ডেস্ক কেবল মডারেটর ও অ্যাডমিনদের জন্য।"}
         </CardContent>
       </Card>
     );
@@ -166,7 +199,7 @@ export function ModerationQueue() {
         </p>
       )}
       {notice && (
-        <p className="text-sm text-green-700" role="status">
+        <p className="text-sm text-success" role="status">
           {notice}
         </p>
       )}

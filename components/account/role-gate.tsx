@@ -5,6 +5,7 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { reportError } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
 
 export function RoleGate({
@@ -25,25 +26,34 @@ export function RoleGate({
     (async () => {
       try {
         const supabase = supabaseBrowser();
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) {
+          reportError("role gate session", authError);
+          if (!cancelled) setState("denied");
+          return;
+        }
         if (!user) {
           if (!cancelled) setState("denied");
           return;
         }
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from("user_roles")
           .select("role")
           .eq("user_id", user.id)
           .maybeSingle();
+        if (error) {
+          reportError("role gate lookup", error);
+          if (!cancelled) setState("denied");
+          return;
+        }
         if (!cancelled)
           setState(
             roles.includes((data as { role?: string } | null)?.role ?? "")
               ? "allowed"
               : "denied",
           );
-      } catch {
+      } catch (err) {
+        reportError("role gate", err);
         if (!cancelled) setState("denied");
       }
     })();

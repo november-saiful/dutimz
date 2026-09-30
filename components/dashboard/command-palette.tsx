@@ -28,6 +28,7 @@ import {
   CommandSeparator,
   CommandShortcut,
 } from "@/components/ui/command";
+import { reportError } from "@/lib/errors";
 import type { SearchHit, SearchResponse } from "@/lib/search";
 import { CATEGORIES } from "@/lib/site";
 
@@ -66,6 +67,7 @@ export function CommandPalette() {
   const [hits, setHits] = React.useState<SearchHit[]>([]);
   const [demo, setDemo] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
+  const [unavailable, setUnavailable] = React.useState(false);
   const [activeValue, setActiveValue] = React.useState("");
 
   const term = query.trim().toLowerCase();
@@ -90,9 +92,11 @@ export function CommandPalette() {
     const trimmed = query.trim();
     if (!trimmed) {
       setHits([]);
+      setUnavailable(false);
       setLoading(false);
       return;
     }
+    setUnavailable(false);
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       setLoading(true);
@@ -103,12 +107,19 @@ export function CommandPalette() {
           `/api/search/?q=${encodeURIComponent(trimmed)}`,
           { signal: controller.signal },
         );
+        if (!response.ok) {
+          throw new Error(`Search request failed (${response.status})`);
+        }
         const payload = (await response.json()) as SearchResponse;
         setHits(payload.results ?? []);
         setDemo(Boolean(payload.demo));
+        setUnavailable(Boolean(payload.unavailable));
+        if (payload.unavailable) reportError("command palette search", new Error("Archive search unavailable"));
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
+          reportError("command palette search", error);
           setHits([]);
+          setUnavailable(true);
         }
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -125,6 +136,7 @@ export function CommandPalette() {
       setOpen(false);
       setQuery("");
       setHits([]);
+      setUnavailable(false);
       router.push(href);
     },
     [router],
@@ -142,7 +154,7 @@ export function CommandPalette() {
   const pages = PAGES.filter((page) => matches(`${page.label} ${page.href}`));
   const searching = Boolean(term) && loading && !hits.length;
   const nothingFound =
-    Boolean(term) && !hits.length && !categories.length && !pages.length;
+    Boolean(term) && !unavailable && !hits.length && !categories.length && !pages.length;
 
   /*
     Keep the highlighted row on the best match. Results arrive after a debounce,
@@ -196,6 +208,7 @@ export function CommandPalette() {
           if (!next) {
             setQuery("");
             setHits([]);
+            setUnavailable(false);
             setActiveValue("");
           }
         }}
@@ -231,6 +244,11 @@ export function CommandPalette() {
             <p className="flex items-center justify-center gap-2 py-6 text-center text-sm text-muted-foreground">
               <IconLoader2 className="size-4 animate-spin" />
               খোঁজা হচ্ছে…
+            </p>
+          )}
+          {unavailable && !loading && (
+            <p className="px-2 py-6 text-center text-sm text-muted-foreground" role="status">
+              প্রতিবেদন খোঁজা যাচ্ছে না। আবার চেষ্টা করুন।
             </p>
           )}
           {nothingFound && !searching && (
