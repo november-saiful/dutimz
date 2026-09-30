@@ -12,6 +12,10 @@ permissions:
 
 concurrency:
   group: dutimz-${{ github.ref }}
+  # A push to main is a release, and a release passes through one-way doors: once migrations
+  # are applied there is no cancelling your way back. Pushes therefore queue behind each
+  # other instead of cancelling in flight; only pull-request runs, which deploy nothing but a
+  # preview, cancel the run they replace.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Only genuinely deployment-wide values belong here. NEXT_PUBLIC_* values are inlined into
@@ -26,6 +30,7 @@ jobs:
   verify:
     name: Typecheck, database tests, and production build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -68,6 +73,7 @@ jobs:
     if: github.event_name == 'pull_request'
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     environment: staging
     steps:
       - name: Check out source
@@ -100,11 +106,48 @@ jobs:
 
   release:
     name: Apply database migrations and deploy Cloudflare
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    # Every push to main is a release, and `needs: verify` means it only starts once that
+    # same commit passed typecheck, the database tests, the build and the interface tests.
+    # A manual dispatch is allowed to start on any ref on purpose: the guard below then
+    # fails it loudly and immediately, which is easier to act on than a silently skipped run.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     environment: production
     steps:
+      - name: Refuse to release anything but main
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "::error::A release must run on main; this run is on ${GITHUB_REF}. Nothing has been changed."
+            exit 1
+          fi
+      # Everything the release mutates is one-way: migrations rewrite the production
+      # schema, both Worker deploys replace live code. Check the credentials *first* so a
+      # missing or rotated secret costs one red step instead of a migrated database with
+      # no matching deployment. (That is exactly how a release once failed: the Supabase
+      # token was rejected at `supabase link`, after nothing at all had been changed — but
+      # an absent Cloudflare token would have failed only after the migrations landed.)
+      - name: Check the release credentials before anything changes
+        id: credentials
+        run: |
+          missing=()
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_DB_PASSWORD SUPABASE_PROJECT_ID SUPABASE_URL SUPABASE_ANON_KEY CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+            if [ -z "${!name:-}" ]; then missing+=("$name"); fi
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing release credentials: ${missing[*]}. Nothing has been changed."
+            exit 1
+          fi
+          echo "Every release credential is present. (BOOTSTRAP_ADMIN_EMAILS is optional: an empty list is a valid configuration.)"
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Check out source
         uses: actions/checkout@v4
       - name: Install Node
@@ -121,56 +164,108 @@ jobs:
         with:
           version: latest
       - name: Link the production Supabase project
+        id: link
         run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
       - name: Review pending database migrations
+        id: review
         run: supabase db push --dry-run
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      - name: Materialise the Worker variables
+        # NEXT_PUBLIC_* values are inlined at build time, so the Supabase values
+        # have to be present in the environment when opennextjs-cloudflare builds.
+        # Injecting them here keeps them out of the repository. This also refuses to
+        # write an empty file, so it doubles as the check that those two values are real.
+        id: vars
+        run: node scripts/inject-worker-vars.mjs
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+      - name: Build the production Workers bundle
+        # Built *before* the migrations on purpose. The bundle differs from the one `verify`
+        # compiled (this one has the production credentials inlined), and it is the step most
+        # likely to fail for a reason no earlier job could see. Failing here costs a red run;
+        # failing after `supabase db push` would leave the schema ahead of the code that
+        # understands it. `opennextjs-cloudflare deploy` later reuses this output — it does
+        # not build.
+        id: build
+        run: npx @opennextjs/cloudflare build
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
       - name: Apply committed production database migrations
+        id: migrate
         run: supabase db push
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
       - name: Configure the bootstrap administrators
+        id: admins
         run: node scripts/sync-bootstrap-admins.mjs
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
           BOOTSTRAP_ADMIN_EMAILS: ${{ secrets.BOOTSTRAP_ADMIN_EMAILS }}
       - name: Deploy media Worker
+        id: media
         run: npx wrangler deploy --config worker/wrangler.jsonc
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      - name: Materialise the Worker variables
-        # NEXT_PUBLIC_* values are inlined at build time, so the Supabase values
-        # have to be present in the environment when opennextjs-cloudflare builds.
-        # Injecting them here keeps them out of the repository.
-        run: node scripts/inject-worker-vars.mjs
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
       - name: Deploy the production Worker
-        # The Supabase values have to be in the build environment as well as in
-        # .env.production: `next build` inlines NEXT_PUBLIC_* into the bundle, and an empty
-        # variable in the environment is inlined as an empty string rather than ignored.
-        run: npx @opennextjs/cloudflare build && npx @opennextjs/cloudflare deploy
+        # No build here: the bundle was compiled above and must be exactly the one that
+        # passed, not a second build that happens to run later in the same job.
+        id: portal
+        run: npx @opennextjs/cloudflare deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
       - name: Verify production endpoints
+        id: live
         run: node scripts/verify-live-config.mjs
         env:
           # Used only to resolve the Worker's own workers.dev host, so a release can be
           # verified even while the public domain still points at the old Pages project.
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Summarise the release
+        # Runs on failure too, including a cancelled run: a half-finished release has to
+        # say which half landed. Without this the only trace of a partial release is a red
+        # X on a job whose last visible step may be several steps behind the failure.
+        if: always()
+        run: |
+          {
+            if [ "${{ job.status }}" = "success" ]; then
+              echo "## Release complete"
+            else
+              echo "## Release failed: production may be partially updated"
+            fi
+            echo ""
+            echo "| stage | outcome |"
+            echo "| --- | --- |"
+            echo "| credentials present | ${{ steps.credentials.outcome }} |"
+            echo "| Supabase project linked | ${{ steps.link.outcome }} |"
+            echo "| pending migrations reviewed | ${{ steps.review.outcome }} |"
+            echo "| Worker variables materialised | ${{ steps.vars.outcome }} |"
+            echo "| production bundle built | ${{ steps.build.outcome }} |"
+            echo "| migrations applied | ${{ steps.migrate.outcome }} |"
+            echo "| administrators synced | ${{ steps.admins.outcome }} |"
+            echo "| media Worker deployed | ${{ steps.media.outcome }} |"
+            echo "| portal Worker deployed | ${{ steps.portal.outcome }} |"
+            echo "| live endpoints verified | ${{ steps.live.outcome }} |"
+            echo ""
+            if [ "${{ job.status }}" != "success" ]; then
+              echo "Every row above the first failure or skip did land; the rows after it did not run. A failure at or before \"production bundle built\" means production was not touched at all. A failure after \"migrations applied\" means the database moved, so fix the cause and re-run this job — reverting the code first would put the schema and the code out of step the other way."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

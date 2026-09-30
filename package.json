@@ -10,7 +10,7 @@
     "dev": "next dev",
     "check": "tsc --noEmit",
     "build": "next build",
-    "test:ui": "NEXT_PUBLIC_DEMO_MODE=true npm run build && node --test tests/ui-smoke.test.mjs tests/overflow.test.mjs tests/media-worker-origin.test.mjs tests/pgtap-plan.test.mjs",
+    "test:ui": "NEXT_PUBLIC_DEMO_MODE=true npm run build && node --test tests/ui-smoke.test.mjs tests/overflow.test.mjs tests/media-worker-origin.test.mjs tests/pgtap-plan.test.mjs tests/release-pipeline.test.mjs",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
     "check:worker": "tsc --noEmit -p worker/tsconfig.json",
