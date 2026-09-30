@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { UserDropdown } from "@/components/ui/user-dropdown";
-import { supabaseBrowser } from "@/lib/supabase";
+import { isSupabaseConfigured, supabaseBrowser } from "@/lib/supabase";
 
 export type Crumb = { label: string; href?: string };
 
@@ -66,6 +66,17 @@ export function DashboardHeader({
   );
 
   React.useEffect(() => {
+    /*
+      Demo builds and pull-request previews run without Supabase credentials,
+      and supabaseBrowser() throws in that case rather than handing back a dead
+      client. Unguarded, that throw reaches the error boundary and replaces the
+      rendered page with Next's error document — so every preview of the site
+      showed a blank error page while the deploy itself reported success.
+    */
+    if (!isSupabaseConfigured()) {
+      setMenuUser(null);
+      return;
+    }
     let cancelled = false;
     const supabase = supabaseBrowser();
 

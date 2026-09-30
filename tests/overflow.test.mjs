@@ -92,9 +92,32 @@ test('every route stays inside the viewport at common widths', async () => {
       for (const route of ROUTES) {
         const page = await browser.newPage({ viewport: { width: WIDTHS[0], height: VIEWPORT_HEIGHT }, deviceScaleFactor: 1 });
         await page.route('**/*', (handler) => (handler.request().url().startsWith(origin) ? handler.continue() : handler.abort()));
+        // An uncaught error swaps the whole document for Next's error page, which
+        // never overflows — so without these two checks every route below would
+        // "pass" while rendering nothing. That is exactly how a demo/preview build
+        // that threw on a missing Supabase client stayed green.
+        const pageErrors = [];
+        page.on('pageerror', (error) => pageErrors.push(String(error).split('\n')[0].slice(0, 160)));
         for (const width of WIDTHS) {
           await page.setViewportSize({ width, height: VIEWPORT_HEIGHT });
-          await page.goto(`${origin}${route}`, { waitUntil: 'load' });
+          const response = await page.goto(`${origin}${route}`, { waitUntil: 'load' });
+          // A route that genuinely answers 404 (an unknown story, section or
+          // profile in demo mode) is a small but correct document, so only the
+          // overflow check applies to it. A 200 route that rendered Next's error
+          // document is always a failure.
+          const notFound = response?.status() === 404;
+          const rendered = await page.evaluate(() => ({
+            errorDocument: document.documentElement.id === '__next_error__',
+            elements: document.querySelectorAll('body *').length,
+          }));
+          if (!notFound && (rendered.errorDocument || rendered.elements < 20)) {
+            failures.push(`${route} at ${width}px: the app did not render (status ${response?.status()}, error document: ${rendered.errorDocument}, ${rendered.elements} elements)`);
+            continue;
+          }
+          if (pageErrors.length) {
+            failures.push(`${route} at ${width}px: uncaught client error — ${pageErrors[0]}`);
+            break;
+          }
           const result = await page.evaluate(measure);
           if (!result.overflow) continue;
           const detail = result.offenders.map((o) => `${o.name} (right ${o.right}, ${o.width} wide)`).join(', ') || 'no single element reported';
@@ -109,5 +132,5 @@ test('every route stays inside the viewport at common widths', async () => {
     server.kill('SIGTERM');
   }
 
-  assert.deepEqual(failures, [], `pages overflow horizontally:\n  ${failures.join('\n  ')}`);
+  assert.deepEqual(failures, [], `pages failed to render or overflowed:\n  ${failures.join('\n  ')}`);
 });
