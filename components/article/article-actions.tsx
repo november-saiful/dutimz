@@ -145,7 +145,7 @@ export function ArticleActions({
     <div>
       <div className="flex flex-wrap gap-2">
         <Button
-          variant={reacted ? "default" : "outline-solid"}
+          variant={reacted ? "default" : "outline"}
           size="sm"
           onClick={toggleReaction}
           disabled={busy}
@@ -156,7 +156,7 @@ export function ArticleActions({
           ভালো লেগেছে
         </Button>
         <Button
-          variant={bookmarked ? "default" : "outline-solid"}
+          variant={bookmarked ? "default" : "outline"}
           size="sm"
           onClick={toggleBookmark}
           disabled={busy}
