@@ -172,11 +172,44 @@ jobs:
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
       - name: Review pending database migrations
         id: review
-        run: supabase db push --dry-run
+        # Captured as well as printed, because the plan is published to the run summary
+        # below. `set -o pipefail` keeps this step's own outcome honest: without it the
+        # pipeline reports `tee`'s exit status and a dry run that could not reach the
+        # database would pass the review.
+        run: |
+          set -o pipefail
+          supabase db push --dry-run 2>&1 | tee "$RUNNER_TEMP/pending-migrations.txt"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+      - name: Publish the pending migration plan
+        # A push to main has no pull request above it, so the run summary is where the
+        # migration plan gets read. Published from here rather than from the summary step
+        # at the end: that one runs after `supabase db push`, so by then the plan would be
+        # something already done to the database rather than something about to happen to
+        # it. `always()` so a dry run that failed still shows what it printed. The section
+        # is teed rather than appended so the step log shows exactly what the summary got,
+        # which is the only way to read the summary back off a run.
+        if: always()
+        run: |
+          plan="$RUNNER_TEMP/pending-migrations.txt"
+          {
+            echo "## Pending database migrations"
+            echo ""
+            echo "The plan \`supabase db push --dry-run\` produced for this commit, published before the migrations were applied. Nothing listed means the production schema already matches this commit."
+            echo ""
+            if [ -s "$plan" ]; then
+              # Four backticks so the fence cannot be closed by the output itself, and
+              # terminal colours stripped so the summary renders as text.
+              echo '````text'
+              sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' "$plan"
+              echo '````'
+            else
+              echo "_The dry run produced no plan. See the \"pending migrations reviewed\" row of the outcome table._"
+            fi
+            echo ""
+          } | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Materialise the Worker variables
         # NEXT_PUBLIC_* values are inlined at build time, so the Supabase values
         # have to be present in the environment when opennextjs-cloudflare builds.

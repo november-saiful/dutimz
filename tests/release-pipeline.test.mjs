@@ -67,6 +67,45 @@ test('the credential check names every missing secret', async () => {
   assert.match(release, /::error::Missing release credentials/);
 });
 
+test('the release publishes the pending migration plan before it applies it', async () => {
+  // A push to main has no pull request above it, so the run summary is where the
+  // migration plan gets read. It has to come from the dry run and reach the summary
+  // *before* `supabase db push` runs: a plan published by the summary step at the end
+  // would describe what already happened to the database rather than what is about to.
+  const release = await releaseJob();
+  const review = release.slice(
+    indexOf(release, 'Review pending database migrations'),
+    indexOf(release, 'Publish the pending migration plan'),
+  );
+  assert.match(review, /db push --dry-run/, 'the plan must come from the dry run');
+  assert.match(
+    review,
+    /tee "\$RUNNER_TEMP\/pending-migrations\.txt"/,
+    'the dry run must be captured, not only printed to the log',
+  );
+  assert.match(
+    review,
+    /set -o pipefail/,
+    'without pipefail the pipeline reports tee and a dry run that could not connect would pass',
+  );
+
+  const publish = release.slice(
+    indexOf(release, 'Publish the pending migration plan'),
+    indexOf(release, 'Materialise the Worker variables'),
+  );
+  assert.match(publish, /if: always\(\)/, 'a dry run that failed must still show what it printed');
+  // Teed rather than appended: the step log then shows exactly what the summary got,
+  // which is the only way to read a run summary back off a finished run.
+  assert.match(publish, /tee -a "\$GITHUB_STEP_SUMMARY"/);
+  assert.match(publish, /sed -E[^\n]*"\$plan"/, 'the captured plan is what gets printed');
+  assert.match(publish, /The dry run produced no plan/, 'an absent plan must say so, not render empty');
+  assert.ok(
+    indexOf(release, 'Publish the pending migration plan') <
+      indexOf(release, 'Apply committed production database migrations'),
+    'the plan must be on the run page before the migrations are applied',
+  );
+});
+
 test('a failed release reports which half landed', async () => {
   const release = await releaseJob();
   const summary = indexOf(release, 'Summarise the release');
