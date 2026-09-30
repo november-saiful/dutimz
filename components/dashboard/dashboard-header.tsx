@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Search } from "lucide-react";
+import { Bell } from "lucide-react";
 import * as React from "react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { CommandPalette } from "@/components/dashboard/command-palette";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { UserDropdown } from "@/components/ui/user-dropdown";
 import { isSupabaseConfigured, supabaseBrowser } from "@/lib/supabase";
@@ -58,7 +58,6 @@ export function DashboardHeader({
 }) {
   const router = useRouter();
   const pathname = usePathname() ?? "/";
-  const [query, setQuery] = React.useState("");
   // undefined while the session is being resolved, null when signed out: both
   // render the plain account link so the header never shifts shape on load.
   const [menuUser, setMenuUser] = React.useState<HeaderUser | null | undefined>(
@@ -181,58 +180,66 @@ export function DashboardHeader({
 
   return (
     <div className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur-sm">
-      <header className="flex h-16 items-center gap-3 px-4 sm:px-6">
-        <SidebarTrigger aria-label="Toggle navigation" />
-        <div className="min-w-0">
-          <nav
-            aria-label="অবস্থান"
-            className="hidden items-center gap-1 text-xs text-muted-foreground md:flex"
-          >
-            <Link href="/" className="hover:text-foreground">
-              মূলপাতা
-            </Link>
-            {crumbs.map((crumb) => (
-              <React.Fragment key={crumb.label}>
-                <span aria-hidden>›</span>
-                {crumb.href ? (
-                  <Link href={crumb.href} className="hover:text-foreground">
-                    {crumb.label}
-                  </Link>
-                ) : (
-                  <span className="truncate text-foreground">{crumb.label}</span>
-                )}
-              </React.Fragment>
-            ))}
-          </nav>
-          <h1 className="truncate text-lg font-semibold">{title}</h1>
+      <header className="grid h-16 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-4 sm:px-6">
+        <div className="flex min-w-0 items-center gap-2">
+          <SidebarTrigger aria-label="Toggle navigation" />
+          <div className="min-w-0">
+            <nav
+              aria-label="অবস্থান"
+              className="hidden items-center gap-1 text-xs text-muted-foreground md:flex"
+            >
+              <Link href="/" className="hover:text-foreground">
+                মূলপাতা
+              </Link>
+              {crumbs.map((crumb) => (
+                <React.Fragment key={crumb.label}>
+                  <span aria-hidden>›</span>
+                  {crumb.href ? (
+                    <Link href={crumb.href} className="hover:text-foreground">
+                      {crumb.label}
+                    </Link>
+                  ) : (
+                    <span className="truncate text-foreground">
+                      {crumb.label}
+                    </span>
+                  )}
+                </React.Fragment>
+              ))}
+            </nav>
+            <h1 className="truncate text-lg font-semibold">{title}</h1>
+          </div>
         </div>
-        <div className="ml-auto flex items-center gap-1">
-          <form
-            role="search"
-            className="hidden items-center md:flex"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (query.trim())
-                router.push(`/search?q=${encodeURIComponent(query.trim())}`);
-            }}
-          >
-            <label htmlFor="dashboard-search" className="sr-only">
-              খবর খুঁজুন
-            </label>
-            <Input
-              id="dashboard-search"
-              type="search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="খবর খুঁজুন…"
-              className="h-9 w-44 lg:w-56"
-            />
-          </form>
-          <Button variant="ghost" size="icon" aria-label="Search" asChild>
-            <Link href="/search">
-              <Search />
-            </Link>
-          </Button>
+        {/*
+          The centre track is `auto` between two equal `1fr` tracks, so the mark
+          sits at the exact centre of the bar no matter how wide the title or
+          the actions grow. Phones show the icon instead of the wordmark: the
+          text logo, a page title and four controls do not fit a 360px bar.
+        */}
+        <Link
+          href="/"
+          aria-label="DUTIMZ মূলপাতা"
+          className="flex items-center justify-center px-1 sm:px-2"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/dutimz-text-logo.svg"
+            alt="DUTIMZ"
+            width={120}
+            height={35}
+            className="hidden h-7 w-auto sm:block"
+          />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/brand-icon.svg"
+            alt=""
+            aria-hidden
+            width={28}
+            height={28}
+            className="block h-7 w-7 sm:hidden"
+          />
+        </Link>
+        <div className="flex items-center justify-end gap-1">
+          <CommandPalette />
           <Button variant="ghost" size="icon" aria-label="Notifications" asChild>
             <Link href="/saved">
               <Bell />

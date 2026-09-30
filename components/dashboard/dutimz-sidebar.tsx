@@ -41,19 +41,16 @@ export function DutimzSidebar() {
   return (
     <Sidebar variant="inset" collapsible="icon">
       <SidebarHeader>
+        {/*
+          The wordmark moved to the centre of the top bar, so the rail keeps
+          only the icon — and only while it is collapsed, where the icon is the
+          one thing that still says which site this is.
+        */}
         <Link
           href="/"
-          className="flex items-center gap-2 rounded-md px-2 py-1.5"
           aria-label="DUTIMZ মূলপাতা"
+          className="hidden items-center justify-center rounded-md p-1 group-data-[collapsible=icon]:flex"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/dutimz-text-logo.svg"
-            alt="DUTIMZ"
-            width={120}
-            height={35}
-            className="h-8 w-auto group-data-[collapsible=icon]:hidden"
-          />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/brand-icon.svg"
@@ -61,7 +58,7 @@ export function DutimzSidebar() {
             aria-hidden
             width={32}
             height={32}
-            className="hidden h-8 w-8 group-data-[collapsible=icon]:block"
+            className="h-8 w-8"
           />
         </Link>
         <p className="px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">

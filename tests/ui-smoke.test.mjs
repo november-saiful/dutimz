@@ -216,6 +216,37 @@ test('the header account menu is the session dropdown with DUTIMZ routes', async
   assert.match(header, /signOut/);
 });
 
+test('the header search is a command palette over the archive', async () => {
+  // The inline header field could only hand the reader off to /search. The palette
+  // opens on ⌘K, searches the published archive and offers sections and pages as
+  // shortcuts, so the header must no longer ship a search input.
+  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
+  assert.match(header, /CommandPalette/);
+  assert.doesNotMatch(header, /dashboard-search/);
+  assert.doesNotMatch(header, /role="search"/);
+  const palette = await readProjectFile('components/dashboard/command-palette.tsx');
+  assert.match(palette, /metaKey/);
+  assert.match(palette, /ctrlKey/);
+  assert.match(palette, /\/api\/search/);
+  assert.match(palette, /CATEGORIES/);
+  // Archive reads belong to the endpoint; the palette must not hold a Supabase client.
+  assert.doesNotMatch(palette, /supabase/i);
+  const route = await readProjectFile('app/api/search/route.ts');
+  assert.match(route, /search_public_articles/);
+  assert.match(route, /isDemoMode/);
+  assert.match(route, /no-store/);
+  assert.doesNotMatch(route, /service_role|SERVICE_ROLE|secret/i);
+});
+
+test('the wordmark is centred in the top bar and gone from the rail', async () => {
+  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
+  assert.match(header, /dutimz-text-logo\.svg/);
+  assert.match(header, /grid-cols-\[minmax\(0,1fr\)_auto_minmax\(0,1fr\)\]/);
+  const sidebar = await readProjectFile('components/dashboard/dutimz-sidebar.tsx');
+  assert.doesNotMatch(sidebar, /dutimz-text-logo\.svg/);
+  assert.match(sidebar, /brand-icon\.svg/);
+});
+
 test('anonymous stories never receive a profile link', async () => {
   const supabase = await readProjectFile('lib/supabase.ts');
   assert.match(supabase, /ANONYMOUS_BYLINE/);
@@ -308,7 +339,7 @@ test('statistics expose only aggregate counts, never identities', async () => {
 });
 
 test('shadcn primitives required by the dashboard shell exist', async () => {
-  for (const primitive of ['avatar', 'badge', 'button', 'card', 'chart', 'input', 'separator', 'skeleton', 'tooltip', 'sheet', 'label', 'progress', 'sidebar']) {
+  for (const primitive of ['avatar', 'badge', 'button', 'card', 'chart', 'command', 'input', 'separator', 'skeleton', 'tooltip', 'sheet', 'label', 'progress', 'sidebar']) {
     assert.ok(await exists(`components/ui/${primitive}.tsx`), `components/ui/${primitive}.tsx must exist`);
   }
 });
