@@ -282,6 +282,28 @@ test('every form renders through the shared field primitives', async () => {
   assert.match(writer, /data\.get\(["']is_anonymous["']\) === ["']on["']/);
 });
 
+test('the homepage rides the halo reel and keeps the breaking ticker', async () => {
+  // The reel is its own section: the ticker keeps running above it and the
+  // featured hero card is untouched.
+  const page = await readProjectFile('app/page.tsx');
+  assert.match(page, /<HaloReelSection/);
+  assert.match(page, /breaking=\{breaking\}/);
+  assert.match(page, /নির্বাচিত প্রতিবেদন/);
+  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
+  assert.match(header, /ব্রেকিং/);
+  // The reel names the story at the front of the ring, so it has to report it.
+  const reel = await readProjectFile('components/ruixen/halo-reel.tsx');
+  assert.match(reel, /motion\/react/);
+  assert.match(reel, /useMotionValueEvent/);
+  assert.match(reel, /onActiveChange/);
+  const section = await readProjectFile('components/dashboard/halo-reel-section.tsx');
+  assert.match(section, /onActiveChange/);
+  assert.match(section, /centerLabel/);
+  assert.match(section, /\/news\/\$\{shown\.slug\}\//);
+  const pkg = JSON.parse(await readProjectFile('package.json'));
+  assert.ok(pkg.dependencies.motion, 'the reel needs the motion package');
+});
+
 test('anonymous stories never receive a profile link', async () => {
   const supabase = await readProjectFile('lib/supabase.ts');
   assert.match(supabase, /ANONYMOUS_BYLINE/);

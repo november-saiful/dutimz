@@ -12,6 +12,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
+import {
+  HaloReelSection,
+  type ReelStory,
+} from "@/components/dashboard/halo-reel-section";
 import { ThroughputChart } from "@/components/dashboard/throughput-chart";
 import {
   PreviewStoryCard,
@@ -43,6 +47,26 @@ export default async function HomePage() {
     href: `/news/${"slug" in s ? s.slug : ""}/`,
     title: s.title,
   }));
+  // The reel repeats whatever it is given to fill the ring, so a handful of
+  // stories is enough — and the same shape serves demo mode and the archive.
+  const reelStories: ReelStory[] = (demo ? previewStories : stories.slice(0, 8)).map(
+    (story) =>
+      "categorySlug" in story
+        ? {
+            slug: story.slug,
+            title: story.title,
+            category: story.category,
+            imageUrl: story.imageUrl ?? null,
+          }
+        : {
+            slug: story.slug,
+            title: story.title,
+            category: storyCategory(story).title_bn,
+            imageUrl: story.hero_media_key
+              ? mediaUrlFor(story.hero_media_key)
+              : null,
+          },
+  );
 
   // The desk-wide counts (reports, sections, authors, comments) live in the
   // admin dashboard, not on the public homepage: they answer an editorial
@@ -101,6 +125,9 @@ export default async function HomePage() {
           </CardHeader>
         </Card>
       )}
+
+      {/* Halo reel: the desk's latest, with the front card's headline live */}
+      <HaloReelSection stories={reelStories} />
 
       {/* Throughput chart (App1 Task throughput → প্রকাশনা প্রবাহ) */}
       <Card>
