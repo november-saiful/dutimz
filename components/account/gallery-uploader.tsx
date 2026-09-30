@@ -4,7 +4,7 @@ import * as React from "react";
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+import { Field, FormMessage } from "@/components/ui/field";
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/avif";
 const MAX_FILES = 10;
@@ -111,10 +111,12 @@ export function GalleryUploader({
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor="write-gallery">
-        ছবি (ঐচ্ছিক) — প্রথম ছবিটিই প্রচ্ছদ হবে
-      </Label>
+    <Field
+      label="ছবি (ঐচ্ছিক) — প্রথম ছবিটিই প্রচ্ছদ হবে"
+      htmlFor="write-gallery"
+      hint={`সর্বোচ্চ ${MAX_FILES}টি, প্রতিটি সর্বোচ্চ ২০ MB (JPEG, PNG, WebP, GIF, AVIF)। HEIC/HEIF সমর্থিত নয়।`}
+      wide
+    >
       <input
         ref={inputRef}
         id="write-gallery"
@@ -123,12 +125,8 @@ export function GalleryUploader({
         multiple
         disabled={busy || items.length >= MAX_FILES}
         onChange={(e) => void onFiles(e.target.files)}
-        className="text-sm"
+        className="text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm"
       />
-      <p className="text-xs text-muted-foreground">
-        সর্বোচ্চ {MAX_FILES}টি, প্রতিটি সর্বোচ্চ ২০ MB (JPEG, PNG, WebP, GIF,
-        AVIF)। HEIC/HEIF সমর্থিত নয়।
-      </p>
       {items.length > 0 && (
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {items.map((item, index) => (
@@ -188,11 +186,7 @@ export function GalleryUploader({
       {busy && (
         <p className="text-xs text-muted-foreground">ছবি আপলোড হচ্ছে…</p>
       )}
-      {error && (
-        <p className="text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
+      {error && <FormMessage>{error}</FormMessage>}
+    </Field>
   );
 }

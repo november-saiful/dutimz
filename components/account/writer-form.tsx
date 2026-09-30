@@ -5,8 +5,16 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Field,
+  FieldGrid,
+  FieldSection,
+  FormMessage,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { RadioGroup } from "@/components/ui/radio-group";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import {
   QuestionnaireFields,
   type QuestionnaireVersion,
@@ -32,6 +40,8 @@ export function WriterForm() {
     React.useState<QuestionnaireVersion | null>(null);
   const [answers, setAnswers] = React.useState<Record<string, unknown>>({});
   const [gallery, setGallery] = React.useState<GalleryItem[]>([]);
+  // "on" keeps the RPC contract: the group still submits `is_anonymous=on`.
+  const [anonymous, setAnonymous] = React.useState("off");
 
   React.useEffect(() => {
     let cancelled = false;
@@ -115,6 +125,7 @@ export function WriterForm() {
       form.reset();
       setSlugPreview("/news/…");
       setAnswers({});
+      setAnonymous("off");
       for (const item of gallery) URL.revokeObjectURL(item.objectUrl);
       setGallery([]);
       setDone("আপনার প্রতিবেদন পর্যালোচনার জন্য পাঠানো হয়েছে।");
@@ -157,128 +168,130 @@ export function WriterForm() {
     <form onSubmit={submit} className="flex flex-col gap-4">
       <Card>
         <CardContent className="flex flex-col gap-4 pt-6">
-          <div className="grid gap-2">
-            <Label htmlFor="write-title">প্রতিবেদনের শিরোনাম</Label>
-            <Input
-              id="write-title"
-              name="title"
-              maxLength={180}
-              required
-              placeholder="আপনার প্রতিবেদনের শিরোনাম"
-              onChange={(event) =>
-                setSlugPreview(
-                  `/news/${event.target.value.trim().slice(0, 24) || "…"}/`,
-                )
-              }
-            />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="write-category">বিভাগ</Label>
-              <select
-                id="write-category"
-                name="category_slug"
-                required
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                defaultValue=""
+          <FieldSection
+            title="প্রতিবেদনের পরিচয়"
+            description="শিরোনাম, বিভাগ ও সংক্ষিপ্ত পরিচিতি পাঠকের প্রথম পরিচয়।"
+          >
+            <FieldGrid>
+              <Field
+                label="প্রতিবেদনের শিরোনাম"
+                htmlFor="write-title"
+                wide
               >
-                <option value="" disabled>
-                  বিভাগ বেছে নিন
-                </option>
-                {CATEGORIES.filter((c) => c.slug !== "all").map((c) => (
-                  <option key={c.slug} value={c.slug}>
-                    {c.label}
+                <Input
+                  id="write-title"
+                  name="title"
+                  maxLength={180}
+                  required
+                  placeholder="আপনার প্রতিবেদনের শিরোনাম"
+                  onChange={(event) =>
+                    setSlugPreview(
+                      `/news/${event.target.value.trim().slice(0, 24) || "…"}/`,
+                    )
+                  }
+                />
+              </Field>
+              <Field label="বিভাগ" htmlFor="write-category">
+                <Select
+                  id="write-category"
+                  name="category_slug"
+                  required
+                  defaultValue=""
+                >
+                  <option value="" disabled>
+                    বিভাগ বেছে নিন
                   </option>
-                ))}
-              </select>
-            </div>
-            <div className="grid gap-2">
-              <Label>প্রতিবেদনের ঠিকানা</Label>
-              <p className="h-10 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
-                {slugPreview}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                শিরোনাম থেকে ইংরেজি ঠিকানা স্বয়ংক্রিয়ভাবে তৈরি হবে।
-              </p>
-            </div>
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="write-excerpt">সংক্ষিপ্ত পরিচিতি</Label>
-            <textarea
-              id="write-excerpt"
-              name="excerpt"
-              rows={3}
-              maxLength={280}
-              required
-              placeholder="প্রতিবেদনটি কী নিয়ে—২৮০ অক্ষরের মধ্যে"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-          </div>
-          <p className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
-            প্রতিবেদন জমা দিতে রিপোর্টার অনুমতি প্রয়োজন — জুনিয়র
-            রিপোর্টারের লেখা অনুমোদনের অপেক্ষায় থাকে। ছবি আপলোড শুধু
-            image/* ধরনের জন্য (সর্বোচ্চ ১০টি)।
-          </p>
-          <div className="grid gap-2">
-            <Label htmlFor="write-body">পূর্ণ প্রতিবেদন</Label>
-            <textarea
-              id="write-body"
-              name="body"
-              rows={12}
-              minLength={100}
-              maxLength={30000}
-              required
-              placeholder="যাচাই করা তথ্য ও প্রাসঙ্গিক সূত্রসহ প্রতিবেদন লিখুন…"
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              কমপক্ষে ১০০ অক্ষর। ব্যক্তিগত আক্রমণ, গুজব বা অনুমতিহীন ব্যক্তিগত
-              তথ্য প্রকাশ করবেন না।
-            </p>
-          </div>
+                  {CATEGORIES.filter((c) => c.slug !== "all").map((c) => (
+                    <option key={c.slug} value={c.slug}>
+                      {c.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field
+                label="প্রতিবেদনের ঠিকানা"
+                hint="শিরোনাম থেকে ইংরেজি ঠিকানা স্বয়ংক্রিয়ভাবে তৈরি হবে।"
+              >
+                <p className="flex h-10 min-w-0 items-center rounded-md border bg-muted px-3 text-sm text-muted-foreground">
+                  {slugPreview}
+                </p>
+              </Field>
+              <Field label="সংক্ষিপ্ত পরিচিতি" htmlFor="write-excerpt" wide>
+                <Textarea
+                  id="write-excerpt"
+                  name="excerpt"
+                  rows={3}
+                  maxLength={280}
+                  required
+                  placeholder="প্রতিবেদনটি কী নিয়ে—২৮০ অক্ষরের মধ্যে"
+                />
+              </Field>
+            </FieldGrid>
+          </FieldSection>
+
+          <FieldSection
+            title="পূর্ণ প্রতিবেদন"
+            description="প্রতিবেদন জমা দিতে রিপোর্টার অনুমতি প্রয়োজন — জুনিয়র রিপোর্টারের লেখা অনুমোদনের অপেক্ষায় থাকে। ছবি আপলোড শুধু image/* ধরনের জন্য (সর্বোচ্চ ১০টি)।"
+          >
+            <FieldGrid>
+              <Field
+                label="প্রতিবেদনের মূল লেখা"
+                htmlFor="write-body"
+                wide
+                hint="কমপক্ষে ১০০ অক্ষর। ব্যক্তিগত আক্রমণ, গুজব বা অনুমতিহীন ব্যক্তিগত তথ্য প্রকাশ করবেন না।"
+              >
+                <Textarea
+                  id="write-body"
+                  name="body"
+                  rows={12}
+                  minLength={100}
+                  maxLength={30000}
+                  required
+                  placeholder="যাচাই করা তথ্য ও প্রাসঙ্গিক সূত্রসহ প্রতিবেদন লিখুন…"
+                />
+              </Field>
+            </FieldGrid>
+          </FieldSection>
+
           {questionnaire && (
-            <section aria-live="polite" className="flex flex-col gap-2">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground">
-                  প্রতিবেদনের তথ্য
-                </p>
-                <h2 className="text-lg font-semibold">
-                  ঘটনা ও কার্যক্রমের বিবরণ
-                </h2>
-                <p className="text-xs text-muted-foreground">
-                  যা জানা নেই তা ফাঁকা রাখুন। ভুক্তভোগী ও অভিযুক্তের পরিচিতি
-                  কেবল প্রশাসনিক পর্যালোচনার জন্য; জনসমক্ষে শুধু পরিচয়বিহীন
-                  সামগ্রিক পরিসংখ্যান দেখানো হবে।
-                </p>
-              </div>
+            <FieldSection
+              aria-live="polite"
+              title="ঘটনা ও কার্যক্রমের বিবরণ"
+              description="যা জানা নেই তা ফাঁকা রাখুন। ভুক্তভোগী ও অভিযুক্তের পরিচিতি কেবল প্রশাসনিক পর্যালোচনার জন্য; জনসমক্ষে শুধু পরিচয়বিহীন সামগ্রিক পরিসংখ্যান দেখানো হবে।"
+            >
               <QuestionnaireFields
                 questionnaire={questionnaire}
                 answers={answers}
                 onChange={setAnswers}
               />
-            </section>
+            </FieldSection>
           )}
+
           <GalleryUploader items={gallery} onChange={setGallery} />
-          <label className="flex items-start gap-2 text-sm">
-            <input type="checkbox" name="is_anonymous" className="mt-1" />
-            <span>
-              <strong>নাম প্রকাশে অনিচ্ছুক</strong>
-              <span className="block text-xs text-muted-foreground">
-                প্রকাশিত প্রতিবেদনে আপনার নাম বা প্রোফাইল লিংক কোথাও দেখানো হবে
-                না।
-              </span>
-            </span>
-          </label>
-          {error && (
-            <p className="text-sm text-destructive" role="alert">
-              {error}
-            </p>
-          )}
-          {done && (
-            <p className="text-sm text-green-700" role="status">
-              {done}
-            </p>
-          )}
+
+          <FieldSection title="প্রকাশের পরিচয়">
+            <RadioGroup
+              name="is_anonymous"
+              value={anonymous}
+              onValueChange={setAnonymous}
+              options={[
+                {
+                  value: "off",
+                  label: "নিজের নামে",
+                  description: "প্রোফাইল ও বাইলাইন প্রতিবেদনের সঙ্গে প্রকাশিত হবে।",
+                },
+                {
+                  value: "on",
+                  label: "নাম প্রকাশে অনিচ্ছুক",
+                  description:
+                    "প্রকাশিত প্রতিবেদনে আপনার নাম বা প্রোফাইল লিংক কোথাও দেখানো হবে না।",
+                },
+              ]}
+            />
+          </FieldSection>
+
+          {error && <FormMessage>{error}</FormMessage>}
+          {done && <FormMessage tone="success">{done}</FormMessage>}
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={busy}>
               {busy ? "পাঠানো হচ্ছে…" : "প্রতিবেদন পাঠান →"}

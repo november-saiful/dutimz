@@ -15,8 +15,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Field, FieldGrid } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -425,18 +428,25 @@ export function AdminDashboard() {
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               <form
-                className="flex gap-2"
+                className="flex items-start gap-2"
                 onSubmit={(e) => {
                   e.preventDefault();
                   void loadMembers(0, query);
                 }}
               >
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="নাম বা ইউজারনেম খুঁজুন…"
-                  className="min-w-0"
-                />
+                <Field
+                  label="সদস্য খুঁজুন"
+                  htmlFor="member-search"
+                  hideLabel
+                  className="min-w-0 flex-1"
+                >
+                  <Input
+                    id="member-search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="নাম বা ইউজারনেম খুঁজুন…"
+                  />
+                </Field>
                 <Button type="submit">খুঁজুন</Button>
               </form>
               <Table aria-label="সদস্য তালিকা">
@@ -604,38 +614,37 @@ export function AdminDashboard() {
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-3">
-                <div className="grid gap-1.5">
-                  <Label htmlFor="edit-role">ভূমিকা</Label>
-                  <select
+                <Field label="ভূমিকা" htmlFor="edit-role">
+                  <Select
                     id="edit-role"
                     value={editRole}
                     onChange={(e) => setEditRole(e.target.value)}
-                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                   >
                     <option value="reader">রিডার</option>
                     <option value="reporter">রিপোর্টার</option>
                     <option value="moderator">মডারেটর</option>
                     <option value="admin">অ্যাডমিন</option>
-                  </select>
-                </div>
+                  </Select>
+                </Field>
                 {editRole === "reporter" && (
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="edit-tier">রিপোর্টার স্তর</Label>
-                    <select
+                  <Field label="রিপোর্টার স্তর" htmlFor="edit-tier">
+                    <Select
                       id="edit-tier"
                       value={editTier}
                       onChange={(e) => setEditTier(e.target.value)}
-                      className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                     >
                       <option value="junior">জুনিয়র</option>
                       <option value="general">জেনারেল</option>
                       <option value="executive">এক্সিকিউটিভ</option>
-                    </select>
-                  </div>
+                    </Select>
+                  </Field>
                 )}
-                <div className="grid gap-1.5">
-                  <Label htmlFor="edit-reason">কারণ (আবশ্যক)</Label>
-                  <textarea
+                <Field
+                  label="কারণ (আবশ্যক)"
+                  htmlFor="edit-reason"
+                  hint="কারণ অডিট লগে সংরক্ষিত হয়।"
+                >
+                  <Textarea
                     id="edit-reason"
                     value={editReason}
                     onChange={(e) => setEditReason(e.target.value)}
@@ -643,9 +652,8 @@ export function AdminDashboard() {
                     minLength={3}
                     maxLength={500}
                     placeholder="কেন এই ভূমিকা দেওয়া হচ্ছে…"
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   />
-                </div>
+                </Field>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setEditing(null)}>
@@ -686,20 +694,25 @@ export function AdminDashboard() {
                     {formatDateBn(withdrawal.created_at)}
                   </p>
                   <div className="mt-2 grid gap-2">
-                    <Label htmlFor={`wreason-${withdrawal.id}`}>
-                      সিদ্ধান্তের কারণ (আবশ্যক)
-                    </Label>
-                    <textarea
-                      id={`wreason-${withdrawal.id}`}
-                      value={reasons[withdrawal.id] ?? ""}
-                      onChange={(e) =>
-                        setReasons({ ...reasons, [withdrawal.id]: e.target.value })
-                      }
-                      rows={2}
-                      minLength={3}
-                      maxLength={500}
-                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    />
+                    <Field
+                      label="সিদ্ধান্তের কারণ (আবশ্যক)"
+                      htmlFor={`wreason-${withdrawal.id}`}
+                      hint="কারণ অডিট লগে সংরক্ষিত হয়।"
+                    >
+                      <Textarea
+                        id={`wreason-${withdrawal.id}`}
+                        value={reasons[withdrawal.id] ?? ""}
+                        onChange={(e) =>
+                          setReasons({
+                            ...reasons,
+                            [withdrawal.id]: e.target.value,
+                          })
+                        }
+                        rows={2}
+                        minLength={3}
+                        maxLength={500}
+                      />
+                    </Field>
                     <div className="flex gap-2">
                       <Button
                         size="sm"
@@ -727,32 +740,50 @@ export function AdminDashboard() {
               <CardTitle>জমা অর্থ সমন্বয়</CardTitle>
             </CardHeader>
             <CardContent>
-              <form onSubmit={adjustBalance} className="grid gap-2">
-                <Label htmlFor="adjust-user">সদস্যের আইডি (UUID)</Label>
-                <Input
-                  id="adjust-user"
-                  value={adjustUserId}
-                  onChange={(e) => setAdjustUserId(e.target.value)}
-                />
-                <Label htmlFor="adjust-amount">পরিমাণ (টাকা, ঋণাত্মক হতে পারে)</Label>
-                <Input
-                  id="adjust-amount"
-                  type="number"
-                  step={1}
-                  value={adjustAmount}
-                  onChange={(e) => setAdjustAmount(e.target.value)}
-                />
-                <Label htmlFor="adjust-reason">কারণ (আবশ্যক)</Label>
-                <textarea
-                  id="adjust-reason"
-                  value={adjustReason}
-                  onChange={(e) => setAdjustReason(e.target.value)}
-                  rows={2}
-                  minLength={3}
-                  maxLength={500}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
-                <Button type="submit" disabled={busy === "adjust"}>
+              <form onSubmit={adjustBalance} className="flex flex-col gap-4">
+                <FieldGrid>
+                  <Field
+                    label="সদস্যের আইডি (UUID)"
+                    htmlFor="adjust-user"
+                  >
+                    <Input
+                      id="adjust-user"
+                      value={adjustUserId}
+                      onChange={(e) => setAdjustUserId(e.target.value)}
+                    />
+                  </Field>
+                  <Field
+                    label="পরিমাণ (টাকা, ঋণাত্মক হতে পারে)"
+                    htmlFor="adjust-amount"
+                  >
+                    <Input
+                      id="adjust-amount"
+                      type="number"
+                      step={1}
+                      value={adjustAmount}
+                      onChange={(e) => setAdjustAmount(e.target.value)}
+                    />
+                  </Field>
+                  <Field
+                    label="কারণ (আবশ্যক)"
+                    htmlFor="adjust-reason"
+                    hint="কারণ অডিট লগে সংরক্ষিত হয়।"
+                  >
+                    <Textarea
+                      id="adjust-reason"
+                      value={adjustReason}
+                      onChange={(e) => setAdjustReason(e.target.value)}
+                      rows={2}
+                      minLength={3}
+                      maxLength={500}
+                    />
+                  </Field>
+                </FieldGrid>
+                <Button
+                  type="submit"
+                  disabled={busy === "adjust"}
+                  className="self-start"
+                >
                   সমন্বয় সংরক্ষণ করুন
                 </Button>
               </form>

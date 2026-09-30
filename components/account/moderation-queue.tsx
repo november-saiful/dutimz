@@ -4,7 +4,8 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/ui/field";
+import { Textarea } from "@/components/ui/textarea";
 import { supabaseBrowser } from "@/lib/supabase";
 import { formatDateBn } from "@/lib/site";
 
@@ -200,21 +201,23 @@ export function ModerationQueue() {
                 </div>
               </details>
               <div className="mt-3 grid gap-2">
-                <Label htmlFor={`reason-${article.id}`}>
-                  সিদ্ধান্তের কারণ (আবশ্যক)
-                </Label>
-                <textarea
-                  id={`reason-${article.id}`}
-                  value={reasons[article.id] ?? ""}
-                  onChange={(e) =>
-                    setReasons({ ...reasons, [article.id]: e.target.value })
-                  }
-                  rows={2}
-                  minLength={3}
-                  maxLength={500}
-                  required
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
+                <Field
+                  label="সিদ্ধান্তের কারণ (আবশ্যক)"
+                  htmlFor={`reason-${article.id}`}
+                  hint="কারণ লেখকের কাছে পৌঁছায় ও অডিট লগে সংরক্ষিত হয়।"
+                >
+                  <Textarea
+                    id={`reason-${article.id}`}
+                    value={reasons[article.id] ?? ""}
+                    onChange={(e) =>
+                      setReasons({ ...reasons, [article.id]: e.target.value })
+                    }
+                    rows={2}
+                    minLength={3}
+                    maxLength={500}
+                    required
+                  />
+                </Field>
                 <div className="flex gap-2">
                   <Button
                     size="sm"
@@ -256,21 +259,23 @@ export function ModerationQueue() {
               </p>
               <p className="mt-1 text-sm">{comment.body}</p>
               <div className="mt-3 grid gap-2">
-                <Label htmlFor={`creason-${comment.id}`}>
-                  সিদ্ধান্তের কারণ (আবশ্যক)
-                </Label>
-                <textarea
-                  id={`creason-${comment.id}`}
-                  value={reasons[comment.id] ?? ""}
-                  onChange={(e) =>
-                    setReasons({ ...reasons, [comment.id]: e.target.value })
-                  }
-                  rows={2}
-                  minLength={3}
-                  maxLength={500}
-                  required
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                />
+                <Field
+                  label="সিদ্ধান্তের কারণ (আবশ্যক)"
+                  htmlFor={`creason-${comment.id}`}
+                  hint="কারণ মন্তব্যটির ইতিহাসে সংরক্ষিত হয়।"
+                >
+                  <Textarea
+                    id={`creason-${comment.id}`}
+                    value={reasons[comment.id] ?? ""}
+                    onChange={(e) =>
+                      setReasons({ ...reasons, [comment.id]: e.target.value })
+                    }
+                    rows={2}
+                    minLength={3}
+                    maxLength={500}
+                    required
+                  />
+                </Field>
                 <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"

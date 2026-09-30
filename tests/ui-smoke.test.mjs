@@ -247,6 +247,41 @@ test('the wordmark is centred in the top bar and gone from the rail', async () =
   assert.match(sidebar, /brand-icon\.svg/);
 });
 
+test('every form renders through the shared field primitives', async () => {
+  // One field layout for the whole site: a label, its control and a hint, laid
+  // out in sections that go 1 → 2 → 3 columns. A form that hand-rolls its own
+  // <select> or <textarea> is the thing this guards against.
+  for (const primitive of ['field', 'select', 'textarea', 'radio-group']) {
+    assert.ok(
+      await exists(`components/ui/${primitive}.tsx`),
+      `components/ui/${primitive}.tsx must exist`,
+    );
+  }
+  const forms = [
+    'components/account/writer-form.tsx',
+    'components/account/reporter-application.tsx',
+    'components/account/balance-view.tsx',
+    'components/account/admin-dashboard.tsx',
+    'components/account/moderation-queue.tsx',
+    'components/account/questionnaire-fields.tsx',
+    'components/account/gallery-uploader.tsx',
+    'components/profile/profile-editor.tsx',
+    'components/article/comments.tsx',
+    'components/search/search-results.tsx',
+  ];
+  for (const path of forms) {
+    const source = await readProjectFile(path);
+    assert.match(source, /@\/components\/ui\/(field|select|textarea)/, `${path} must use the field primitives`);
+    assert.doesNotMatch(source, /<select[\s>]/, `${path} must use the Select primitive`);
+    assert.doesNotMatch(source, /<textarea[\s>]/, `${path} must use the Textarea primitive`);
+  }
+  // The anonymity choice is now a radio group, but the submitted contract is
+  // unchanged: the RPC still receives `is_anonymous=on`.
+  const writer = await readProjectFile('components/account/writer-form.tsx');
+  assert.match(writer, /name="is_anonymous"/);
+  assert.match(writer, /data\.get\(["']is_anonymous["']\) === ["']on["']/);
+});
+
 test('anonymous stories never receive a profile link', async () => {
   const supabase = await readProjectFile('lib/supabase.ts');
   assert.match(supabase, /ANONYMOUS_BYLINE/);
@@ -339,7 +374,7 @@ test('statistics expose only aggregate counts, never identities', async () => {
 });
 
 test('shadcn primitives required by the dashboard shell exist', async () => {
-  for (const primitive of ['avatar', 'badge', 'button', 'card', 'chart', 'command', 'input', 'separator', 'skeleton', 'tooltip', 'sheet', 'label', 'progress', 'sidebar']) {
+  for (const primitive of ['avatar', 'badge', 'button', 'card', 'chart', 'command', 'field', 'input', 'radio-group', 'select', 'separator', 'skeleton', 'textarea', 'tooltip', 'sheet', 'label', 'progress', 'sidebar']) {
     assert.ok(await exists(`components/ui/${primitive}.tsx`), `components/ui/${primitive}.tsx must exist`);
   }
 });

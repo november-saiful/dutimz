@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { StoryCard } from "@/components/dashboard/story-card";
 import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { one, supabaseBrowser, type Story } from "@/lib/supabase";
 
@@ -75,18 +76,21 @@ export function SearchResults({ initialQuery }: { initialQuery: string }) {
           void run(query);
         }}
       >
-        <label htmlFor="search-page-input" className="sr-only">
-          সংবাদ খুঁজুন
-        </label>
-        <Input
-          id="search-page-input"
-          name="q"
-          type="search"
-          className="min-w-0"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="যেমন: ক্যাম্পাস, সংস্কৃতি, শিক্ষার্থী…"
-        />
+        <Field
+          label="সংবাদ খুঁজুন"
+          htmlFor="search-page-input"
+          hideLabel
+          className="min-w-0 flex-1"
+        >
+          <Input
+            id="search-page-input"
+            name="q"
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="যেমন: ক্যাম্পাস, সংস্কৃতি, শিক্ষার্থী…"
+          />
+        </Field>
         <Button type="submit" disabled={busy}>
           {busy ? "খুঁজছে…" : "খুঁজুন ⌕"}
         </Button>
