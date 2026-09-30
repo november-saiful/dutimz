@@ -12,11 +12,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
-import {
-  HaloReelSection,
-  type ReelStory,
-} from "@/components/dashboard/halo-reel-section";
 import { ThroughputChart } from "@/components/dashboard/throughput-chart";
+import {
+  CalendlyCarousel,
+  type CarouselItem,
+} from "@/components/ui/connected-carousel";
 import {
   PreviewStoryCard,
   RecommendedItem,
@@ -29,11 +29,66 @@ import {
   isDemoMode,
   previewStories,
 } from "@/lib/stories";
-import { CATEGORIES, mediaUrlFor } from "@/lib/site";
-import { storyCategory, type Story } from "@/lib/supabase";
+import { CATEGORIES, mediaUrlFor, relativeTimeBn } from "@/lib/site";
+import { storyCategory, storyCredit, type Story } from "@/lib/supabase";
 import type { PreviewStory } from "@/lib/stories";
 
 export const revalidate = 30;
+
+/**
+ * The deck draws a picture on every card and gives each one a fixed height, so
+ * a story that reaches it needs an image and a headline that fits. These are the
+ * four Unsplash photos preview mode already uses: a report whose reporter
+ * attached no hero art borrows its section's picture instead of rendering a
+ * broken frame, and `opinion` shares the culture one the way `slugArtClass` does.
+ */
+const SECTION_ART: Record<string, string> = {
+  campus:
+    "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&q=85",
+  university:
+    "https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=1200&q=85",
+  culture:
+    "https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=85",
+  opinion:
+    "https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=85",
+  "student-life":
+    "https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&w=1200&q=85",
+};
+
+/**
+ * One deck card per story. The card's bold slot is the headline and its serif
+ * slot the excerpt, because a reader scanning the deck is choosing what to read,
+ * not comparing statistics — the registry demo wore marketing stats there.
+ */
+function carouselItems(stories: (Story | PreviewStory)[]): CarouselItem[] {
+  return stories.map((story) => {
+    // Demo stories are the preview fixture's shape; archive stories are rows.
+    const preview = "categorySlug" in story;
+    const section = preview ? story.category : storyCategory(story).title_bn;
+    const slug = preview ? story.categorySlug : storyCategory(story).slug;
+    const art =
+      (preview
+        ? story.imageUrl
+        : story.hero_media_key
+          ? mediaUrlFor(story.hero_media_key)
+          : null) ??
+      SECTION_ART[slug] ??
+      SECTION_ART.campus;
+
+    return {
+      id: story.slug,
+      stat: story.title,
+      quote: story.excerpt,
+      author: preview ? story.author : storyCredit(story).name,
+      role: `${section} · ${
+        preview ? story.time : relativeTimeBn(story.published_at)
+      }`,
+      defaultImage: art,
+      selectedImage: art,
+      alt: `${story.title} — ${section}`,
+    };
+  });
+}
 
 export default async function HomePage() {
   const demo = isDemoMode();
@@ -47,26 +102,9 @@ export default async function HomePage() {
     href: `/news/${"slug" in s ? s.slug : ""}/`,
     title: s.title,
   }));
-  // The reel repeats whatever it is given to fill the ring, so a handful of
+  // The deck repeats whatever it is given to fill the ring, so a handful of
   // stories is enough — and the same shape serves demo mode and the archive.
-  const reelStories: ReelStory[] = (demo ? previewStories : stories.slice(0, 8)).map(
-    (story) =>
-      "categorySlug" in story
-        ? {
-            slug: story.slug,
-            title: story.title,
-            category: story.category,
-            imageUrl: story.imageUrl ?? null,
-          }
-        : {
-            slug: story.slug,
-            title: story.title,
-            category: storyCategory(story).title_bn,
-            imageUrl: story.hero_media_key
-              ? mediaUrlFor(story.hero_media_key)
-              : null,
-          },
-  );
+  const deck = carouselItems(demo ? previewStories : stories.slice(0, 8));
 
   // The desk-wide counts (reports, sections, authors, comments) live in the
   // admin dashboard, not on the public homepage: they answer an editorial
@@ -74,6 +112,13 @@ export default async function HomePage() {
   // recent-activity feed, which still read from the same stats object.
   return (
     <DutimzShell title="স্বাগতম" breaking={breaking}>
+      {/*
+        The deck leads the page: the newest reports, one in focus at a time, with
+        the story behind it named on the card. Hovering holds the deck still so a
+        headline can be read, arrow keys move it, and a dot selects a card.
+      */}
+      <CalendlyCarousel items={deck} autoPlayInterval={7000} pauseOnHover />
+
       {/* Featured hero */}
       {featured && (
         <Card className="overflow-hidden">
@@ -125,9 +170,6 @@ export default async function HomePage() {
           </CardHeader>
         </Card>
       )}
-
-      {/* Halo reel: the desk's latest, with the front card's headline live */}
-      <HaloReelSection stories={reelStories} />
 
       {/* Throughput chart (App1 Task throughput → প্রকাশনা প্রবাহ) */}
       <Card>

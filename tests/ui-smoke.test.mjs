@@ -282,26 +282,63 @@ test('every form renders through the shared field primitives', async () => {
   assert.match(writer, /data\.get\(["']is_anonymous["']\) === ["']on["']/);
 });
 
-test('the homepage rides the halo reel and keeps the breaking ticker', async () => {
-  // The reel is its own section: the ticker keeps running above it and the
-  // featured hero card is untouched.
+test('the homepage leads with the report carousel and keeps the breaking ticker', async () => {
+  // The deck is the first thing under the header: newest reports, one card in
+  // focus, the ticker still running above it, and the featured hero below it.
   const page = await readProjectFile('app/page.tsx');
-  assert.match(page, /<HaloReelSection/);
+  assert.match(page, /<CalendlyCarousel/);
   assert.match(page, /breaking=\{breaking\}/);
-  assert.match(page, /নির্বাচিত প্রতিবেদন/);
+  const order = ['<CalendlyCarousel', 'নির্বাচিত প্রতিবেদন', 'প্রকাশনা প্রবাহ'].map(
+    (needle) => {
+      const at = page.indexOf(needle);
+      assert.ok(at > -1, `the homepage must still render ${needle}`);
+      return at;
+    },
+  );
+  assert.deepEqual(
+    [...order].sort((a, b) => a - b),
+    order,
+    'the carousel must come before the featured hero and the throughput chart',
+  );
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
   assert.match(header, /ব্রেকিং/);
-  // The reel names the story at the front of the ring, so it has to report it.
-  const reel = await readProjectFile('components/ruixen/halo-reel.tsx');
-  assert.match(reel, /motion\/react/);
-  assert.match(reel, /useMotionValueEvent/);
-  assert.match(reel, /onActiveChange/);
-  const section = await readProjectFile('components/dashboard/halo-reel-section.tsx');
-  assert.match(section, /onActiveChange/);
-  assert.match(section, /centerLabel/);
-  assert.match(section, /\/news\/\$\{shown\.slug\}\//);
+
+  // The reel is gone — component, section and all.
+  for (const path of [
+    'components/ruixen/halo-reel.tsx',
+    'components/dashboard/halo-reel-section.tsx',
+  ]) {
+    await assert.rejects(
+      () => exists(path),
+      `${path} belonged to the retired reel and must not come back`,
+    );
+  }
+  assert.doesNotMatch(page, /HaloReel/);
+
+  // Cards come from the real archive, not from the registry demo's copy.
+  assert.doesNotMatch(page, /21st\.dev/);
+  assert.match(page, /storyCredit/);
+  assert.match(page, /mediaUrlFor\(story\.hero_media_key\)/);
+  assert.match(page, /previewStories/);
+  // A story without hero art falls back to Unsplash, which next.config allows.
+  assert.match(page, /images\.unsplash\.com/);
+  const config = await readProjectFile('next.config.ts');
+  assert.match(config, /images\.unsplash\.com/);
+
+  const carousel = await readProjectFile('components/ui/connected-carousel.tsx');
+  assert.match(carousel, /from "framer-motion"/);
+  assert.match(carousel, /aria-roledescription="carousel"/);
+  assert.match(carousel, /role="tablist"/);
+  assert.match(carousel, /ArrowLeft/);
+  // An auto-rotating deck has to stop when the reader asks motion to stop.
+  assert.match(carousel, /prefers-reduced-motion/);
+  // Its accessible names speak the site's language, like every other label.
+  assert.doesNotMatch(carousel, /"Customer stories"|"Use cases"/);
+  assert.match(carousel, /aria-label="সাম্প্রতিক প্রতিবেদনের ক্যারোসেল"/);
+
   const pkg = JSON.parse(await readProjectFile('package.json'));
-  assert.ok(pkg.dependencies.motion, 'the reel needs the motion package');
+  assert.ok(pkg.dependencies['framer-motion'], 'the deck needs framer-motion');
+  assert.ok(!pkg.dependencies.motion, "the reel's own motion package must be gone");
 });
 
 test('anonymous stories never receive a profile link', async () => {
@@ -396,7 +433,7 @@ test('statistics expose only aggregate counts, never identities', async () => {
 });
 
 test('shadcn primitives required by the dashboard shell exist', async () => {
-  for (const primitive of ['avatar', 'badge', 'button', 'card', 'chart', 'command', 'field', 'input', 'radio-group', 'select', 'separator', 'skeleton', 'textarea', 'tooltip', 'sheet', 'label', 'progress', 'sidebar']) {
+  for (const primitive of ['avatar', 'badge', 'button', 'card', 'chart', 'command', 'connected-carousel', 'field', 'input', 'radio-group', 'select', 'separator', 'skeleton', 'textarea', 'tooltip', 'sheet', 'label', 'progress', 'sidebar']) {
     assert.ok(await exists(`components/ui/${primitive}.tsx`), `components/ui/${primitive}.tsx must exist`);
   }
 });
