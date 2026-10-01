@@ -1,5 +1,5 @@
 begin;
-select plan(150);
+select plan(185);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -879,6 +879,244 @@ select ok(
      from public.admin_audit_log where action = 'update_member' and target_id = '11000000-0000-4000-8000-000000000001'
     order by created_at limit 1),
   'The log keeps what the desk saw as well as what it saved'
+);
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+
+-- The short description is derived from the body, never typed by the reporter.
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+select results_eq(
+  $$select public.derive_excerpt(E'প্রথম লাইন\n\nদ্বিতীয় লাইন')$$,
+  $$values ('প্রথম লাইন দ্বিতীয় লাইন')$$,
+  'A derived excerpt collapses the body''s line breaks into single spaces'
+);
+select results_eq(
+  $$select public.derive_excerpt('   ')$$,
+  $$values ('')$$,
+  'A blank body derives no short description'
+);
+select results_eq(
+  $$select public.derive_excerpt('সংক্ষিপ্ত বাক্য')$$,
+  $$values ('সংক্ষিপ্ত বাক্য')$$,
+  'A short body is its own excerpt, unchanged'
+);
+select ok(
+  char_length(public.derive_excerpt(repeat('এটি একটি বাক্য। ', 40))) <= 240,
+  'A derived excerpt stays inside the column window however long the body'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select lives_ok(
+  $$select public.submit_article('porikkha', 'সংক্ষিপ্ত বর্ণনা ছাড়া প্রতিবেদন', null, repeat('প্রতিবেদনের অংশ। ', 8), null, null, null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active))$$,
+  'A submission without a short description is accepted'
+);
+reset role;
+select results_eq(
+  $$select a.excerpt from public.articles a where a.title = 'সংক্ষিপ্ত বর্ণনা ছাড়া প্রতিবেদন'$$,
+  $$select public.derive_excerpt(a.body) from public.articles a where a.title = 'সংক্ষিপ্ত বর্ণনা ছাড়া প্রতিবেদন'$$,
+  'The stored excerpt is derived from the body'
+);
+select ok(
+  (select char_length(a.excerpt) between 10 and 280 from public.articles a where a.title = 'সংক্ষিপ্ত বর্ণনা ছাড়া প্রতিবেদন'),
+  'The derived excerpt satisfies the column constraint'
+);
+
+-- Public-profile visibility. The mandatory identity is always shown; the rest is the member's
+-- call, and the read function is the only door because profile_details is owner-only.
+update public.profile_details
+   set department = 'পরীক্ষামূলক বিভাগ', session = '২০২৪-২৫'
+ where user_id = '22000000-0000-4000-8000-000000000002';
+update public.profiles set bio = 'পরীক্ষামূলক পরিচিতি' where id = '22000000-0000-4000-8000-000000000002';
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select results_eq(
+  $$select public.get_my_profile_visibility()$$,
+  $$select jsonb_build_object('bio', true, 'department', false, 'session', false, 'hall_name', false, 'residency_status', false, 'published_stories', true)$$,
+  'The default visibility shows the bio and published work and hides the payout details'
+);
+select lives_ok(
+  $$select public.set_my_profile_visibility('{"department": false, "session": true}'::jsonb)$$,
+  'A member may publish their own department and session'
+);
+select results_eq(
+  $$select public.get_my_profile_visibility()->>'session'$$,
+  $$values ('true')$$,
+  'The stored choice is read back'
+);
+select throws_ok(
+  $$select public.set_my_profile_visibility('{"nickname": true}'::jsonb)$$,
+  'P0001', null,
+  'An unknown visibility field is refused rather than silently dropped'
+);
+select throws_ok(
+  $$select public.set_my_profile_visibility('{"department": "yes"}'::jsonb)$$,
+  'P0001', null,
+  'A visibility value that is not a boolean is refused'
+);
+reset role;
+
+set local role anon;
+select set_config('request.jwt.claim.role', 'anon', true);
+select set_config('request.jwt.claim.sub', '', true);
+select results_eq(
+  $$select bio, department, session from public.get_public_profile('reader_2200000000004000')$$,
+  $$values ('পরীক্ষামূলক পরিচিতি'::text, null::text, '২০২৪-২৫'::text)$$,
+  'The public profile exposes only the fields the member published'
+);
+select is_empty(
+  $$select 1 from public.get_public_profile('nosuchuser')$$,
+  'An unknown username resolves to no public profile'
+);
+select ok(
+  (select username is not null and display_name is not null from public.get_public_profile('reader_2200000000004000')),
+  'Identity stays public no matter how the visibility is set'
+);
+reset role;
+
+-- Spotlight submission. Any signed-in member may post; photos must be their own; the desk owns
+-- hide / restore / remove and the author may remove their own.
+insert into public.spotlight_media_assets (id, owner_id, original_key, mime_type, original_bytes) values
+  ('93000000-0000-4000-8000-000000000002', '33000000-0000-4000-8000-000000000003', 'spotlight/mod/two.webp', 'image/webp', 1000)
+on conflict (id) do nothing;
+insert into public.spotlight_media_assets (id, owner_id, original_key, mime_type, original_bytes)
+  select ('93000000-0000-4000-8000-' || lpad(entry::text, 12, '0'))::uuid,
+         '22000000-0000-4000-8000-000000000002',
+         'spotlight/reporter/many-' || entry || '.webp', 'image/webp', 1000
+    from generate_series(1, 11) as entry
+on conflict (id) do nothing;
+
+set local role anon;
+select set_config('request.jwt.claim.role', 'anon', true);
+select set_config('request.jwt.claim.sub', '', true);
+select throws_ok(
+  $$select public.submit_spotlight_post('অতিথির পোস্ট', 'প্রবেশ ছাড়া পোস্ট করার চেষ্টা')$$,
+  '42501', null,
+  'A signed-out visitor cannot post to Spotlight'
+);
+select throws_ok(
+  $$select count(*) from public.spotlight_media_assets$$,
+  '42501', null,
+  'Spotlight object keys are never readable by a signed-out reader'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select lives_ok(
+  $$select public.submit_spotlight_post('স্পটলাইট পরীক্ষামূলক পোস্ট', 'এই পোস্টটি স্বয়ংক্রিয় পরীক্ষার জন্য তৈরি।', array['93000000-0000-4000-8000-000000000011'])$$,
+  'Any signed-in member can raise an issue in Spotlight'
+);
+select results_eq(
+  $$select count(*) from public.spotlight_post_media pm join public.spotlight_posts p on p.id = pm.post_id where p.title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'$$,
+  $$values (1::bigint)$$,
+  'The submitted photos are attached to the post'
+);
+select throws_ok(
+  $$select public.submit_spotlight_post('অন্যের ছবি ব্যবহার', 'অন্যের আপলোড পোস্টে যুক্ত করার চেষ্টা', array['93000000-0000-4000-8000-000000000002'])$$,
+  'P0001', null,
+  'A member cannot attach another member upload to their post'
+);
+select throws_ok(
+  $$select public.submit_spotlight_post('অতিরিক্ত ছবি', 'দশটির বেশি ছবি যুক্ত করার চেষ্টা', array['93000000-0000-4000-8000-000000000001','93000000-0000-4000-8000-000000000002','93000000-0000-4000-8000-000000000003','93000000-0000-4000-8000-000000000004','93000000-0000-4000-8000-000000000005','93000000-0000-4000-8000-000000000006','93000000-0000-4000-8000-000000000007','93000000-0000-4000-8000-000000000008','93000000-0000-4000-8000-000000000009','93000000-0000-4000-8000-000000000010','93000000-0000-4000-8000-000000000011'])$$,
+  'P0001', null,
+  'A post may carry at most ten photos'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select lives_ok(
+  $$select public.admin_set_spotlight_status((select id from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'), 'hide', 'সম্পাদকীয় নীতিমালা লঙ্ঘন')$$,
+  'The desk can hide a Spotlight post'
+);
+reset role;
+select results_eq(
+  $$select status from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'$$,
+  $$values ('hidden')$$,
+  'The hidden post keeps its row so it can be restored'
+);
+
+set local role anon;
+select set_config('request.jwt.claim.role', 'anon', true);
+select set_config('request.jwt.claim.sub', '', true);
+select is_empty(
+  $$select 1 from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'$$,
+  'A hidden post is gone from the public feed'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select results_eq(
+  $$select status from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'$$,
+  $$values ('hidden')$$,
+  'The author can still read their own hidden post'
+);
+select throws_ok(
+  $$select public.admin_set_spotlight_status((select id from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'), 'restore', 'নিজেই পুনরুদ্ধারের চেষ্টা')$$,
+  '42501', null,
+  'A member cannot reverse a desk decision'
+);
+select lives_ok(
+  $$select public.submit_spotlight_post('মুছে ফেলার পোস্ট', 'লেখক নিজেই মুছে ফেলবেন এই পোস্টটি।')$$,
+  'A member can post without photos'
+);
+reset role;
+
+-- A moderator owns the second post, so the reporter below is a genuinely different member.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
+select lives_ok(
+  $$select public.submit_spotlight_post('মডারেটরের পোস্ট', 'অন্য একজন সদস্যের পোস্ট, মুছে ফেলা যাবে না।')$$,
+  'A second member can post too'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select throws_ok(
+  $$select public.delete_my_spotlight_post((select id from public.spotlight_posts where title = 'মডারেটরের পোস্ট'))$$,
+  '42501', null,
+  'A member cannot delete another member''s post'
+);
+select lives_ok(
+  $$select public.delete_my_spotlight_post((select id from public.spotlight_posts where title = 'মুছে ফেলার পোস্ট'))$$,
+  'An author can delete their own post'
+);
+reset role;
+select is_empty(
+  $$select 1 from public.spotlight_posts where title = 'মুছে ফেলার পোস্ট'$$,
+  'The deleted post is gone'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select lives_ok(
+  $$select public.admin_set_spotlight_status((select id from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'), 'restore', 'পুনর্বিবেচনায় পুনরুদ্ধার')$$,
+  'The desk can restore a hidden post'
+);
+select lives_ok(
+  $$select public.admin_set_spotlight_status((select id from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'), 'remove', 'পুনরায় নীতিমালা লঙ্ঘনে মুছে ফেলা')$$,
+  'The desk can remove a post outright'
+);
+reset role;
+select is_empty(
+  $$select 1 from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'$$,
+  'A post removed by the desk is gone'
+);
+select ok(
+  (select count(*) from public.moderation_actions where action = 'moderate_spotlight') >= 2,
+  'Every Spotlight desk decision is recorded in the moderation log'
 );
 reset role;
 select set_config('request.jwt.claim.sub', '', true);

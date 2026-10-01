@@ -27,7 +27,7 @@ const ROUTES = [
   '/account/balance/',
   '/account/moderation/',
   '/account/admin/',
-  '/profile/me/',
+  '/spotlight/',
   // Dynamic shells in demo mode: the 404 page, an unknown section, and a
   // missing profile. None of them may overflow either.
   '/news/no-such-story/',
@@ -220,7 +220,8 @@ test('the account dropdown fits inside a phone viewport', async () => {
         { width: 390, height: 640, scrolls: false },
         { width: 360, height: 740, scrolls: false },
         // Shorter than the menu: it must stay on-screen and scroll internally.
-        { width: 390, height: 360, scrolls: true },
+        // The menu is now a short list, so the viewport has to be genuinely tiny.
+        { width: 390, height: 150, scrolls: true },
       ]) {
         const page = await browser.newPage({
           viewport: { width: viewport.width, height: viewport.height },

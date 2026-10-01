@@ -6,6 +6,8 @@ import { Bookmark, PenLine, Settings2, ShieldCheck, Wallet } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SignInButton } from "@/components/auth/sign-in-button";
+import { ProfileEditDialog } from "@/components/profile/profile-edit-dialog";
+import { PublicProfileSettings } from "@/components/profile/public-profile-settings";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -32,6 +34,8 @@ export function AccountDashboard() {
   const [completion, setCompletion] = React.useState(0);
   const [balance, setBalance] = React.useState("৳০");
   const [loadError, setLoadError] = React.useState("");
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [manageOpen, setManageOpen] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -203,6 +207,8 @@ export function AccountDashboard() {
     },
   ];
 
+  const publicHandle = handle.replace(/^@/, "");
+
   return (
     <div className="flex flex-col gap-4">
       {loadError && <p className="text-sm text-destructive" role="alert">{loadError}</p>}
@@ -224,8 +230,22 @@ export function AccountDashboard() {
             </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
-            <Button variant="outline" asChild>
-              <Link href="/profile/me">প্রোফাইল সম্পাদনা →</Link>
+            <Button variant="outline" onClick={() => setEditOpen(true)}>
+              প্রোফাইল সম্পাদনা
+            </Button>
+            {publicHandle ? (
+              <Button variant="outline" asChild>
+                <Link href={`/u/${encodeURIComponent(publicHandle)}/`}>
+                  পাবলিক প্রোফাইল দেখুন
+                </Link>
+              </Button>
+            ) : (
+              <Button variant="outline" disabled>
+                পাবলিক প্রোফাইল দেখুন
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setManageOpen(true)}>
+              পাবলিক প্রোফাইল ব্যবস্থাপনা
             </Button>
           </CardContent>
         </Card>
@@ -284,6 +304,8 @@ export function AccountDashboard() {
             </Link>
           ))}
       </div>
+      <ProfileEditDialog open={editOpen} onOpenChange={setEditOpen} onSaved={setCompletion} />
+      <PublicProfileSettings open={manageOpen} onOpenChange={setManageOpen} />
     </div>
   );
 }

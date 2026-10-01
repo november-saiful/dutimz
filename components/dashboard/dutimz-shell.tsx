@@ -2,6 +2,7 @@ import * as React from "react";
 
 import { SidebarInset } from "@/components/ui/sidebar";
 import { DutimzSidebar } from "@/components/dashboard/dutimz-sidebar";
+import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
 import { SidebarState } from "@/components/dashboard/sidebar-state";
 import {
   DashboardHeader,
@@ -36,7 +37,11 @@ export function DutimzShell({
           message in a card) sets the min-content width and stretches the whole
           document past the viewport on phones.
         */}
-        <main className="flex min-w-0 flex-1 flex-col gap-6 p-4 sm:p-6">
+        {/*
+          pb-28 on phones keeps the fixed bottom dock from covering the last
+          card; desktop has no dock and keeps its normal padding.
+        */}
+        <main className="flex min-w-0 flex-1 flex-col gap-6 p-4 pb-28 sm:p-6 md:pb-6">
           {children}
         </main>
         <footer className="border-t px-4 py-6 text-center text-xs text-muted-foreground sm:px-6">
@@ -61,6 +66,8 @@ export function DutimzShell({
           </nav>
           <p className="mt-2">© {new Date().getFullYear()} DUTIMZ</p>
         </footer>
+        {/* The phone-only dock: home, search, the page list, AI and account. */}
+        <MobileBottomNav />
       </SidebarInset>
     </SidebarState>
   );

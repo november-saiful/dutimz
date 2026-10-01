@@ -12,8 +12,13 @@ type Profile = {
   id: string;
   username: string;
   display_name: string;
-  bio: string | null;
   avatar_url: string | null;
+  bio: string | null;
+  department: string | null;
+  session: string | null;
+  hall_name: string | null;
+  residency_status: string | null;
+  show_published_stories: boolean;
 };
 
 export function PublicProfile({ username }: { username: string }) {
@@ -34,25 +39,32 @@ export function PublicProfile({ username }: { username: string }) {
       }
       try {
         const supabase = supabaseBrowser();
-        const result = await supabase
-          .from("profiles")
-          .select("id,username,display_name,bio,avatar_url")
-          .eq("username", username)
-          .maybeSingle();
+        // Only the fields the member marked public come back; hidden ones are null.
+        const result = await supabase.rpc("get_public_profile", {
+          p_username: username,
+        });
         if (cancelled) return;
-        if (result.error || !result.data) {
-          if (result.error) reportError("public profile", result.error);
+        if (result.error) {
+          reportError("public profile", result.error);
           setStatus("missing");
-          setMessage(
-            result.error
-              ? "প্রোফাইলটি এখন লোড করা যাচ্ছে না।"
-              : "এই ইউজারনেমে কোনো প্রকাশ্য প্রোফাইল নেই।",
-          );
+          setMessage("প্রোফাইলটি এখন লোড করা যাচ্ছে না।");
           return;
         }
-        const found = result.data as Profile;
+        const found = (Array.isArray(result.data)
+          ? result.data[0]
+          : result.data) as Profile | undefined;
+        if (!found) {
+          setStatus("missing");
+          setMessage("এই ইউজারনেমে কোনো প্রকাশ্য প্রোফাইল নেই।");
+          return;
+        }
         setProfile(found);
         document.title = `${found.display_name || `@${found.username}`} | DUTIMZ`;
+        if (!found.show_published_stories) {
+          setStories([]);
+          setStatus("ready");
+          return;
+        }
         const feed = await supabase
           .from("articles")
           .select(
@@ -110,6 +122,20 @@ export function PublicProfile({ username }: { username: string }) {
 
   const display =
     profile.display_name?.trim() || `@${profile.username || "পাঠক"}`;
+  const facts = [
+    profile.department ? { label: "বিভাগ", value: profile.department } : null,
+    profile.session ? { label: "সেশন", value: profile.session } : null,
+    profile.hall_name ? { label: "হল", value: profile.hall_name } : null,
+    profile.residency_status
+      ? {
+          label: "আবাসিক অবস্থা",
+          value:
+            profile.residency_status === "hall_resident"
+              ? "হল-আবাসিক"
+              : "ক্যাম্পাসের বাইরে",
+        }
+      : null,
+  ].filter((fact): fact is { label: string; value: string } => Boolean(fact));
 
   return (
     <div className="flex flex-col gap-6">
@@ -128,25 +154,37 @@ export function PublicProfile({ username }: { username: string }) {
           <p className="text-sm text-muted-foreground">@{profile.username}</p>
         </div>
       </header>
-      <p className="text-sm text-muted-foreground">
-        {profile.bio || "ঢাকা বিশ্ববিদ্যালয়ের পাঠক ও লেখক।"}
-      </p>
-      <section aria-labelledby="public-stories-heading">
-        <h2 id="public-stories-heading" className="mb-3 text-xl font-semibold">
-          প্রকাশিত প্রতিবেদন
-        </h2>
-        {stories.length ? (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {stories.map((story) => (
-              <StoryCard key={story.id} story={story} />
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-lg border p-8 text-center text-sm text-muted-foreground">
-            এখনো প্রকাশিত প্রতিবেদন নেই।
-          </div>
-        )}
-      </section>
+      {profile.bio ? (
+        <p className="text-sm text-muted-foreground">{profile.bio}</p>
+      ) : null}
+      {facts.length > 0 && (
+        <dl className="grid gap-3 sm:grid-cols-2">
+          {facts.map((fact) => (
+            <div key={fact.label} className="rounded-lg border p-3">
+              <dt className="text-xs text-muted-foreground">{fact.label}</dt>
+              <dd className="text-sm font-medium">{fact.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+      {profile.show_published_stories && (
+        <section aria-labelledby="public-stories-heading">
+          <h2 id="public-stories-heading" className="mb-3 text-xl font-semibold">
+            প্রকাশিত প্রতিবেদন
+          </h2>
+          {stories.length ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {stories.map((story) => (
+                <StoryCard key={story.id} story={story} />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border p-8 text-center text-sm text-muted-foreground">
+              এখনো প্রকাশিত প্রতিবেদন নেই।
+            </div>
+          )}
+        </section>
+      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   FileText,
   Home,
   Info,
+  Megaphone,
   PenLine,
   Scale,
   Search,
@@ -26,6 +27,7 @@ const PRIMARY: NavEntry[] = [
   { id: "all", label: "সব খবর", href: "/", icon: Home },
   { id: "search", label: "খুঁজুন", href: "/search", icon: Search },
   { id: "statistics", label: "পরিসংখ্যান", href: "/statistics", icon: BarChart3 },
+  { id: "spotlight", label: "স্পটলাইট", href: "/spotlight", icon: Megaphone },
   { id: "saved", label: "সংরক্ষিত", href: "/saved", icon: Bookmark },
 ];
 

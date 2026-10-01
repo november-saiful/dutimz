@@ -24,9 +24,12 @@ function mediaBase(): string {
 export function GalleryUploader({
   items,
   onChange,
+  scope = "article",
 }: {
   items: GalleryItem[];
   onChange: (items: GalleryItem[]) => void;
+  /** "article" writes the news bucket; "spotlight" writes the forum bucket. */
+  scope?: "article" | "spotlight";
 }) {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -43,7 +46,8 @@ export function GalleryUploader({
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     if (sessionError) throw sessionError;
     if (!session) throw new Error("ছবি পাঠাতে আগে গুগল দিয়ে প্রবেশ করুন।");
-    const response = await fetch(`${mediaBase()}/upload`, {
+    const endpoint = scope === "spotlight" ? "/spotlight/upload" : "/upload";
+    const response = await fetch(`${mediaBase()}${endpoint}`, {
       method: "POST",
       headers: {
         "Content-Type": file.type,

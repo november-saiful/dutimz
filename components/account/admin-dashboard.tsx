@@ -53,6 +53,18 @@ type Withdrawal = {
   profiles: { username: string; display_name: string } | null;
 };
 
+type SpotlightPost = {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  created_at: string;
+  author:
+    | { username: string; display_name: string }
+    | { username: string; display_name: string }[]
+    | null;
+};
+
 type SortState = {
   column: string;
   direction: "ascending" | "descending";
@@ -131,12 +143,14 @@ function SortableHead({
 
 export function AdminDashboard() {
   const [allowed, setAllowed] = React.useState<boolean | null>(null);
-  const [tab, setTab] = React.useState<"members" | "finance">("members");
+  const [tab, setTab] = React.useState<"members" | "spotlight" | "finance">("members");
   const [query, setQuery] = React.useState("");
   const [members, setMembers] = React.useState<Member[]>([]);
   const [total, setTotal] = React.useState(0);
   const [offset, setOffset] = React.useState(0);
   const [withdrawals, setWithdrawals] = React.useState<Withdrawal[]>([]);
+  const [spotlight, setSpotlight] = React.useState<SpotlightPost[]>([]);
+  const [spotlightReasons, setSpotlightReasons] = React.useState<Record<string, string>>({});
   const [reasons, setReasons] = React.useState<Record<string, string>>({});
   const [adjustUserId, setAdjustUserId] = React.useState("");
   const [adjustAmount, setAdjustAmount] = React.useState("");
@@ -149,6 +163,7 @@ export function AdminDashboard() {
     direction: "descending",
   });
   const [editing, setEditing] = React.useState<Member | null>(null);
+  const [editUsername, setEditUsername] = React.useState("");
   const [editRole, setEditRole] = React.useState("reporter");
   const [editTier, setEditTier] = React.useState("general");
   const [editReason, setEditReason] = React.useState("");
@@ -184,6 +199,33 @@ export function AdminDashboard() {
     },
     [],
   );
+
+  const loadSpotlight = React.useCallback(async () => {
+    try {
+      const supabase = supabaseBrowser();
+      // The desk read policy returns hidden posts too, which is the point.
+      const { data, error } = await supabase
+        .from("spotlight_posts")
+        .select(
+          "id,title,description,status,created_at,author:profiles!spotlight_posts_author_id_fkey(username,display_name)",
+        )
+        .order("created_at", { ascending: false })
+        .limit(60);
+      if (error) {
+        setError(
+          errorMessage(
+            "admin spotlight posts",
+            error,
+            "স্পটলাইট পোস্টগুলো লোড করা যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
+        return;
+      }
+      setSpotlight((data as unknown as SpotlightPost[]) ?? []);
+    } catch (err) {
+      setError(errorMessage("admin spotlight posts", err, "স্পটলাইট পোস্টগুলো লোড করা যায়নি। আবার চেষ্টা করুন।"));
+    }
+  }, []);
 
   const loadWithdrawals = React.useCallback(async () => {
     try {
@@ -245,6 +287,7 @@ export function AdminDashboard() {
         setAllowed(true);
         await loadMembers(0, "");
         await loadWithdrawals();
+        await loadSpotlight();
       } catch (err) {
         if (!cancelled) {
           setError(
@@ -261,7 +304,7 @@ export function AdminDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [loadMembers, loadWithdrawals]);
+  }, [loadMembers, loadWithdrawals, loadSpotlight]);
 
   async function reviewWithdrawal(id: string, decision: "approve" | "reject") {
     const reason = (reasons[id] ?? "").trim();
@@ -292,6 +335,40 @@ export function AdminDashboard() {
       await loadWithdrawals();
     } catch (err) {
       setError(errorMessage("withdrawal review", err, "সিদ্ধান্ত নথিভুক্ত করা যায়নি। আবার চেষ্টা করুন।"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function moderateSpotlight(post: SpotlightPost, decision: "hide" | "restore" | "remove") {
+    const reason = (spotlightReasons[post.id] ?? "").trim();
+    if (reason.length < 3) {
+      setError("সিদ্ধান্তের কারণ লিখুন (অন্তত ৩ অক্ষর)।");
+      return;
+    }
+    setBusy(`spotlight-${post.id}`);
+    setError("");
+    setNotice("");
+    try {
+      const { error } = await supabaseBrowser().rpc("admin_set_spotlight_status", {
+        p_post_id: post.id,
+        p_decision: decision,
+        p_reason: reason,
+      });
+      if (error) {
+        setError(
+          errorMessage(
+            "spotlight moderation",
+            error,
+            "সিদ্ধান্ত নথিভুক্ত করা যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
+        return;
+      }
+      setNotice("স্পটলাইট পোস্টের সিদ্ধান্ত নথিভুক্ত হয়েছে।");
+      await loadSpotlight();
+    } catch (err) {
+      setError(errorMessage("spotlight moderation", err, "সিদ্ধান্ত নথিভুক্ত করা যায়নি। আবার চেষ্টা করুন।"));
     } finally {
       setBusy(null);
     }
@@ -384,6 +461,7 @@ export function AdminDashboard() {
 
   function openEditor(member: Member) {
     setEditing(member);
+    setEditUsername(member.username);
     setEditRole(member.role);
     setEditTier(member.reporter_tier ?? "general");
     setEditReason("");
@@ -402,6 +480,27 @@ export function AdminDashboard() {
     setBusy(`role-${editing.id}`);
     try {
       const supabase = supabaseBrowser();
+      // The username is a stable public handle, so only the desk can change it —
+      // through the audited member-record RPC.
+      const nextUsername = editUsername.trim();
+      if (nextUsername && nextUsername !== editing.username) {
+        const { error: usernameError } = await supabase.rpc("admin_update_member", {
+          p_user_id: editing.id,
+          p_profile: { username: nextUsername },
+          p_details: {},
+          p_reason: editReason.trim(),
+        });
+        if (usernameError) {
+          setError(
+            errorMessage(
+              "username update",
+              usernameError,
+              "ইউজারনেম হালনাগাদ করা যায়নি। আবার চেষ্টা করুন।",
+            ),
+          );
+          return;
+        }
+      }
       const { error } = await supabase.rpc("assign_user_role", {
         p_user_id: editing.id,
         p_role: editRole,
@@ -464,6 +563,7 @@ export function AdminDashboard() {
         {(
           [
             ["members", "সদস্য"],
+            ["spotlight", "স্পটলাইট"],
             ["finance", "অর্থ"],
           ] as const
         ).map(([key, label]) => (
@@ -673,6 +773,18 @@ export function AdminDashboard() {
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-3">
+                <Field
+                  label="ইউজারনেম"
+                  htmlFor="edit-username"
+                  hint="ইউজারনেম কেবল প্রশাসন পরিবর্তন করতে পারেন; এটি প্রোফাইল ঠিকানা বদলে দেয়।"
+                >
+                  <Input
+                    id="edit-username"
+                    value={editUsername}
+                    maxLength={24}
+                    onChange={(e) => setEditUsername(e.target.value)}
+                  />
+                </Field>
                 <Field label="ভূমিকা" htmlFor="edit-role">
                   <Select
                     id="edit-role"
@@ -725,6 +837,93 @@ export function AdminDashboard() {
             </DialogContent>
           </Dialog>
         </>
+      )}
+
+      {tab === "spotlight" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>স্পটলাইট পোস্ট ({bn(spotlight.length)}টি)</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            {spotlight.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                এখনো কোনো স্পটলাইট পোস্ট নেই।
+              </p>
+            )}
+            {spotlight.map((post) => {
+              const author = Array.isArray(post.author) ? post.author[0] : post.author;
+              const name =
+                author?.display_name?.trim() ||
+                (author?.username ? `@${author.username}` : "সদস্য");
+              const hidden = post.status !== "visible";
+              return (
+                <div key={post.id} className="rounded-md border p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-sm font-medium">{post.title}</p>
+                    <Badge variant={hidden ? "secondary" : "outline"}>
+                      {hidden ? "লুকানো" : "দৃশ্যমান"}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {name} · {formatDateBn(post.created_at)}
+                  </p>
+                  <p className="mt-2 line-clamp-3 text-sm text-muted-foreground">
+                    {post.description}
+                  </p>
+                  <div className="mt-2 grid gap-2">
+                    <Field
+                      label="সিদ্ধান্তের কারণ (আবশ্যক)"
+                      htmlFor={`sreasons-${post.id}`}
+                      hint="কারণ অডিট লগে সংরক্ষিত হয়।"
+                    >
+                      <Textarea
+                        id={`sreasons-${post.id}`}
+                        value={spotlightReasons[post.id] ?? ""}
+                        onChange={(e) =>
+                          setSpotlightReasons({
+                            ...spotlightReasons,
+                            [post.id]: e.target.value,
+                          })
+                        }
+                        rows={2}
+                        minLength={3}
+                        maxLength={500}
+                      />
+                    </Field>
+                    <div className="flex flex-wrap gap-2">
+                      {hidden ? (
+                        <Button
+                          size="sm"
+                          disabled={busy === `spotlight-${post.id}`}
+                          onClick={() => void moderateSpotlight(post, "restore")}
+                        >
+                          পুনরুদ্ধার
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={busy === `spotlight-${post.id}`}
+                          onClick={() => void moderateSpotlight(post, "hide")}
+                        >
+                          লুকান
+                        </Button>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        disabled={busy === `spotlight-${post.id}`}
+                        onClick={() => void moderateSpotlight(post, "remove")}
+                      >
+                        মুছে ফেলুন
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
       )}
 
       {tab === "finance" && (

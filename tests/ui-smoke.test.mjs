@@ -108,7 +108,7 @@ test('every portal route exists in the App Router', async () => {
     'app/account/moderation/page.tsx',
     'app/account/admin/page.tsx',
     'app/u/[username]/page.tsx',
-    'app/profile/me/page.tsx',
+    'app/spotlight/page.tsx',
     'app/sitemap.ts',
     'app/robots.ts',
   ]) {
@@ -234,7 +234,7 @@ test('the header account menu is the session dropdown with DUTIMZ routes', async
   const table = await readProjectFile('lib/account-menu.ts');
   assert.match(header, /@\/lib\/account-menu/, 'the header must route through the shared table');
   assert.match(dropdown, /@\/lib\/account-menu/, 'the menu must read the shared table');
-  for (const route of ['/profile/me/', '/account/', '/saved/', '/about/']) {
+  for (const route of ['/account/', '/saved/', '/u/']) {
     assert.ok(table.includes(`"${route}"`), `the account route table must include ${route}`);
   }
   assert.match(header, /signOut/);
@@ -287,7 +287,7 @@ test('every account menu action maps to a route, a hidden id, or an auth action'
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
 
   const menuActions = [...dropdown.matchAll(/action:\s*"([^"]+)"/g)].map((m) => m[1]);
-  for (const required of ['profile', 'settings', 'notifications', 'help', 'saved', 'statistics', 'corrections', 'guidelines', 'about', 'switch', 'logout']) {
+  for (const required of ['dashboard', 'my-profile', 'saved', 'logout']) {
     assert.ok(menuActions.includes(required), `the menu must define ${required}`);
   }
 
@@ -322,16 +322,15 @@ test('every account menu action maps to a route, a hidden id, or an auth action'
     );
   }
 
-  // Log out ends the session; switch account ends it and signs in again.
+  // Log out ends the session.
   assert.match(header, /signOut/);
   assert.match(header, /action === "sign-in"/);
-  assert.match(header, /action === "switch"/);
 
-  // The account group (switch account / log out) renders only when signed in.
+  // The signed-in rows (dashboard, my profile, log out) render only with a session.
   assert.match(
     dropdown,
-    /\{!isGuest && accountItems\.length > 0 && \(/,
-    'the account group must be gated on a session',
+    /isGuest \? GUEST_ITEMS : ACCOUNT_ITEMS/,
+    'the signed-in rows must be gated on a session',
   );
 });
 
@@ -372,21 +371,20 @@ test('the wordmark is centred in the top bar and gone from the rail', async () =
   assert.doesNotMatch(sidebar, /brand-icon\.svg/, 'the rail carries no branding');
 });
 
-test('the header bookmark button previews saved reports in a popover', async () => {
-  // The header used to show a bell that linked straight to /saved, which read as
-  // notifications for a feature the site does not have. It is now a bookmark
-  // that opens a popover of the reader's saved reports.
+test('saved content moved out of the header into the account menu', async () => {
+  // The top bar used to carry a bookmark button that opened a saved-reports
+  // popover. Saved content is now an entry in the account menu instead, and the
+  // popover component is gone.
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
-  assert.match(header, /SavedPopover/);
-  assert.doesNotMatch(header, /Bell/, 'the notification bell is gone');
-  assert.doesNotMatch(header, /aria-label="Notifications"/);
-  assert.ok(await exists('components/ui/popover.tsx'), 'the popover primitive must exist');
-  const popover = await readProjectFile('components/dashboard/saved-popover.tsx');
-  assert.match(popover, /PopoverTrigger/);
-  assert.match(popover, /useSavedStories/);
-  assert.match(popover, /\/saved/);
-  assert.match(popover, /<SignInButton/, 'a signed-out preview offers Google sign-in, not a page');
-  // The /saved page and the header preview must share one query, not drift.
+  assert.doesNotMatch(header, /SavedPopover/, 'the header must not render a saved popover');
+  assert.doesNotMatch(header, /Bookmark/, 'the bookmark button is gone');
+  const dropdown = await readProjectFile('components/ui/user-dropdown.tsx');
+  assert.match(dropdown, /সংরক্ষিত কনটেন্ট/);
+  await assert.rejects(
+    () => exists('components/dashboard/saved-popover.tsx'),
+    'the saved popover component must be removed',
+  );
+  // The /saved page keeps its own query and sign-in prompt.
   const saved = await readProjectFile('components/account/saved-stories.tsx');
   assert.match(saved, /useSavedStories/);
   const hook = await readProjectFile('lib/use-saved-stories.ts');
@@ -412,7 +410,7 @@ test('every form renders through the shared field primitives', async () => {
     'components/account/moderation-queue.tsx',
     'components/account/questionnaire-fields.tsx',
     'components/account/gallery-uploader.tsx',
-    'components/profile/profile-editor.tsx',
+    'components/profile/profile-edit-dialog.tsx',
     'components/article/comments.tsx',
     'components/search/search-results.tsx',
   ];
@@ -643,7 +641,7 @@ test('reader-facing errors never show raw provider text', async () => {
     'components/corrections/corrections-list.tsx',
     'components/dashboard/command-palette.tsx',
     'components/dashboard/dashboard-header.tsx',
-    'components/profile/profile-editor.tsx',
+    'components/profile/profile-edit-dialog.tsx',
     'components/profile/public-profile.tsx',
     'components/search/search-results.tsx',
     'components/statistics/public-stats.tsx',
@@ -690,18 +688,20 @@ test('reader-facing errors never show raw provider text', async () => {
   const saved = await readProjectFile('components/account/saved-stories.tsx');
   assert.doesNotMatch(saved, /break-all/);
   assert.doesNotMatch(saved, /লোড করা যায়নি: \{message\}/);
-  const popover = await readProjectFile('components/dashboard/saved-popover.tsx');
-  assert.doesNotMatch(popover, /break-all/);
 });
 
-test('known profile username collisions use fixed Bengali guidance', async () => {
+test('a member cannot change their own username from any client surface', async () => {
   const helper = await readProjectFile('lib/errors.ts');
   assert.ok(helper.includes('23505'));
   assert.ok(helper.includes('return fallback;'));
   assert.ok(helper.includes('console.error'));
-  const profile = await readProjectFile('components/profile/profile-editor.tsx');
-  assert.ok(profile.includes('isUniqueViolation(profileResult.error)'));
-  assert.ok(profile.includes('এই ইউজারনেমটি ইতিমধ্যে ব্যবহৃত। অন্য একটি বেছে নিন।'));
+  // The editor modal never writes the handle: update(username) is revoked and the
+  // desk RPC is the only path. The field is shown read-only.
+  const dialog = await readProjectFile('components/profile/profile-edit-dialog.tsx');
+  assert.doesNotMatch(dialog, /username:\s*values\.username/, 'the editor must not write the username');
+  assert.match(dialog, /readOnly/);
+  const admin = await readProjectFile('components/account/admin-dashboard.tsx');
+  assert.match(admin, /admin_update_member/, 'the desk can still change a handle through the audited RPC');
 });
 
 test('Supabase failures use safe Bengali fallbacks and never render exception text', async () => {
@@ -720,7 +720,7 @@ test('Supabase failures use safe Bengali fallbacks and never render exception te
     'components/corrections/corrections-list.tsx',
     'components/dashboard/command-palette.tsx',
     'components/dashboard/dashboard-header.tsx',
-    'components/profile/profile-editor.tsx',
+    'components/profile/profile-edit-dialog.tsx',
     'components/profile/public-profile.tsx',
     'components/search/search-results.tsx',
     'components/statistics/public-stats.tsx',
@@ -747,8 +747,48 @@ test('Supabase failures use safe Bengali fallbacks and never render exception te
   assert.ok(!helper.includes('String(error)'));
   const saved = await readProjectFile('lib/use-saved-stories.ts');
   assert.ok(saved.includes('সংরক্ষিত প্রতিবেদন লোড করা যায়নি'));
-  const profile = await readProjectFile('components/profile/profile-editor.tsx');
-  assert.ok(profile.includes('এই ইউজারনেমটি ইতিমধ্যে ব্যবহৃত। অন্য একটি বেছে নিন।'));
+});
+
+test('the phone dock carries home, search, menu, AI and account', async () => {
+  // The mobile dock is five slots with the page list raised in the centre, so
+  // every page has one obvious home on a phone. The AI slot is intentionally
+  // inert until its behaviour is specified.
+  const shell = await readProjectFile('components/dashboard/dutimz-shell.tsx');
+  assert.match(shell, /MobileBottomNav/);
+  const dock = await readProjectFile('components/dashboard/mobile-bottom-nav.tsx');
+  for (const label of ['হোম', 'খুঁজুন', 'মেনু', 'এআই', 'অ্যাকাউন্ট']) {
+    assert.ok(dock.includes(label), `the dock must label ${label}`);
+  }
+  assert.match(dock, /md:hidden/, 'the dock is phone-only');
+  // The popover renders whatever this list holds, so future pages are added once.
+  assert.match(dock, /QUICK_ACTIONS/);
+  for (const href of ['/spotlight', '/statistics', '/corrections', '/guidelines', '/about', '/saved']) {
+    assert.ok(dock.includes(`"${href}"`), `the page list must include ${href}`);
+  }
+  assert.match(dock, /aria-expanded/, 'the centre toggle is a disclosure');
+  assert.match(dock, /aria-label="এআই সহায়ক \(শীঘ্রই আসছে\)"/, 'the AI slot announces it is not ready');
+  assert.match(dock, /disabled/);
+});
+
+test('spotlight authors remove their own posts; the desk hides or removes any', async () => {
+  const forum = await readProjectFile('components/forum/spotlight-forum.tsx');
+  assert.match(forum, /delete_my_spotlight_post/, 'the author removes through the audited RPC');
+  assert.match(forum, /rpc\(/, 'the removal goes through an RPC, never a direct write');
+  assert.doesNotMatch(forum, /\.from\(['"]spotlight_posts['"]\)\.delete/, 'no client-side delete');
+  assert.match(forum, /status !== "visible"/, 'a hidden post is labelled');
+  const admin = await readProjectFile('components/account/admin-dashboard.tsx');
+  assert.match(admin, /admin_set_spotlight_status/, 'the desk moderates through the audited RPC');
+  for (const decision of ['"hide"', '"restore"', '"remove"']) {
+    assert.ok(admin.includes(decision), `the desk must offer ${decision}`);
+  }
+});
+
+test('the spotlight feed pages instead of stopping at thirty posts', async () => {
+  const forum = await readProjectFile('components/forum/spotlight-forum.tsx');
+  assert.match(forum, /\.range\(/, 'the feed pages through the archive');
+  assert.match(forum, /PAGE_SIZE/, 'the page size lives in one constant');
+  assert.match(forum, /loadMore/, 'the next page is appended on demand');
+  assert.doesNotMatch(forum, /\.limit\(\s*30\s*\)/, 'the hard thirty-post ceiling is gone');
 });
 
 test('shadcn primitives required by the dashboard shell exist', async () => {

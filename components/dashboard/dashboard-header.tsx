@@ -6,7 +6,6 @@ import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { CommandPalette } from "@/components/dashboard/command-palette";
-import { SavedPopover } from "@/components/dashboard/saved-popover";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { UserDropdown } from "@/components/ui/user-dropdown";
 import {
@@ -204,6 +203,14 @@ export function DashboardHeader({
       return;
     }
 
+    // The public profile is the signed-in member's own handle, which the menu
+    // already resolved when it loaded the profile.
+    if (action === "my-profile") {
+      const handle = menuUser?.username.replace(/^@/, "");
+      if (handle) router.push(`/u/${encodeURIComponent(handle)}/`);
+      return;
+    }
+
     // Every remaining entry is a plain route from the shared table, so the menu
     // and the handler cannot drift apart. Sections are not in the menu — the
     // sidebar owns them — so there is no slug-shaped action left to resolve.
@@ -273,12 +280,6 @@ export function DashboardHeader({
         <div className="flex items-center justify-end gap-1">
           <CommandPalette />
           {/*
-            The bookmark button opens a preview of the reader's saved reports.
-            It used to be a bell that linked straight to /saved, which read as
-            notifications for a feature this site does not have.
-          */}
-          <SavedPopover />
-          {/*
             The account menu is always present: signed-out visitors get a
             sign-in call to action inside it instead of a bare avatar that
             dropped them on a page they could not use.
@@ -291,18 +292,27 @@ export function DashboardHeader({
         </div>
       </header>
       {pathname === "/" && breaking.length > 0 && (
-        <div className="flex items-center gap-2 overflow-hidden border-t px-4 py-1.5 sm:px-6">
+        <div className="group flex items-center gap-2 overflow-hidden border-t px-4 py-1.5 sm:px-6">
           <Badge className="shrink-0">ব্রেকিং</Badge>
-          <div className="flex gap-4 overflow-x-auto text-xs text-muted-foreground">
-            {breaking.slice(0, 5).map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="truncate hover:text-foreground"
-              >
-                {item.title}
-              </Link>
-            ))}
+          {/*
+            The track carries the list twice and slides exactly one copy to the
+            left, so it can loop forever without a visible jump. Motion stops for
+            readers who ask for reduced motion, and pauses while hovered.
+          */}
+          <div className="relative flex-1 overflow-hidden">
+            <div className="ticker-track flex w-max gap-8 whitespace-nowrap text-xs text-muted-foreground">
+              {[...breaking.slice(0, 5), ...breaking.slice(0, 5)].map(
+                (item, index) => (
+                  <Link
+                    key={`${item.href}-${index}`}
+                    href={item.href}
+                    className="hover:text-foreground"
+                  >
+                    {item.title}
+                  </Link>
+                ),
+              )}
+            </div>
           </div>
         </div>
       )}

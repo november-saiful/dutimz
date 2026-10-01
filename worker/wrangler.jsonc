@@ -9,11 +9,14 @@
     {
       "binding": "MEDIA_BUCKET",
       "bucket_name": "dutimz-media"
+    },
+    {
+      "binding": "SPOTLIGHT_BUCKET",
+      "bucket_name": "dutimz-spotlight"
     }
   ],
   "images": { "binding": "IMAGES" },
   "vars": {
-    "ALLOWED_ORIGINS": "https://dutimz.com,https://www.dutimz.com",
-    "OPTIMIZE_IMAGES": "false"
+    "ALLOWED_ORIGINS": "https://dutimz.com,https://www.dutimz.com"
   }
 }

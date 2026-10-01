@@ -30,8 +30,13 @@ import { errorMessage, reportError } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
 import { CATEGORIES } from "@/lib/site";
 
+const PUBLISHING_ROLES = ["reporter", "moderator", "admin"];
+
 export function WriterForm() {
   const [signedIn, setSignedIn] = React.useState<boolean | null>(null);
+  // undefined while the role is being read; null when the reader has none (or a
+  // plain reader), which is what decides whether the form is shown at all.
+  const [role, setRole] = React.useState<string | null | undefined>(undefined);
   const [slugPreview, setSlugPreview] = React.useState("/news/…");
   const [error, setError] = React.useState("");
   const [status, setStatus] = React.useState(
@@ -60,6 +65,14 @@ export function WriterForm() {
         if (cancelled) return;
         setSignedIn(Boolean(user));
         if (!user) return;
+        const { data: roleRow, error: roleError } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (roleError) reportError("writer role", roleError);
+        if (cancelled) return;
+        setRole((roleRow as { role?: string } | null)?.role ?? null);
         const { data, error } = await supabase.rpc(
           "get_active_article_questionnaire",
         );
@@ -74,7 +87,10 @@ export function WriterForm() {
         }
       } catch (err) {
         reportError("writer form load", err);
-        if (!cancelled) setSignedIn(false);
+        if (!cancelled) {
+          setSignedIn(false);
+          setRole(null);
+        }
       }
     })();
     return () => {
@@ -89,11 +105,10 @@ export function WriterForm() {
     const form = event.currentTarget;
     const data = new FormData(form);
     const title = String(data.get("title") ?? "").trim();
-    const excerpt = String(data.get("excerpt") ?? "").trim();
     const body = String(data.get("body") ?? "").trim();
     const categorySlug = String(data.get("category_slug") ?? "");
-    if (!title || !excerpt || !body || !categorySlug) {
-      setError("শিরোনাম, পরিচিতি, প্রতিবেদন ও বিভাগ আবশ্যক।");
+    if (!title || !body || !categorySlug) {
+      setError("শিরোনাম, প্রতিবেদন ও বিভাগ আবশ্যক।");
       return;
     }
     if (body.length < 100) {
@@ -124,10 +139,10 @@ export function WriterForm() {
         return;
       }
       const mediaIds = gallery.map((item) => item.id);
+      // The short description is derived server-side from the body.
       const result = await supabase.rpc("submit_article", {
         p_category_slug: categorySlug,
         p_title: title,
-        p_excerpt: excerpt,
         p_body: body,
         p_media_keys: mediaIds.length ? mediaIds : null,
         p_hero_media_key: mediaIds[0] ?? null,
@@ -187,6 +202,35 @@ export function WriterForm() {
     );
   }
 
+  if (role === undefined) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center text-sm text-muted-foreground">
+          অনুমতি যাচাই করা হচ্ছে…
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!PUBLISHING_ROLES.includes(role ?? "")) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>প্রতিবেদন জমা দিতে রিপোর্টার অনুমতি প্রয়োজন</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              সম্পাদকীয় দল আপনার আবেদন পর্যালোচনা করে রিপোর্টার স্তর নির্ধারণ করলে
+              আপনি প্রতিবেদন লিখতে ও ছবি যুক্ত করতে পারবেন।
+            </p>
+          </CardContent>
+        </Card>
+        <ReporterApplication />
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       <Card>
@@ -238,16 +282,6 @@ export function WriterForm() {
                 <p className="flex h-10 min-w-0 items-center rounded-md border bg-muted px-3 text-sm text-muted-foreground">
                   {slugPreview}
                 </p>
-              </Field>
-              <Field label="সংক্ষিপ্ত পরিচিতি" htmlFor="write-excerpt" wide>
-                <Textarea
-                  id="write-excerpt"
-                  name="excerpt"
-                  rows={3}
-                  maxLength={280}
-                  required
-                  placeholder="প্রতিবেদনটি কী নিয়ে—২৮০ অক্ষরের মধ্যে"
-                />
               </Field>
             </FieldGrid>
           </FieldSection>

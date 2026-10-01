@@ -35,6 +35,11 @@ export function mediaUrlFor(mediaId: string): string {
   return `${MEDIA_URL}/media/${encodeURIComponent(mediaId)}`;
 }
 
+/** Spotlight photos live in their own bucket and are served from their own path. */
+export function spotlightMediaUrlFor(mediaId: string): string {
+  return `${MEDIA_URL}/spotlight/media/${encodeURIComponent(mediaId)}`;
+}
+
 export function slugArtClass(slug: string): string {
   if (slug.includes("culture") || slug.includes("opinion"))
     return "art-culture";

@@ -75,6 +75,69 @@ test('the member records rules keep their pgTAP coverage', () => {
   assert.ok(suite.includes("The desk can change another member''s username and correct their details together"));
 });
 
+test('the excerpt, visibility and spotlight rules keep their pgTAP coverage', () => {
+  const required = [
+    "A derived excerpt collapses the body''s line breaks into single spaces",
+    'A blank body derives no short description',
+    'A short body is its own excerpt, unchanged',
+    'A derived excerpt stays inside the column window however long the body',
+    'A submission without a short description is accepted',
+    'The stored excerpt is derived from the body',
+    'The derived excerpt satisfies the column constraint',
+    'The default visibility shows the bio and published work and hides the payout details',
+    'A member may publish their own department and session',
+    'The stored choice is read back',
+    'An unknown visibility field is refused rather than silently dropped',
+    'A visibility value that is not a boolean is refused',
+    'The public profile exposes only the fields the member published',
+    'An unknown username resolves to no public profile',
+    'Identity stays public no matter how the visibility is set',
+    'A signed-out visitor cannot post to Spotlight',
+    'Spotlight object keys are never readable by a signed-out reader',
+    'Any signed-in member can raise an issue in Spotlight',
+    'The submitted photos are attached to the post',
+    'A member cannot attach another member upload to their post',
+    'A post may carry at most ten photos',
+    'The desk can hide a Spotlight post',
+    'The hidden post keeps its row so it can be restored',
+    'A hidden post is gone from the public feed',
+    'The author can still read their own hidden post',
+    'A member cannot reverse a desk decision',
+    'A member can post without photos',
+    'A second member can post too',
+    "A member cannot delete another member''s post",
+    'An author can delete their own post',
+    'The deleted post is gone',
+    'The desk can restore a hidden post',
+    'The desk can remove a post outright',
+    'A post removed by the desk is gone',
+    'Every Spotlight desk decision is recorded in the moderation log',
+  ];
+  const missing = required.filter((description) => !suite.includes(description));
+  assert.deepEqual(missing, [], `excerpt/visibility/spotlight coverage disappeared: ${missing.join('; ')}`);
+});
+
+test('spotlight moderation stays behind the audited RPCs and keeps media keys private', async () => {
+  const migration = await readProjectFile('supabase/migrations/202610010004_spotlight_moderation.sql');
+  // The first Spotlight migration granted anon select on the media table, which exposed the
+  // private R2 object keys. The Worker resolves pictures through get_spotlight_media instead.
+  assert.ok(
+    migration.includes('revoke select on public.spotlight_media_assets from anon, authenticated;'),
+    'spotlight object keys must not be readable by clients',
+  );
+  for (const fn of ['delete_my_spotlight_post', 'admin_set_spotlight_status']) {
+    assert.ok(migration.includes(`function public.${fn}`), `${fn} should be defined`);
+    assert.ok(
+      migration.includes(`revoke all on function public.${fn}`),
+      `${fn} should be revoked so it is not callable past its own guard`,
+    );
+  }
+  assert.equal((migration.match(/security definer/g) ?? []).length, 2, 'both functions read tables the caller cannot');
+  assert.ok(migration.includes("'moderate_spotlight'"), 'the decision should be written to the moderation log');
+  assert.ok(migration.includes("check (status in ('visible', 'hidden'))"), 'hiding is a first-class state');
+  assert.ok(migration.trimEnd().endsWith('commit;'), 'the migration should be atomic');
+});
+
 test('the member records migration stays administrator-only and off the dropped column', async () => {
   const migration = await readProjectFile('supabase/migrations/202609290003_admin_member_records.sql');
   // profile_details.completion_percent was dropped by 202609240003, so a query against it reads
