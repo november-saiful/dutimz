@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, FormMessage } from "@/components/ui/field";
 import { errorMessage } from "@/lib/errors";
+import { supabaseBrowser } from "@/lib/supabase";
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/avif";
 const MAX_FILES = 10;
@@ -38,11 +39,12 @@ export function GalleryUploader({
   async function uploadOne(file: File): Promise<GalleryItem> {
     // The media Worker reads the raw body with Content-Type + bearer token —
     // same contract the old editor used. HEIC is rejected server-side (415).
-    const { createClient } = await import("@supabase/supabase-js");
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
-    );
+    //
+    // This must be the shared `@supabase/ssr` browser client: the app's session
+    // lives in the ssr cookie store, so a bare supabase-js client built here
+    // would read localStorage, find no session, and tell a signed-in reporter
+    // to "sign in with Google" before every upload.
+    const supabase = supabaseBrowser();
     const { data: { session }, error: sessionError } = await supabase.auth.getSession();
     if (sessionError) throw sessionError;
     if (!session) throw new Error("ছবি পাঠাতে আগে গুগল দিয়ে প্রবেশ করুন।");

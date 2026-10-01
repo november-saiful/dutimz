@@ -811,6 +811,26 @@ test('one Supabase browser client is shared by every surface', async () => {
   );
 });
 
+test('the uploader sends the shared browser session, not a private client', async () => {
+  // The upload path originally built its own supabase-js client from the public URL and anon
+  // key on every upload. That bypasses `@supabase/ssr`: the session lives in the ssr cookie
+  // store, so the private client read localStorage, found no session, and threw "sign in with
+  // Google" at a reporter who was already signed in. The memoized `supabaseBrowser()` is the
+  // only client that shares the app's session.
+  const uploader = await readProjectFile('components/account/gallery-uploader.tsx');
+  assert.match(
+    uploader,
+    /import \{ supabaseBrowser \} from "@\/lib\/supabase"/,
+    'the uploader must reuse the shared browser client',
+  );
+  assert.doesNotMatch(
+    uploader,
+    /from "@supabase\/supabase-js"/,
+    'the uploader must not build its own supabase-js client',
+  );
+  assert.match(uploader, /supabaseBrowser\(\)/, 'the uploader calls the shared client');
+});
+
 test('a story is submitted with the excerpt argument the RPC requires', async () => {
   // The excerpt is derived server-side and never typed, but `p_excerpt` is a required argument
   // of submit_article: PostgreSQL will not let it default, because a defaulted parameter cannot
