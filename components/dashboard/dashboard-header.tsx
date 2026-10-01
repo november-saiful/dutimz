@@ -13,9 +13,12 @@ import {
   ACCOUNT_HIDDEN_ACTIONS,
   ACCOUNT_ROUTES,
   ACCOUNT_SIGN_OUT_ROUTES,
-  categoryHref,
-  isCategoryAction,
 } from "@/lib/account-menu";
+import {
+  consumeReturnPath,
+  rememberReturnPath,
+  signInWithGoogle,
+} from "@/lib/auth-client";
 import { reportError } from "@/lib/errors";
 import { isSupabaseConfigured, supabaseBrowser } from "@/lib/supabase";
 
@@ -146,29 +149,65 @@ export function DashboardHeader({
     };
   }, []);
 
+  /*
+    Returning from Google: the callback lands on the homepage, so the page the
+    reader left is restored here, once the session has actually been resolved.
+    The value is consumed (not merely read), so a cancelled attempt cannot send
+    a later visit somewhere unexpected.
+  */
+  React.useEffect(() => {
+    if (!menuUser) return;
+    const target = consumeReturnPath();
+    if (target && target !== pathname) router.replace(target);
+  }, [menuUser, pathname, router]);
+
+  // Google is the only provider and there is no sign-in page, so both the menu's
+  // sign-in button and its session-only rows start the OAuth flow directly.
+  async function startGoogleSignIn() {
+    rememberReturnPath();
+    const { error } = await signInWithGoogle();
+    if (error) reportError("google sign-in", error);
+  }
+
+  async function signOut() {
+    try {
+      const { error } = await supabaseBrowser().auth.signOut();
+      if (error) reportError("sign out", error);
+    } catch (err) {
+      // Signed out as far as the UI is concerned either way.
+      reportError("sign out", err);
+    }
+    setMenuUser(null);
+  }
+
   async function handleMenuAction(action?: string) {
     if (!action) return;
 
+    if (action === "sign-in") {
+      await startGoogleSignIn();
+      return;
+    }
+
+    // Switch account ends the session and immediately re-opens the account
+    // picker, so the reader chooses another identity in one step.
+    if (action === "switch") {
+      await signOut();
+      await startGoogleSignIn();
+      return;
+    }
+
     // Sign-out actions end the session first, then land on their route.
     if (action in ACCOUNT_SIGN_OUT_ROUTES) {
-      try {
-        const { error } = await supabaseBrowser().auth.signOut();
-        if (error) reportError("sign out", error);
-      } catch (err) {
-        // Signed out as far as the UI is concerned either way.
-        reportError("sign out", err);
-      }
-      setMenuUser(null);
+      await signOut();
       router.push((ACCOUNT_SIGN_OUT_ROUTES as Record<string, string>)[action]);
       router.refresh();
       return;
     }
 
-    // Section entries carry their slug; everything else is a plain route from
-    // the shared table, so the menu and the handler cannot drift apart.
-    const href = isCategoryAction(action)
-      ? categoryHref(action)
-      : (ACCOUNT_ROUTES as Record<string, string>)[action];
+    // Every remaining entry is a plain route from the shared table, so the menu
+    // and the handler cannot drift apart. Sections are not in the menu — the
+    // sidebar owns them — so there is no slug-shaped action left to resolve.
+    const href = (ACCOUNT_ROUTES as Record<string, string>)[action];
 
     if (href) router.push(href);
   }
@@ -205,14 +244,17 @@ export function DashboardHeader({
                 </React.Fragment>
               ))}
             </nav>
-            <h1 className="truncate text-lg font-semibold">{title}</h1>
+            <h1 className="hidden truncate text-lg font-semibold md:block">
+              {title}
+            </h1>
           </div>
         </div>
         {/*
           The centre track is `auto` between two equal `1fr` tracks, so the mark
           sits at the exact centre of the bar no matter how wide the title or
-          the actions grow. Phones show the icon instead of the wordmark: the
-          text logo, a page title and four controls do not fit a 360px bar.
+          the actions grow. The same wordmark is used at every width: because the
+          page title is desktop-only, the text logo, the drawer trigger and the
+          three controls fit a 360px bar.
         */}
         <Link
           href="/"
@@ -225,16 +267,7 @@ export function DashboardHeader({
             alt="DUTIMZ"
             width={120}
             height={35}
-            className="hidden h-7 w-auto sm:block"
-          />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/brand-icon.svg"
-            alt=""
-            aria-hidden
-            width={28}
-            height={28}
-            className="block h-7 w-7 sm:hidden"
+            className="h-6 w-auto sm:h-7"
           />
         </Link>
         <div className="flex items-center justify-end gap-1">

@@ -3,12 +3,18 @@
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { rememberReturnPath, signInWithGoogle } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/errors";
-import { supabaseBrowser } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
 
 const SIGN_IN_FAILED = "প্রবেশ করা যায়নি। আবার চেষ্টা করুন।";
 
-export function SignInButton() {
+/**
+ * The single Google entry point. It renders inside the account dropdown (and
+ * anywhere else a signed-out reader is asked to sign in); it no longer sends
+ * anyone to a dedicated sign-in page.
+ */
+export function SignInButton({ className }: { className?: string }) {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
 
@@ -16,18 +22,14 @@ export function SignInButton() {
     setBusy(true);
     setError("");
     try {
-      const supabase = supabaseBrowser();
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback/`,
-          queryParams: { prompt: "select_account" },
-        },
-      });
+      rememberReturnPath();
+      const { error } = await signInWithGoogle();
       if (error) {
         setError(errorMessage("google sign-in", error, SIGN_IN_FAILED));
         setBusy(false);
       }
+      // On success the browser is already navigating to Google, so `busy` stays
+      // set: the button cannot fire a second OAuth request while it redirects.
     } catch (err) {
       setError(errorMessage("google sign-in", err, SIGN_IN_FAILED));
       setBusy(false);
@@ -35,7 +37,7 @@ export function SignInButton() {
   }
 
   return (
-    <div className="flex w-full flex-col items-center gap-2">
+    <div className={cn("flex w-full flex-col items-center gap-2", className)}>
       <Button onClick={signIn} disabled={busy} className="w-full" size="lg">
         <svg viewBox="0 0 24 24" aria-hidden className="mr-2 size-5">
           <path

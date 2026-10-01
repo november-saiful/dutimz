@@ -16,9 +16,9 @@
  *
  * Three consequences of scaling instead of re-laying out:
  *
- *  - A card is 762×513 in design units, so on a phone the pull quote and the
- *    byline chips would print under 12px. Below `DETAIL_MIN_SCALE` a card keeps
- *    only the headline and the picture;
+ *  - a card is 762×513 in design units, so on a phone its type is small — but
+ *    every card still shows its section badge, headline, short description and
+ *    byline chips, because a deck that carried only the headline read as empty;
  *  - the ring stays invisible until the page has measured itself, so a phone
  *    never shows a few hundred milliseconds of the deck at desktop scale. The box
  *    is reserved in CSS (`aspect-ratio`), so nothing below it moves when the deck
@@ -48,6 +48,8 @@ export interface CarouselItem {
   id: string | number;
   stat: string;
   quote: string;
+  /** The section label, shown as a badge on every card. */
+  category?: string;
   author: string;
   role: string;
   defaultImage: string;
@@ -71,9 +73,6 @@ const VISIBLE_OFFSETS = [-4, -3, -2, -1, 0, 1, 2, 3, 4] as const;
  */
 const RING_WIDTH = 1012;
 const RING_HEIGHT = 513;
-
-/** The scale at which the pull quote (18px in the design) still reaches 12px. */
-const DETAIL_MIN_SCALE = 12 / 18;
 
 const TRANSITION_SPRING = {
   type: "spring",
@@ -167,9 +166,6 @@ export function CalendlyCarousel({
   const activeIndex = ((page % total) + total) % total;
   const scale = (ringWidth ?? RING_WIDTH) / RING_WIDTH;
   const measured = ringWidth !== null;
-  // On a phone the card is a fifth of its design size, so its smaller type would
-  // print too small to read and the card keeps the headline and the picture only.
-  const showDetail = scale >= DETAIL_MIN_SCALE;
 
   useEffect(() => {
     // Measured from the deck's own box rather than the window: the sidebar takes
@@ -567,6 +563,12 @@ export function CalendlyCarousel({
                         )}
                       >
                         <div className="flex-1 min-w-0 flex flex-col items-start text-left justify-between py-1 gap-3">
+                          {item.category && (
+                            <span className="w-fit inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary select-none">
+                              {item.category}
+                            </span>
+                          )}
+
                           <h3
                             title={item.stat}
                             className="text-4xl font-bold tracking-tight text-foreground leading-tight w-full line-clamp-3 break-words"
@@ -574,8 +576,7 @@ export function CalendlyCarousel({
                             {item.stat}
                           </h3>
 
-                          {showDetail && (
-                            <>
+                          <>
                               <div className="relative w-full min-w-0 my-auto py-1">
                                 <span
                                   aria-hidden="true"
@@ -616,8 +617,7 @@ export function CalendlyCarousel({
                                   </span>
                                 </div>
                               </div>
-                            </>
-                          )}
+                          </>
                         </div>
 
                         <div className="relative shrink-0 overflow-hidden rounded-[22px] bg-muted w-[clamp(180px,44%,330px)] h-full">

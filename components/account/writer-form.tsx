@@ -24,6 +24,8 @@ import {
   type GalleryItem,
 } from "@/components/account/gallery-uploader";
 import { ReporterApplication } from "@/components/account/reporter-application";
+import { SignInButton } from "@/components/auth/sign-in-button";
+import { rememberReturnPath, signInWithGoogle } from "@/lib/auth-client";
 import { errorMessage, reportError } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
 import { CATEGORIES } from "@/lib/site";
@@ -107,7 +109,11 @@ export function WriterForm() {
         return;
       }
       if (!user) {
-        window.location.assign("/auth/sign-in");
+        rememberReturnPath();
+        const { error: oauthError } = await signInWithGoogle();
+        if (oauthError) {
+          setError(errorMessage("writer sign-in", oauthError, "প্রবেশ করা যায়নি। আবার চেষ্টা করুন।"));
+        }
         return;
       }
       // Clients hold no direct write grant on articles: the SECURITY DEFINER
@@ -175,9 +181,7 @@ export function WriterForm() {
             প্রতিবেদন আপনার অ্যাকাউন্টের সঙ্গেই যুক্ত থাকে—প্রকাশকের পরিচয়,
             পারিশ্রমিক ও সম্পাদকীয় যোগাযোগ সবই অ্যাকাউন্ট থেকে নির্ধারিত হয়।
           </p>
-          <Button asChild>
-            <Link href="/auth/sign-in">গুগল দিয়ে প্রবেশ করুন →</Link>
-          </Button>
+          <SignInButton />
         </CardContent>
       </Card>
     );

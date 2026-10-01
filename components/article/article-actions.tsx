@@ -1,26 +1,37 @@
 "use client";
 
 import * as React from "react";
-import { Bookmark, Heart, Share2 } from "lucide-react";
+import { Bookmark, Heart, Plus, Share2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { rememberReturnPath, signInWithGoogle } from "@/lib/auth-client";
 import { errorMessage, reportError } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
+
+type ArticleActionsProps = {
+  articleId: string;
+  articleTitle: string;
+  correctionSubject: string;
+  /**
+   * "inline" (default) is the row of actions; "floating" is the phone-only
+   * single call to action that unfolds the same actions when tapped.
+   */
+  variant?: "inline" | "floating";
+};
 
 export function ArticleActions({
   articleId,
   articleTitle,
   correctionSubject,
-}: {
-  articleId: string;
-  articleTitle: string;
-  correctionSubject: string;
-}) {
+  variant = "inline",
+}: ArticleActionsProps) {
   const [likes, setLikes] = React.useState<number | null>(null);
   const [reacted, setReacted] = React.useState(false);
   const [bookmarked, setBookmarked] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [notice, setNotice] = React.useState("");
+  const [open, setOpen] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -77,12 +88,12 @@ export function ArticleActions({
     const { data: { user }, error } = await supabase.auth.getUser();
     if (error) throw error;
     if (!user) {
-      sessionStorage.setItem(
-        "dutimz-after-auth",
-        `${location.pathname}${location.search}`,
-      );
+      // No sign-in page: the gated action starts the Google flow immediately and
+      // returns the reader to this article afterwards.
+      rememberReturnPath();
       setNotice("এই সুবিধাটি ব্যবহার করতে গুগল দিয়ে প্রবেশ করুন।");
-      window.setTimeout(() => window.location.assign("/auth/sign-in"), 550);
+      const { error: oauthError } = await signInWithGoogle();
+      if (oauthError) throw oauthError;
       return null;
     }
     return { supabase, user };
@@ -178,6 +189,91 @@ export function ArticleActions({
     }
   }
 
+  const likeLabel = `${likes === null ? "…" : new Intl.NumberFormat("bn-BD").format(likes)} ভালো লেগেছে`;
+  const correctionHref = `mailto:corrections@dutimz.com?subject=${encodeURIComponent(correctionSubject)}`;
+
+  /*
+    Phones get one floating call to action instead of a bar of four buttons: the
+    round button unfolds the same actions, so the article body stays clear while
+    every action is still one tap away. Desktop keeps the inline row.
+  */
+  if (variant === "floating") {
+    return (
+      <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-3 lg:hidden">
+        {open && (
+          <>
+            <button
+              type="button"
+              aria-label="কার্যক্রম বন্ধ করুন"
+              className="fixed inset-0 -z-10 cursor-default bg-background/40 backdrop-blur-[1px]"
+              onClick={() => setOpen(false)}
+            />
+            <div className="flex flex-col items-end gap-2">
+              <button
+                type="button"
+                onClick={toggleReaction}
+                disabled={busy}
+                aria-pressed={reacted}
+                className={cn(
+                  "flex items-center gap-2 rounded-full border bg-background px-3.5 py-2 text-sm font-medium shadow-sm",
+                  reacted && "border-primary text-primary",
+                )}
+              >
+                <Heart className={cn("size-4", reacted && "fill-current")} />
+                {likeLabel}
+              </button>
+              <button
+                type="button"
+                onClick={toggleBookmark}
+                disabled={busy}
+                aria-pressed={bookmarked}
+                className={cn(
+                  "flex items-center gap-2 rounded-full border bg-background px-3.5 py-2 text-sm font-medium shadow-sm",
+                  bookmarked && "border-primary text-primary",
+                )}
+              >
+                <Bookmark className={cn("size-4", bookmarked && "fill-current")} />
+                {bookmarked ? "সংরক্ষিত" : "সংরক্ষণ"}
+              </button>
+              <button
+                type="button"
+                onClick={share}
+                className="flex items-center gap-2 rounded-full border bg-background px-3.5 py-2 text-sm font-medium shadow-sm"
+              >
+                <Share2 className="size-4" />
+                শেয়ার করুন
+              </button>
+              <a
+                href={correctionHref}
+                className="flex items-center gap-2 rounded-full border bg-background px-3.5 py-2 text-sm font-medium shadow-sm"
+              >
+                সংশোধন জানান
+              </a>
+            </div>
+            {notice && (
+              <p
+                className="max-w-[16rem] rounded-lg border bg-background px-3 py-2 text-xs text-muted-foreground shadow-sm"
+                role="status"
+              >
+                {notice}
+              </p>
+            )}
+          </>
+        )}
+        <Button
+          type="button"
+          size="icon"
+          aria-expanded={open}
+          aria-label={open ? "কার্যক্রম বন্ধ করুন" : "প্রতিবেদনের কার্যক্রম"}
+          onClick={() => setOpen((current) => !current)}
+          className="size-14 rounded-full shadow-lg"
+        >
+          {open ? <X className="size-6" /> : <Plus className="size-6" />}
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex flex-wrap gap-2">
@@ -207,11 +303,7 @@ export function ArticleActions({
           শেয়ার করুন
         </Button>
         <Button variant="outline" size="sm" asChild>
-          <a
-            href={`mailto:corrections@dutimz.com?subject=${encodeURIComponent(correctionSubject)}`}
-          >
-            সংশোধন জানান
-          </a>
+          <a href={correctionHref}>সংশোধন জানান</a>
         </Button>
       </div>
       {notice && (

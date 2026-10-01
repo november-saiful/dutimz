@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Bookmark } from "lucide-react";
 
+import { SignInButton } from "@/components/auth/sign-in-button";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -63,11 +64,7 @@ export function SavedPopover() {
               <p className="text-xs text-muted-foreground">
                 বুকমার্ক করা খবর আপনার অ্যাকাউন্টের সঙ্গে সংরক্ষিত থাকে।
               </p>
-              <PopoverClose asChild>
-                <Button size="sm" asChild>
-                  <Link href="/auth/sign-in">প্রবেশ করুন</Link>
-                </Button>
-              </PopoverClose>
+              <SignInButton />
             </div>
           )}
 

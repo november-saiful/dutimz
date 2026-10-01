@@ -203,7 +203,8 @@ export default async function ArticlePage({
             </Card>
           )}
 
-          <Card>
+          {/* Phones use the single floating CTA below instead of this row. */}
+          <Card className="hidden lg:block">
             <CardContent className="pt-6">
               <ArticleActions
                 articleId={article.id}
@@ -295,14 +296,13 @@ export default async function ArticlePage({
         </aside>
       </div>
 
-      {/* Mobile sticky action bar */}
-      <div className="sticky bottom-0 -mx-4 border-t bg-background/95 px-4 py-2 backdrop-blur-sm sm:-mx-6 sm:px-6 lg:hidden">
-        <ArticleActions
-          articleId={article.id}
-          articleTitle={article.title}
-          correctionSubject={`সংশোধন: ${article.title}`}
-        />
-      </div>
+      {/* Phone: one floating call to action that unfolds every article action. */}
+      <ArticleActions
+        variant="floating"
+        articleId={article.id}
+        articleTitle={article.title}
+        correctionSubject={`সংশোধন: ${article.title}`}
+      />
 
       <script
         type="application/ld+json"

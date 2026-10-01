@@ -22,7 +22,6 @@ const ROUTES = [
   '/search/',
   '/statistics/',
   '/saved/',
-  '/auth/sign-in/',
   '/account/',
   '/account/write/',
   '/account/balance/',
@@ -150,6 +149,7 @@ test('every route stays inside the viewport at common widths', async () => {
                 width: card.width,
                 height: card.height,
                 quote: !!active.querySelector('p'),
+                badge: !!active.querySelector('span[class*="bg-primary/10"]'),
                 chips,
               };
             });
@@ -168,10 +168,11 @@ test('every route stays inside the viewport at common widths', async () => {
                   `${route} at ${width}px: the card in focus is not the desktop card scaled (${Math.round(deck.width)}×${Math.round(deck.height)} at scale ${deck.scale})`,
                 );
               }
-              const detailed = deck.scale >= 12 / 18;
-              if (deck.quote !== detailed || (deck.chips > 0) !== detailed) {
+              // Every card shows its section badge, short description and byline
+              // chips at every scale — a deck carrying only the headline read empty.
+              if (!deck.quote || !deck.badge || deck.chips === 0) {
                 failures.push(
-                  `${route} at ${width}px: the card's smaller type is ${detailed ? 'missing' : 'still rendered'} at scale ${deck.scale}`,
+                  `${route} at ${width}px: the card is missing its badge, short description or chips at scale ${deck.scale}`,
                 );
               }
             }
@@ -191,4 +192,132 @@ test('every route stays inside the viewport at common widths', async () => {
   }
 
   assert.deepEqual(failures, [], `pages failed to render or overflowed:\n  ${failures.join('\n  ')}`);
+});
+
+test('the account dropdown fits inside a phone viewport', async () => {
+  // The unified menu once carried a সংবাদ বিভাগ submenu that pushed it past a
+  // phone's fold, so the menu itself has to be measured, not just the page under
+  // it. This boots the same production build and opens the menu at the widths and
+  // heights a phone reports. On a genuinely short screen the menu must scroll
+  // internally rather than hang off the bottom.
+  const port = 3198;
+  const origin = `http://127.0.0.1:${port}`;
+  const server = spawn(
+    process.execPath,
+    ['node_modules/next/dist/bin/next', 'start', '-p', String(port)],
+    {
+      env: { ...process.env, NEXT_PUBLIC_DEMO_MODE: 'true' },
+      stdio: 'ignore',
+    },
+  );
+  const failures = [];
+  try {
+    await waitForServer(origin);
+    const browser = await chromium.launch();
+    try {
+      for (const viewport of [
+        { width: 390, height: 844, scrolls: false },
+        { width: 390, height: 640, scrolls: false },
+        { width: 360, height: 740, scrolls: false },
+        // Shorter than the menu: it must stay on-screen and scroll internally.
+        { width: 390, height: 360, scrolls: true },
+      ]) {
+        const page = await browser.newPage({
+          viewport: { width: viewport.width, height: viewport.height },
+          deviceScaleFactor: 1,
+        });
+        await page.route('**/*', (handler) => (handler.request().url().startsWith(origin) ? handler.continue() : handler.abort()));
+        try {
+          await page.goto(`${origin}/`, { waitUntil: 'load' });
+          const trigger = page.locator('[aria-haspopup="menu"]');
+          await trigger.waitFor({ state: 'visible', timeout: 10000 });
+          await trigger.click();
+          await page.locator('[role="menu"]').waitFor({ state: 'visible', timeout: 5000 });
+          // The menu animates open over 150ms; measure it once it has settled.
+          await page.waitForTimeout(250);
+
+          const measured = await page.evaluate(() => {
+            const menu = document.querySelector('[role="menu"]');
+            if (!menu) return null;
+            const rect = menu.getBoundingClientRect();
+            // The first child is the measured-height scroller inside the content.
+            const scroller = menu.firstElementChild;
+            const root = document.documentElement;
+            return {
+              top: rect.top,
+              left: rect.left,
+              right: rect.right,
+              bottom: rect.bottom,
+              viewportWidth: window.innerWidth,
+              viewportHeight: window.innerHeight,
+              horizontalOverflow: root.scrollWidth - root.clientWidth,
+              scrollHeight: scroller?.scrollHeight ?? rect.height,
+              clientHeight: scroller?.clientHeight ?? rect.height,
+            };
+          });
+
+          const label = `${viewport.width}x${viewport.height}`;
+          if (!measured) {
+            failures.push(`${label}: the account menu never opened`);
+            continue;
+          }
+          const tolerance = 1;
+          if (measured.top < -tolerance || measured.left < -tolerance) {
+            failures.push(`${label}: the menu starts off-screen at ${Math.round(measured.top)},${Math.round(measured.left)}`);
+          }
+          if (measured.right > measured.viewportWidth + tolerance) {
+            failures.push(`${label}: the menu is ${Math.round(measured.right - measured.viewportWidth)}px past the right edge`);
+          }
+          if (measured.bottom > measured.viewportHeight + tolerance) {
+            failures.push(`${label}: the menu is ${Math.round(measured.bottom - measured.viewportHeight)}px past the bottom edge`);
+          }
+          if (measured.horizontalOverflow > 1) {
+            failures.push(`${label}: the page overflows horizontally by ${measured.horizontalOverflow}px while the menu is open`);
+          }
+
+          // A short viewport is handled by scrolling the menu, never by letting it
+          // hang off the screen; a roomy one must not scroll at all.
+          const scrolls = measured.scrollHeight > measured.clientHeight + tolerance;
+          if (viewport.scrolls && !scrolls) {
+            failures.push(
+              `${label}: the menu should scroll internally but fits entirely (${measured.scrollHeight}px of content in ${measured.clientHeight}px)`,
+            );
+          }
+          if (!viewport.scrolls && scrolls) {
+            failures.push(
+              `${label}: the menu scrolls internally though it has room to fit (${measured.scrollHeight}px of content in ${measured.clientHeight}px)`,
+            );
+          }
+
+          if (scrolls) {
+            // Every entry, including the last, has to be reachable by scrolling.
+            const reachable = await page.evaluate(() => {
+              const menu = document.querySelector('[role="menu"]');
+              const scroller = menu?.firstElementChild;
+              if (!scroller) return null;
+              scroller.scrollTop = scroller.scrollHeight;
+              const last = scroller.lastElementChild?.getBoundingClientRect();
+              return {
+                lastBottom: last?.bottom ?? Number.POSITIVE_INFINITY,
+                viewportHeight: window.innerHeight,
+              };
+            });
+            if (!reachable || reachable.lastBottom > reachable.viewportHeight + tolerance) {
+              failures.push(
+                `${label}: the last menu entry is unreachable after scrolling (bottom ${Math.round(reachable?.lastBottom ?? -1)} vs viewport ${reachable?.viewportHeight ?? 0})`,
+              );
+            }
+          }
+        } finally {
+          await page.close();
+        }
+      }
+    } finally {
+      await browser.close();
+    }
+  } finally {
+    server.kill('SIGTERM');
+  }
+
+  assert.deepEqual(failures, [], `the account menu did not fit the viewport:\n  ${failures.join('\n  ')}`);
 });

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { SignInButton } from "@/components/auth/sign-in-button";
 import { StoryCard } from "@/components/dashboard/story-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -29,9 +30,7 @@ export function SavedStories() {
           <p className="text-sm text-muted-foreground">
             বুকমার্ক করা খবর আপনার অ্যাকাউন্টের সঙ্গে সংরক্ষিত থাকে।
           </p>
-          <Button asChild>
-            <Link href="/auth/sign-in">গুগল দিয়ে প্রবেশ করুন →</Link>
-          </Button>
+          <SignInButton />
         </CardContent>
       </Card>
     );

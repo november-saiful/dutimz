@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Field, FormMessage } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { rememberReturnPath, signInWithGoogle } from "@/lib/auth-client";
 import { errorMessage, reportError } from "@/lib/errors";
 import { one, supabaseBrowser } from "@/lib/supabase";
 import { relativeTimeBn } from "@/lib/site";
@@ -68,11 +69,13 @@ export function Comments({ articleId }: { articleId: string }) {
         return;
       }
       if (!user) {
-        sessionStorage.setItem(
-          "dutimz-after-auth",
-          `${location.pathname}${location.search}`,
-        );
-        window.location.assign("/auth/sign-in");
+        // No sign-in page: the reader is taken straight to Google and returned
+        // to this article afterwards.
+        rememberReturnPath();
+        const { error: oauthError } = await signInWithGoogle();
+        if (oauthError) {
+          setError(errorMessage("comment sign-in", oauthError, "মন্তব্য পাঠানো যায়নি। আবার চেষ্টা করুন।"));
+        }
         return;
       }
       const result = await supabase.from("comments").insert({

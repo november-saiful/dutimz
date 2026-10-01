@@ -7,8 +7,11 @@ export async function GET(request: Request) {
   const code = url.searchParams.get("code");
   const next = url.searchParams.get("next") ?? "/";
 
+  // There is no sign-in page to fall back to: a callback without a code (a
+  // cancelled or mistyped round-trip) simply returns the reader home, where the
+  // account menu still offers the Google button.
   if (!code) {
-    return NextResponse.redirect(new URL("/auth/sign-in/", request.url));
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   const cookieStore = await cookies();
@@ -31,9 +34,7 @@ export async function GET(request: Request) {
 
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
-    const signIn = new URL("/auth/sign-in/", request.url);
-    signIn.searchParams.set("error", "callback_failed");
-    return NextResponse.redirect(signIn);
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   const destination = next.startsWith("/") ? next : "/";

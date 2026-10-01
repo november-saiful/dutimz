@@ -100,7 +100,6 @@ test('every portal route exists in the App Router', async () => {
     'app/about/page.tsx',
     'app/guidelines/page.tsx',
     'app/saved/page.tsx',
-    'app/auth/sign-in/page.tsx',
     'app/auth/callback/route.ts',
     'app/api/config/route.ts',
     'app/account/page.tsx',
@@ -115,6 +114,12 @@ test('every portal route exists in the App Router', async () => {
   ]) {
     assert.ok(await exists(route), `${route} must exist`);
   }
+  // There is no dedicated sign-in page: the account menu, and every gated
+  // action, start the Google flow directly.
+  await assert.rejects(
+    () => exists('app/auth/sign-in/page.tsx'),
+    'the dedicated sign-in page must be gone',
+  );
   void projectRoot;
 });
 
@@ -229,22 +234,35 @@ test('the header account menu is the session dropdown with DUTIMZ routes', async
   const table = await readProjectFile('lib/account-menu.ts');
   assert.match(header, /@\/lib\/account-menu/, 'the header must route through the shared table');
   assert.match(dropdown, /@\/lib\/account-menu/, 'the menu must read the shared table');
-  for (const route of ['/profile/me/', '/account/', '/saved/', '/about/', '/auth/sign-in/']) {
+  for (const route of ['/profile/me/', '/account/', '/saved/', '/about/']) {
     assert.ok(table.includes(`"${route}"`), `the account route table must include ${route}`);
   }
   assert.match(header, /signOut/);
 });
 
-test('the signed-out account menu offers sign-in and hides session-only entries', async () => {
-  // A visitor with no session is still a reader: the account menu must open for
-  // them and lead somewhere real. It must offer sign-in, and it must not offer
-  // the entries that presuppose a session (profile, settings, notifications,
-  // switch account, log out) — those belong behind the signed-in branch only.
+test('the account menu is one menu in both states and signs guests in from it', async () => {
+  // A visitor with no session is still a reader. The account menu no longer
+  // branches into two different shapes: the same groups render for everyone,
+  // and the only differences are the Google button (signed out) and the account
+  // group (signed in). A signed-out tap on a session-only row starts the OAuth
+  // flow instead of navigating somewhere that would bounce them back.
   const dropdown = await readProjectFile('components/ui/user-dropdown.tsx');
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
 
-  // The menu branches on whether a session user is present.
   assert.match(dropdown, /isGuest/, 'the dropdown must distinguish a signed-out visitor');
+  assert.doesNotMatch(
+    dropdown,
+    /guestExplore|guestInfo|MENU_ITEMS\.guest/,
+    'the two-shape guest menu is gone',
+  );
+  assert.match(dropdown, /<SignInButton/, 'the Google button lives inside the menu');
+  assert.match(dropdown, /isGuest && \(/, 'only the signed-out branch adds it');
+  assert.doesNotMatch(dropdown, /href="\/auth\/sign-in"/, 'there is no sign-in page to link to');
+
+  // Session-only rows stay visible in both states; a signed-out tap routes to
+  // the header's Google action rather than to the row's own destination.
+  assert.match(dropdown, /requiresSession/);
+  assert.match(dropdown, /isGuest && item\.requiresSession \? "sign-in" : item\.action/);
 
   // The header always mounts the menu, passing null when signed out — never a
   // bare avatar that drops the visitor on a page they cannot use.
@@ -252,63 +270,25 @@ test('the signed-out account menu offers sign-in and hides session-only entries'
   assert.match(header, /:\s*null\}/);
   assert.doesNotMatch(header, /<Link href="\/account"/, 'signed-out must not fall back to a bare /account link');
 
-  // Isolate the guest menu entries (the `guest`, `guestExplore` and `guestInfo`
-  // arrays) and prove they are separate from the session-only definitions.
-  const guestStart = dropdown.indexOf('guest: [');
-  const guestEnd = dropdown.indexOf('};', dropdown.indexOf('guestInfo: ['));
-  assert.ok(guestStart > -1 && guestEnd > guestStart, 'the guest menu entries must exist');
-  const guestMenu = dropdown.slice(guestStart, guestEnd);
-
-  const guestActions = [...guestMenu.matchAll(/action:\s*"([^"]+)"/g)].map((m) => m[1]);
-  assert.ok(guestActions.includes('sign-in'), 'the guest menu must offer sign-in');
-
-  // Every guest entry must map to a real route in the shared table, so the menu
-  // is never a dead end.
-  const table = await readProjectFile('lib/account-menu.ts');
-  const routesBlock = table.slice(
-    table.indexOf('export const ACCOUNT_ROUTES'),
-    table.indexOf('}', table.indexOf('export const ACCOUNT_ROUTES')),
-  );
-  const routeKeys = [...routesBlock.matchAll(/(?:^|[\s,{])"?([a-z][a-z-]*)"?\s*:/g)].map((m) => m[1]);
-  for (const action of guestActions) {
-    assert.ok(routeKeys.includes(action), `the account route table must aim ${action} at a real route`);
-  }
-
-  // None of the session-only actions may leak into the guest menu.
-  for (const sessionOnly of ['logout', 'switch', 'profile', 'settings', 'notifications']) {
-    assert.doesNotMatch(
-      guestMenu,
-      new RegExp(`"${sessionOnly}"`),
-      `the guest menu must not offer ${sessionOnly}`,
-    );
-  }
-
-  // The session-only group is gated on a signed-in user.
-  assert.match(
-    dropdown,
-    /\{!isGuest && accountItems\.length > 0 && \(/,
-    'switch account / log out must only render when signed in',
-  );
+  // One shared sender: the menu button and the header's gated actions call it.
+  assert.match(header, /signInWithGoogle/);
+  assert.match(header, /rememberReturnPath/);
+  const helper = await readProjectFile('lib/auth-client.ts');
+  assert.match(helper, /signInWithOAuth/);
+  assert.match(helper, /provider:\s*"google"/);
+  assert.doesNotMatch(helper, /\/auth\/sign-in/);
 });
 
-test('the signed-in account menu maps every entry to a route or an explicit hide', async () => {
-  // The counterpart to the signed-out guard. When a user exists the menu offers
-  // the session entries; each one must either route somewhere real or be an entry
-  // the header deliberately hides (there is no presence system, theming or
-  // premium tier to back the others). Session-only entries must stay behind the
-  // signed-in branch so they never surface to a visitor without a session.
+test('every account menu action maps to a route, a hidden id, or an auth action', async () => {
+  // When a user exists the menu offers the session entries; each one must either
+  // route somewhere real, be an entry the header deliberately hides, or be one of
+  // the auth actions (sign-in / switch) the header answers with Google.
   const dropdown = await readProjectFile('components/ui/user-dropdown.tsx');
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
 
-  // The session definitions sit between the `profile` array and the guest arrays.
-  const sessionStart = dropdown.indexOf('profile: [');
-  const sessionEnd = dropdown.indexOf('guest: [');
-  assert.ok(sessionStart > -1 && sessionEnd > sessionStart, 'the session menu entries must exist');
-  const sessionMenu = dropdown.slice(sessionStart, sessionEnd);
-
-  const sessionActions = [...sessionMenu.matchAll(/action:\s*"([^"]+)"/g)].map((m) => m[1]);
-  for (const required of ['profile', 'settings', 'notifications', 'switch', 'logout']) {
-    assert.ok(sessionActions.includes(required), `the signed-in menu must define ${required}`);
+  const menuActions = [...dropdown.matchAll(/action:\s*"([^"]+)"/g)].map((m) => m[1]);
+  for (const required of ['profile', 'settings', 'notifications', 'help', 'saved', 'statistics', 'corrections', 'guidelines', 'about', 'switch', 'logout']) {
+    assert.ok(menuActions.includes(required), `the menu must define ${required}`);
   }
 
   // The table names the actions the site hides on purpose, so a missing route is
@@ -322,32 +302,32 @@ test('the signed-in account menu maps every entry to a route or an explicit hide
     table.indexOf('export const ACCOUNT_SIGN_OUT_ROUTES'),
     table.indexOf('}', table.indexOf('export const ACCOUNT_SIGN_OUT_ROUTES')),
   );
+  const authBlock = table.slice(
+    table.indexOf('export const ACCOUNT_AUTH_ACTIONS'),
+    table.indexOf(']', table.indexOf('export const ACCOUNT_AUTH_ACTIONS')),
+  );
   const routeKeys = [routesBlock, signOutBlock].flatMap((block) =>
     [...block.matchAll(/(?:^|[\s,{])"?([a-z][a-z-]*)"?\s*:/g)].map((m) => m[1]),
   );
+  const authKeys = [...authBlock.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
   const hiddenStart = table.indexOf('export const ACCOUNT_HIDDEN_ACTIONS = [');
   const hiddenEnd = table.indexOf(']', hiddenStart);
   assert.ok(hiddenStart > -1 && hiddenEnd > hiddenStart, 'the shared table must declare hidden actions');
   const hidden = [...table.slice(hiddenStart, hiddenEnd).matchAll(/"([^"]+)"/g)].map((m) => m[1]);
 
-  for (const action of sessionActions) {
+  for (const action of menuActions) {
     assert.ok(
-      hidden.includes(action) || routeKeys.includes(action),
-      `signed-in action ${action} must be routed or explicitly hidden`,
+      hidden.includes(action) || routeKeys.includes(action) || authKeys.includes(action),
+      `menu action ${action} must be routed, an auth action, or explicitly hidden`,
     );
   }
 
-  // Logging out must actually end the session, not merely navigate away.
+  // Log out ends the session; switch account ends it and signs in again.
   assert.match(header, /signOut/);
-  assert.match(sessionMenu, /"logout"/);
+  assert.match(header, /action === "sign-in"/);
+  assert.match(header, /action === "switch"/);
 
-  // The signed-out branch renders no session entries, and the account group is
-  // gated on a user — so log out and switch account appear only when signed in.
-  const guestBranchStart = dropdown.indexOf('{isGuest ? (');
-  const guestBranchEnd = dropdown.indexOf(') : (', guestBranchStart);
-  assert.ok(guestBranchStart > -1 && guestBranchEnd > guestBranchStart, 'the signed-out branch must exist');
-  const guestBranch = dropdown.slice(guestBranchStart, guestBranchEnd);
-  assert.doesNotMatch(guestBranch, /accountItems/, 'the signed-out branch must not render the account group');
+  // The account group (switch account / log out) renders only when signed in.
   assert.match(
     dropdown,
     /\{!isGuest && accountItems\.length > 0 && \(/,
@@ -381,6 +361,12 @@ test('the wordmark is centred in the top bar and gone from the rail', async () =
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
   assert.match(header, /dutimz-text-logo\.svg/);
   assert.match(header, /grid-cols-\[minmax\(0,1fr\)_auto_minmax\(0,1fr\)\]/);
+  assert.doesNotMatch(header, /brand-icon\.svg/, 'the bar shows the wordmark at every width');
+  assert.match(
+    header,
+    /hidden truncate text-lg font-semibold md:block/,
+    'the page title belongs to desktop; phones show the wordmark alone',
+  );
   const sidebar = await readProjectFile('components/dashboard/dutimz-sidebar.tsx');
   assert.doesNotMatch(sidebar, /dutimz-text-logo\.svg/);
   assert.doesNotMatch(sidebar, /brand-icon\.svg/, 'the rail carries no branding');
@@ -399,7 +385,7 @@ test('the header bookmark button previews saved reports in a popover', async () 
   assert.match(popover, /PopoverTrigger/);
   assert.match(popover, /useSavedStories/);
   assert.match(popover, /\/saved/);
-  assert.match(popover, /\/auth\/sign-in/);
+  assert.match(popover, /<SignInButton/, 'a signed-out preview offers Google sign-in, not a page');
   // The /saved page and the header preview must share one query, not drift.
   const saved = await readProjectFile('components/account/saved-stories.tsx');
   assert.match(saved, /useSavedStories/);
@@ -505,10 +491,11 @@ test('the homepage leads with the report carousel and keeps the breaking ticker'
   assert.doesNotMatch(carousel, /ScreenTier|peekW/, 'the phone-only geometry must be gone');
   // The box is reserved in CSS, so the ring appearing does not move the page.
   assert.match(carousel, /aspectRatio:/);
-  // At phone scale the card's smaller type would print too small, so it keeps the
-  // headline and the picture only.
-  assert.match(carousel, /DETAIL_MIN_SCALE/);
-  assert.match(carousel, /\{showDetail && \(/);
+  // Every card carries its section badge and short description at every width;
+  // a deck that showed only the headline read as empty.
+  assert.doesNotMatch(carousel, /DETAIL_MIN_SCALE|showDetail/);
+  assert.match(carousel, /item\.category/);
+  assert.match(carousel, /item\.quote/);
   // The dots keep their thumb-sized hit area; swipes are an additional phone control.
   assert.match(carousel, /dotHit/);
   // An auto-rotating deck has to stop when the reader asks motion to stop.

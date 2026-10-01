@@ -5,6 +5,7 @@ import * as React from "react";
 import { Bookmark, PenLine, Settings2, ShieldCheck, Wallet } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { SignInButton } from "@/components/auth/sign-in-button";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -158,9 +159,7 @@ export function AccountDashboard() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button asChild>
-            <Link href="/auth/sign-in">গুগল দিয়ে প্রবেশ করুন →</Link>
-          </Button>
+          <SignInButton />
         </CardContent>
       </Card>
     );

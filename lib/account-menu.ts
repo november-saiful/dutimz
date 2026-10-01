@@ -7,6 +7,10 @@
  * or leave an entry with no route at all. The menu's `action` fields are typed
  * as `AccountMenuActionId`, which makes referencing an unknown id a compile
  * error rather than a silent dead link.
+ *
+ * Google is the only identity provider and there is no sign-in page: the
+ * `sign-in` action starts the OAuth flow, and `switch` ends the session and
+ * starts it again so the reader can pick another identity.
  */
 
 /** Actions that navigate straight to a DUTIMZ route. */
@@ -15,7 +19,6 @@ export const ACCOUNT_ROUTES = {
   settings: "/account/",
   notifications: "/saved/",
   help: "/about/",
-  "sign-in": "/auth/sign-in/",
   saved: "/saved/",
   statistics: "/statistics/",
   corrections: "/corrections/",
@@ -24,20 +27,20 @@ export const ACCOUNT_ROUTES = {
 } as const;
 
 /**
- * Actions that end the session before landing on their route. "switch" sends the
- * reader to sign-in, whose Google button uses `prompt=select_account` so they can
- * pick another identity; "logout" returns home.
+ * Actions that end the session before landing on their route. "switch" is not
+ * listed: it signs out and then immediately re-opens the Google account picker,
+ * so it has no page to land on.
  */
 export const ACCOUNT_SIGN_OUT_ROUTES = {
-  switch: "/auth/sign-in/",
   logout: "/",
 } as const;
 
-/**
- * Entries the menu can render but this site deliberately hides: there is no
+/** Actions handled as a call to the auth provider rather than a navigation. */
+export const ACCOUNT_AUTH_ACTIONS = ["sign-in", "switch"] as const;
+
+/** Entries the menu can render but this site deliberately hides: there is no
  * presence system, theming, premium tier, referral programme, native app or
- * changelog behind them, so they have no destination to route to.
- */
+ * changelog behind them, so they have no destination to route to. */
 export const ACCOUNT_HIDDEN_ACTIONS = [
   "status",
   "appearance",
@@ -47,22 +50,8 @@ export const ACCOUNT_HIDDEN_ACTIONS = [
   "whats-new",
 ] as const;
 
-/** Section entries carry their slug, e.g. `category:campus`. */
-export const CATEGORY_ACTION_PREFIX = "category:";
-
 export type AccountMenuActionId =
   | keyof typeof ACCOUNT_ROUTES
   | keyof typeof ACCOUNT_SIGN_OUT_ROUTES
+  | (typeof ACCOUNT_AUTH_ACTIONS)[number]
   | (typeof ACCOUNT_HIDDEN_ACTIONS)[number];
-
-export function categoryAction(slug: string): string {
-  return `${CATEGORY_ACTION_PREFIX}${slug}`;
-}
-
-export function isCategoryAction(action: string): boolean {
-  return action.startsWith(CATEGORY_ACTION_PREFIX);
-}
-
-export function categoryHref(action: string): string {
-  return `/category/${action.slice(CATEGORY_ACTION_PREFIX.length)}/`;
-}

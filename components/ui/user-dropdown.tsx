@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { SignInButton } from "@/components/auth/sign-in-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -18,9 +19,8 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { type AccountMenuActionId } from "@/lib/account-menu";
 import { cn } from "@/lib/utils";
-import { categoryAction, type AccountMenuActionId } from "@/lib/account-menu";
-import { CATEGORIES } from "@/lib/site";
 import { Icon } from "@iconify/react";
 
 export type DropdownUser = {
@@ -31,22 +31,19 @@ export type DropdownUser = {
   status: string;
 };
 
-type MenuBadge = {
-  text: string;
-  className?: string;
-};
-
 type MenuItem = {
   icon: string;
   label: string;
   /** An id from `lib/account-menu`; both the menu and the header read that table. */
   action?: AccountMenuActionId;
   iconClass?: string;
-  badge?: MenuBadge;
   rightIcon?: string;
-  showAvatar?: boolean;
-  /** Renders the row as a primary call to action (used for "Sign in"). */
-  emphasis?: boolean;
+  /**
+   * Needs a session to be useful. A signed-out reader who taps one is signed in
+   * first (the header turns the tap into the Google flow) instead of landing on
+   * a page they cannot use.
+   */
+  requiresSession?: boolean;
 };
 
 type StatusOption = {
@@ -58,14 +55,14 @@ type StatusOption = {
 export type UserDropdownProps = {
   /**
    * The signed-in reader, or null/undefined for a visitor with no session. The
-   * menu still opens when signed out: it shows a sign-in call to action instead
-   * of the profile/session entries, so the account menu is never a dead end.
+   * menu is the same in both states — the sign-in button and the session-only
+   * entries are the only rows that change — so the account menu never looks
+   * like a different control depending on who opened it.
    */
   user?: DropdownUser | null;
   onAction?: (action?: string) => void;
   onStatusChange?: (value: string) => void;
   selectedStatus?: string;
-  promoDiscount?: string;
   /**
    * Action ids to hide, for hosts where an item has no destination. The status
    * submenu is hidden with `"status"`; a group left with no visible items is
@@ -81,90 +78,52 @@ const GUEST_USER: DropdownUser = {
   status: "offline",
 };
 
-const MENU_ITEMS: {
-  status: StatusOption[];
-  profile: MenuItem[];
-  premium: MenuItem[];
-  support: MenuItem[];
-  account: MenuItem[];
-  guest: MenuItem[];
-  guestExplore: MenuItem[];
-  guestInfo: MenuItem[];
-} = {
-  status: [
-    { value: "focus", icon: "solar:emoji-funny-circle-line-duotone", label: "Focus" },
-    { value: "offline", icon: "solar:moon-sleep-line-duotone", label: "Appear Offline" },
-  ],
-  profile: [
-    { icon: "solar:user-circle-line-duotone", label: "Your profile", action: "profile" },
-    { icon: "solar:sun-line-duotone", label: "Appearance", action: "appearance" },
-    { icon: "solar:settings-line-duotone", label: "Settings", action: "settings" },
-    { icon: "solar:bell-line-duotone", label: "Notifications", action: "notifications" },
-  ],
-  premium: [
-    {
-      icon: "solar:star-bold",
-      label: "Upgrade to Pro",
-      action: "upgrade",
-      iconClass: "text-primary",
-      badge: { text: "20% off", className: "bg-primary text-primary-foreground text-[11px]" },
-    },
-    { icon: "solar:gift-line-duotone", label: "Referrals", action: "referrals" },
-  ],
-  support: [
-    { icon: "solar:download-line-duotone", label: "Download app", action: "download" },
-    {
-      icon: "solar:letter-unread-line-duotone",
-      label: "What's new?",
-      action: "whats-new",
-      rightIcon: "solar:square-top-down-line-duotone",
-    },
-    {
-      icon: "solar:question-circle-line-duotone",
-      label: "Get help?",
-      action: "help",
-      rightIcon: "solar:square-top-down-line-duotone",
-    },
-  ],
-  account: [
-    {
-      icon: "solar:users-group-rounded-bold-duotone",
-      label: "Switch account",
-      action: "switch",
-      showAvatar: false,
-    },
-    { icon: "solar:logout-2-bold-duotone", label: "Log out", action: "logout" },
-  ],
-  /*
-    A visitor with no session still gets real destinations: the reader tools
-    that need no account, the section index, and the pages that explain the
-    newsroom. Every action maps to a route in the header's handler.
-  */
-  guest: [
-    {
-      icon: "solar:login-3-bold-duotone",
-      label: "প্রবেশ করুন",
-      action: "sign-in",
-      emphasis: true,
-    },
-  ],
-  guestExplore: [
-    { icon: "solar:bookmark-line-duotone", label: "সংরক্ষিত প্রতিবেদন", action: "saved" },
-    { icon: "solar:chart-2-line-duotone", label: "কার্যক্রমের পরিসংখ্যান", action: "statistics" },
-  ],
-  guestInfo: [
-    { icon: "solar:scale-line-duotone", label: "সংশোধন ও তথ্য যাচাই", action: "corrections" },
-    { icon: "solar:document-text-line-duotone", label: "সম্পাদকীয় নীতিমালা", action: "guidelines" },
-    { icon: "solar:info-circle-line-duotone", label: "আমাদের পরিচয়", action: "about" },
-  ],
-};
+const STATUS_OPTIONS: StatusOption[] = [
+  { value: "focus", icon: "solar:emoji-funny-circle-line-duotone", label: "Focus" },
+  { value: "offline", icon: "solar:moon-sleep-line-duotone", label: "Appear Offline" },
+];
+
+/** Reader tools that need an account; signed-out taps become a Google sign-in. */
+const PROFILE_ITEMS: MenuItem[] = [
+  { icon: "solar:user-circle-line-duotone", label: "Your profile", action: "profile", requiresSession: true },
+  { icon: "solar:settings-line-duotone", label: "Settings", action: "settings", requiresSession: true },
+  { icon: "solar:bell-line-duotone", label: "Notifications", action: "notifications", requiresSession: true },
+  {
+    icon: "solar:question-circle-line-duotone",
+    label: "Get help?",
+    action: "help",
+    rightIcon: "solar:square-top-down-line-duotone",
+  },
+];
+
+/** Reader tools that work without a session. */
+const READER_ITEMS: MenuItem[] = [
+  { icon: "solar:bookmark-line-duotone", label: "সংরক্ষিত প্রতিবেদন", action: "saved" },
+  { icon: "solar:chart-2-line-duotone", label: "কার্যক্রমের পরিসংখ্যান", action: "statistics" },
+];
+
+/** Pages that explain the newsroom. */
+const NEWSROOM_ITEMS: MenuItem[] = [
+  { icon: "solar:scale-line-duotone", label: "সংশোধন ও তথ্য যাচাই", action: "corrections" },
+  { icon: "solar:document-text-line-duotone", label: "সম্পাদকীয় নীতিমালা", action: "guidelines" },
+  { icon: "solar:info-circle-line-duotone", label: "আমাদের পরিচয়", action: "about" },
+];
+
+/** Session-only entries, rendered only while signed in. */
+const ACCOUNT_ITEMS: MenuItem[] = [
+  {
+    icon: "solar:users-group-rounded-bold-duotone",
+    label: "Switch account",
+    action: "switch",
+  },
+  { icon: "solar:logout-2-bold-duotone", label: "Log out", action: "logout" },
+];
 
 export const UserDropdown = ({
   user,
   onAction = () => {},
   onStatusChange = () => {},
   selectedStatus = "online",
-  promoDiscount = "20% off",
   hiddenActions = [],
 }: UserDropdownProps) => {
   const isGuest = !user;
@@ -174,49 +133,36 @@ export const UserDropdown = ({
     items.filter((item) => !item.action || !hidden.has(item.action));
   const showStatus = !isGuest && !hidden.has("status");
   const groups = [
-    visibleItems(MENU_ITEMS.profile),
-    visibleItems(MENU_ITEMS.premium),
-    visibleItems(MENU_ITEMS.support),
+    visibleItems(PROFILE_ITEMS),
+    visibleItems(READER_ITEMS),
+    visibleItems(NEWSROOM_ITEMS),
   ].filter((items) => items.length > 0);
-  const guestItems = visibleItems(MENU_ITEMS.guest);
-  const guestExplore = visibleItems(MENU_ITEMS.guestExplore);
-  const guestInfo = visibleItems(MENU_ITEMS.guestInfo);
-  const showCategories = !hidden.has("categories");
-  const categories = CATEGORIES.filter((category) => category.slug !== "all");
-  const accountItems = visibleItems(MENU_ITEMS.account);
+  const accountItems = visibleItems(ACCOUNT_ITEMS);
+
+  const runAction = (item: MenuItem) => {
+    // A signed-out reader tapping a session-only row signs in rather than
+    // landing on a page that would only bounce them back.
+    onAction(isGuest && item.requiresSession ? "sign-in" : item.action);
+  };
 
   const renderMenuItem = (item: MenuItem, index: number) => (
     <DropdownMenuItem
       key={index}
       className={cn(
-        item.badge || item.showAvatar || item.rightIcon ? "justify-between" : "",
+        item.rightIcon ? "justify-between" : "",
         "p-2 rounded-lg cursor-pointer",
-        item.emphasis &&
-          "bg-primary text-primary-foreground focus:bg-primary/90 focus:text-primary-foreground",
       )}
-      onClick={() => onAction(item.action)}
+      onClick={() => runAction(item)}
     >
       <span className="flex items-center gap-1.5 font-medium">
         <Icon
           icon={item.icon}
-          className={cn(
-            "size-5",
-            item.emphasis ? "text-primary-foreground" : item.iconClass || "text-muted-foreground",
-          )}
+          className={cn("size-5", item.iconClass || "text-muted-foreground")}
         />
         {item.label}
       </span>
-      {item.badge && (
-        <Badge className={item.badge.className}>{promoDiscount || item.badge.text}</Badge>
-      )}
       {item.rightIcon && (
         <Icon icon={item.rightIcon} className="size-4 text-muted-foreground" />
-      )}
-      {item.showAvatar && (
-        <Avatar className="cursor-pointer size-6 shadow-sm border border-border">
-          {activeUser.avatar ? <AvatarImage src={activeUser.avatar} alt={activeUser.name} /> : null}
-          <AvatarFallback>{activeUser.initials}</AvatarFallback>
-        </Avatar>
       )}
     </DropdownMenuItem>
   );
@@ -240,124 +186,100 @@ export const UserDropdown = ({
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
-        className="no-scrollbar w-[310px] rounded-2xl bg-popover p-0 text-popover-foreground"
+        className="w-[310px] rounded-2xl bg-popover p-0 text-popover-foreground"
         align="end"
+        /*
+          Keep a small gap from the viewport edge. Radix hands the scroller the
+          room between the trigger and that boundary, so the content's 1px border
+          still lands inside the screen instead of hanging 2px past it.
+        */
+        collisionPadding={8}
       >
-        <section className="rounded-2xl border border-border bg-card p-1 shadow-sm">
-          <div className="flex items-center p-2">
-            <div className="flex-1 flex items-center gap-2">
-              <Avatar className="cursor-pointer size-10 border border-border">
-                {activeUser.avatar ? (
-                  <AvatarImage src={activeUser.avatar} alt={activeUser.name} />
-                ) : null}
-                <AvatarFallback>{activeUser.initials}</AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-semibold text-sm text-foreground">{activeUser.name}</h3>
-                <p className="text-muted-foreground text-xs">{activeUser.username}</p>
+        {/*
+          The wrapper — not the content — is the scroller. The content clips its
+          children to its rounded corners, while this div takes the height Radix
+          measured between the trigger and the screen edge, so a menu taller than
+          a genuinely short viewport scrolls internally instead of hanging off
+          the bottom of the screen.
+        */}
+        <div className="max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto overscroll-contain">
+          <section className="rounded-2xl border border-border bg-card p-1 shadow-sm">
+            <div className="flex items-center p-2">
+              <div className="flex-1 flex items-center gap-2">
+                <Avatar className="cursor-pointer size-10 border border-border">
+                  {activeUser.avatar ? (
+                    <AvatarImage src={activeUser.avatar} alt={activeUser.name} />
+                  ) : null}
+                  <AvatarFallback>{activeUser.initials}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="font-semibold text-sm text-foreground">{activeUser.name}</h3>
+                  <p className="text-muted-foreground text-xs">{activeUser.username}</p>
+                </div>
               </div>
+              {!isGuest && (
+                <Badge
+                  className={`${getStatusColor(activeUser.status)} border-[0.5px] text-[11px] rounded-sm capitalize`}
+                >
+                  {activeUser.status}
+                </Badge>
+              )}
             </div>
-            {!isGuest && (
-              <Badge
-                className={`${getStatusColor(activeUser.status)} border-[0.5px] text-[11px] rounded-sm capitalize`}
-              >
-                {activeUser.status}
-              </Badge>
+
+            {/* The one thing a signed-out menu adds: Google sign-in, in place. */}
+            {isGuest && (
+              <div className="px-1 pb-2">
+                <SignInButton />
+              </div>
             )}
-          </div>
 
-          {isGuest ? (
-            <>
-              <DropdownMenuGroup>{guestItems.map(renderMenuItem)}</DropdownMenuGroup>
-              {(guestExplore.length > 0 || showCategories) && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuGroup>
-                    {guestExplore.map(renderMenuItem)}
-                    {showCategories && (
-                      <DropdownMenuSub>
-                        <DropdownMenuSubTrigger className="cursor-pointer p-2 rounded-lg">
-                          <span className="flex items-center gap-1.5 font-medium">
-                            <Icon
-                              icon="solar:layers-minimalistic-bold-duotone"
-                              className="size-5 text-muted-foreground"
-                            />
-                            সংবাদ বিভাগ
-                          </span>
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuPortal>
-                          <DropdownMenuSubContent className="bg-popover">
-                            {categories.map((category) => (
-                              <DropdownMenuItem
-                                key={category.slug}
-                                className="p-2 rounded-lg cursor-pointer"
-                                onClick={() => onAction(categoryAction(category.slug))}
-                              >
-                                {category.label}
-                              </DropdownMenuItem>
-                            ))}
-                          </DropdownMenuSubContent>
-                        </DropdownMenuPortal>
-                      </DropdownMenuSub>
-                    )}
-                  </DropdownMenuGroup>
-                </>
-              )}
-              {guestInfo.length > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuGroup>{guestInfo.map(renderMenuItem)}</DropdownMenuGroup>
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              {showStatus && (
-                <DropdownMenuGroup>
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger className="cursor-pointer p-2 rounded-lg">
-                      <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
-                        <Icon
-                          icon="solar:smile-circle-line-duotone"
-                          className="size-5 text-muted-foreground"
-                        />
-                        Update status
-                      </span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuPortal>
-                      <DropdownMenuSubContent className="bg-popover">
-                        <DropdownMenuRadioGroup value={selectedStatus} onValueChange={onStatusChange}>
-                          {MENU_ITEMS.status.map((status, index) => (
-                            <DropdownMenuRadioItem className="gap-2" key={index} value={status.value}>
-                              <Icon
-                                icon={status.icon}
-                                className="size-5 text-muted-foreground"
-                              />
-                              {status.label}
-                            </DropdownMenuRadioItem>
-                          ))}
-                        </DropdownMenuRadioGroup>
-                      </DropdownMenuSubContent>
-                    </DropdownMenuPortal>
-                  </DropdownMenuSub>
-                </DropdownMenuGroup>
-              )}
+            {showStatus && (
+              <DropdownMenuGroup>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger className="cursor-pointer p-2 rounded-lg">
+                    <span className="flex items-center gap-1.5 font-medium text-muted-foreground">
+                      <Icon
+                        icon="solar:smile-circle-line-duotone"
+                        className="size-5 text-muted-foreground"
+                      />
+                      Update status
+                    </span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuPortal>
+                    <DropdownMenuSubContent className="bg-popover">
+                      <DropdownMenuRadioGroup value={selectedStatus} onValueChange={onStatusChange}>
+                        {STATUS_OPTIONS.map((status, index) => (
+                          <DropdownMenuRadioItem className="gap-2" key={index} value={status.value}>
+                            <Icon icon={status.icon} className="size-5 text-muted-foreground" />
+                            {status.label}
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuPortal>
+                </DropdownMenuSub>
+              </DropdownMenuGroup>
+            )}
 
-              {groups.map((items, index) => (
-                <React.Fragment key={index}>
-                  {(showStatus || index > 0) && <DropdownMenuSeparator />}
-                  <DropdownMenuGroup>{items.map(renderMenuItem)}</DropdownMenuGroup>
-                </React.Fragment>
-              ))}
-            </>
-          )}
-        </section>
-
-        {!isGuest && accountItems.length > 0 && (
-          <section className="mt-1 p-1 rounded-2xl">
-            <DropdownMenuGroup>{accountItems.map(renderMenuItem)}</DropdownMenuGroup>
+            {/*
+              The menu deliberately carries no section list. Every section already
+              lives in the sidebar's সংবাদ বিভাগ tree, and repeating it here made the
+              dropdown taller than a phone viewport.
+            */}
+            {groups.map((items, index) => (
+              <React.Fragment key={index}>
+                {(showStatus || index > 0) && <DropdownMenuSeparator />}
+                <DropdownMenuGroup>{items.map(renderMenuItem)}</DropdownMenuGroup>
+              </React.Fragment>
+            ))}
           </section>
-        )}
+
+          {!isGuest && accountItems.length > 0 && (
+            <section className="mt-1 p-1 rounded-2xl">
+              <DropdownMenuGroup>{accountItems.map(renderMenuItem)}</DropdownMenuGroup>
+            </section>
+          )}
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );

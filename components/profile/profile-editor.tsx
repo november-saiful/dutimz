@@ -2,6 +2,7 @@
 
 import * as React from "react";
 
+import { SignInButton } from "@/components/auth/sign-in-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -183,8 +184,9 @@ export function ProfileEditor() {
   if (!signedIn) {
     return (
       <Card>
-        <CardContent className="py-8 text-center text-sm text-muted-foreground">
-          প্রোফাইল সম্পাদনা করতে অ্যাকাউন্টে প্রবেশ করুন।
+        <CardContent className="flex flex-col items-center gap-3 py-8 text-center text-sm text-muted-foreground">
+          <p>প্রোফাইল সম্পাদনা করতে অ্যাকাউন্টে প্রবেশ করুন।</p>
+          <SignInButton />
         </CardContent>
       </Card>
     );

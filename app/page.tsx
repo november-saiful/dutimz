@@ -58,7 +58,9 @@ const SECTION_ART: Record<string, string> = {
 /**
  * One deck card per story. The card's bold slot is the headline and its serif
  * slot the excerpt, because a reader scanning the deck is choosing what to read,
- * not comparing statistics — the registry demo wore marketing stats there.
+ * not comparing statistics — the registry demo wore marketing stats there. The
+ * section sits in a badge above the headline and the relative time in the lower
+ * chip, so both are readable at every card size.
  */
 function carouselItems(stories: (Story | PreviewStory)[]): CarouselItem[] {
   return stories.map((story) => {
@@ -79,10 +81,9 @@ function carouselItems(stories: (Story | PreviewStory)[]): CarouselItem[] {
       id: story.slug,
       stat: story.title,
       quote: story.excerpt,
+      category: section,
       author: preview ? story.author : storyCredit(story).name,
-      role: `${section} · ${
-        preview ? story.time : relativeTimeBn(story.published_at)
-      }`,
+      role: preview ? story.time : relativeTimeBn(story.published_at),
       defaultImage: art,
       selectedImage: art,
       alt: `${story.title} — ${section}`,

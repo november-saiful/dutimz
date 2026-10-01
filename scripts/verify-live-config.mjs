@@ -54,7 +54,6 @@ const CANONICAL_PATHS = [
   '/about/',
   '/guidelines/',
   '/corrections/',
-  '/auth/sign-in/',
 ];
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import * as React from "react";
 
+import { SignInButton } from "@/components/auth/sign-in-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { reportError } from "@/lib/errors";
@@ -80,9 +81,7 @@ export function RoleGate({
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-3">
           <p className="text-sm text-muted-foreground">{description}</p>
-          <Button asChild>
-            <Link href="/auth/sign-in">প্রবেশ করুন →</Link>
-          </Button>
+          <SignInButton />
         </CardContent>
       </Card>
     );
