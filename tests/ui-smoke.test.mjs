@@ -791,6 +791,73 @@ test('the spotlight feed pages instead of stopping at thirty posts', async () =>
   assert.doesNotMatch(forum, /\.limit\(\s*30\s*\)/, 'the hard thirty-post ceiling is gone');
 });
 
+test('one Supabase browser client is shared by every surface', async () => {
+  // `createBrowserClient` builds a new GoTrue client on every call, and `supabaseBrowser()` is
+  // called from the effect of nearly every interactive component. A dozen of them sharing one
+  // storage key race over the same refresh token, and the loser gets a 400 from Supabase's
+  // token endpoint and concludes it is signed out — which is how a signed-in reporter was told
+  // to sign in before uploading a photo.
+  const source = await readProjectFile('lib/supabase.ts');
+  assert.match(
+    source,
+    /browserClient\s*\?\?=|if \(!browserClient\)/,
+    'supabaseBrowser must reuse one client instead of building a new one per call',
+  );
+  const body = source.slice(source.indexOf('export function supabaseBrowser'));
+  assert.doesNotMatch(
+    body.slice(0, body.indexOf('\n}')),
+    /return createBrowserClient\(/,
+    'the factory must not be called on every invocation',
+  );
+});
+
+test('a story is submitted with the excerpt argument the RPC requires', async () => {
+  // The excerpt is derived server-side and never typed, but `p_excerpt` is a required argument
+  // of submit_article: PostgreSQL will not let it default, because a defaulted parameter cannot
+  // be followed by a required one and the body comes after it. PostgREST matches a function by
+  // the argument names in the request, so a submission that omits the key matches no function
+  // at all and answers 404 — the report is never created, and nothing in the UI says why.
+  const form = await readProjectFile('components/account/writer-form.tsx');
+  assert.match(form, /rpc\("submit_article"/);
+  assert.match(
+    form,
+    /p_excerpt:\s*null/,
+    'the writer form must send p_excerpt, passing null to mean "derive it"',
+  );
+});
+
+test('the desk is not forced to type a reason, and is told why a username was refused', async () => {
+  const admin = await readProjectFile('components/account/admin-dashboard.tsx');
+  // Scoped to the member dialog: the withdrawal, Spotlight and balance forms still label
+  // their own reason required, which is deliberate.
+  assert.match(
+    admin,
+    /label="কারণ \(ঐচ্ছিক\)"/,
+    'the member dialog reason field must say it is optional',
+  );
+  const reasonField = admin.slice(
+    admin.indexOf('id="edit-reason"'),
+    admin.indexOf('</Field>', admin.indexOf('id="edit-reason"')),
+  );
+  assert.notEqual(reasonField.length, 0, 'the member dialog must have a reason field');
+  assert.doesNotMatch(
+    reasonField,
+    /minLength/,
+    'the member reason field must not enforce a minimum length',
+  );
+  assert.doesNotMatch(
+    admin,
+    /editReason\.trim\(\)\.length < 3/,
+    'the member dialog must not block on a short reason',
+  );
+  assert.match(admin, /NO_REASON/, 'a blank reason is recorded as one that was not given');
+  assert.match(
+    admin,
+    /USERNAME_PATTERN/,
+    'the username rule is mirrored so the desk is told which part of it failed',
+  );
+});
+
 test('shadcn primitives required by the dashboard shell exist', async () => {
   for (const primitive of ['animated-file-tree', 'avatar', 'badge', 'button', 'card', 'chart', 'command', 'connected-carousel', 'field', 'input', 'popover', 'radio-group', 'select', 'separator', 'skeleton', 'textarea', 'tooltip', 'sheet', 'label', 'progress', 'sidebar']) {
     assert.ok(await exists(`components/ui/${primitive}.tsx`), `components/ui/${primitive}.tsx must exist`);

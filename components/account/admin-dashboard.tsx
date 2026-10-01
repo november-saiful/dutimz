@@ -70,6 +70,27 @@ type SortState = {
   direction: "ascending" | "descending";
 };
 
+/**
+ * The rule the audited member-record RPC applies to a username, mirrored here.
+ *
+ * Reader-facing errors in this app never render a provider or database message — `@/lib/errors`
+ * deliberately swaps them for operation-specific Bengali text — so a validation refusal coming
+ * back from `admin_update_member` looks exactly like a failed connection. The desk was left
+ * staring at "the username could not be updated" with no way to tell a taken handle from a
+ * disallowed character. The server stays the authority; this only answers the common mistake
+ * before the round trip, and names the rule either way.
+ */
+const USERNAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]{2,23}$/;
+
+/**
+ * What gets logged when the desk leaves the reason blank.
+ *
+ * The audited RPCs require a reason so that no role change or member edit lands unaccounted
+ * for. The form no longer forces the desk to type one, so a blank field records that none was
+ * given — rather than an empty string the notification trigger would refuse.
+ */
+const NO_REASON = "কারণ উল্লেখ করা হয়নি";
+
 const ROLE_LABELS: Record<string, string> = {
   reader: "রিডার",
   reporter: "রিপোর্টার",
@@ -473,22 +494,30 @@ export function AdminDashboard() {
     if (!editing) return;
     setError("");
     setNotice("");
-    if (editReason.trim().length < 3) {
-      setError("সিদ্ধান্তের কারণ লিখুন (অন্তত ৩ অক্ষর)।");
+    // A reason is optional now: a blank field records that none was given.
+    const reason = editReason.trim() || NO_REASON;
+    // The username is a stable public handle, so only the desk can change it — through the
+    // audited member-record RPC. The same rule is applied here first, because that RPC's
+    // refusal arrives as fixed Bengali text that says nothing about what was wrong.
+    const nextUsername = editUsername.trim();
+    const changingUsername =
+      Boolean(nextUsername) && nextUsername !== editing.username;
+    if (changingUsername && !USERNAME_PATTERN.test(nextUsername)) {
+      setError(
+        "ইউজারনেম ৩–২৪ অক্ষরের হতে হবে: ইংরেজি অক্ষর, সংখ্যা বা আন্ডারস্কোর, প্রথমে ইংরেজি অক্ষর।",
+      );
       return;
     }
+
     setBusy(`role-${editing.id}`);
     try {
       const supabase = supabaseBrowser();
-      // The username is a stable public handle, so only the desk can change it —
-      // through the audited member-record RPC.
-      const nextUsername = editUsername.trim();
-      if (nextUsername && nextUsername !== editing.username) {
+      if (changingUsername) {
         const { error: usernameError } = await supabase.rpc("admin_update_member", {
           p_user_id: editing.id,
           p_profile: { username: nextUsername },
           p_details: {},
-          p_reason: editReason.trim(),
+          p_reason: reason,
         });
         if (usernameError) {
           setError(
@@ -505,7 +534,7 @@ export function AdminDashboard() {
         p_user_id: editing.id,
         p_role: editRole,
         p_tier: editRole === "reporter" ? editTier : null,
-        p_reason: editReason.trim(),
+        p_reason: reason,
       });
       if (error) {
         setError(
@@ -776,7 +805,7 @@ export function AdminDashboard() {
                 <Field
                   label="ইউজারনেম"
                   htmlFor="edit-username"
-                  hint="ইউজারনেম কেবল প্রশাসন পরিবর্তন করতে পারেন; এটি প্রোফাইল ঠিকানা বদলে দেয়।"
+                  hint="কেবল ইংরেজি অক্ষর, সংখ্যা ও আন্ডারস্কোর (৩–২৪), প্রথমে ইংরেজি অক্ষর — এটি প্রোফাইলের ঠিকানা।"
                 >
                   <Input
                     id="edit-username"
@@ -811,18 +840,17 @@ export function AdminDashboard() {
                   </Field>
                 )}
                 <Field
-                  label="কারণ (আবশ্যক)"
+                  label="কারণ (ঐচ্ছিক)"
                   htmlFor="edit-reason"
-                  hint="কারণ অডিট লগে সংরক্ষিত হয়।"
+                  hint="খালি রাখলে অডিট লগে লেখা থাকবে যে কারণ দেওয়া হয়নি।"
                 >
                   <Textarea
                     id="edit-reason"
                     value={editReason}
                     onChange={(e) => setEditReason(e.target.value)}
                     rows={2}
-                    minLength={3}
                     maxLength={500}
-                    placeholder="কেন এই ভূমিকা দেওয়া হচ্ছে…"
+                    placeholder="কেন এই ভূমিকা দেওয়া হচ্ছে… (ঐচ্ছিক)"
                   />
                 </Field>
               </div>

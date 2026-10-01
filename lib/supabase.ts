@@ -1,4 +1,7 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import {
+  createClient as createSupabaseClient,
+  type SupabaseClient,
+} from "@supabase/supabase-js";
 import { createBrowserClient } from "@supabase/ssr";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
@@ -20,9 +23,23 @@ export function supabaseServer() {
   });
 }
 
-/** Browser client for signed-in actions (reactions, bookmarks, comments). */
+/**
+ * Browser client for signed-in actions (reactions, bookmarks, comments, uploads).
+ *
+ * One instance per page, created on first use and then reused. `createBrowserClient` builds a
+ * brand new GoTrue client on every call, and this function is called from the effect of nearly
+ * every interactive component, so a signed-in reader ended up with a dozen of them sharing one
+ * storage key. They then raced each other over the same refresh token: the browser logs
+ * "Multiple GoTrueClient instances detected", whichever client loses the race finds its token
+ * already spent and gets a 400 from `/auth/v1/token?grant_type=refresh_token`, and the reader is
+ * treated as signed out. That is how a signed-in reporter was told to "sign in with Google"
+ * while uploading a photo, and why the session kept evaporating between actions.
+ */
+let browserClient: SupabaseClient | null = null;
+
 export function supabaseBrowser() {
-  return createBrowserClient(supabaseUrl, supabaseAnonKey);
+  browserClient ??= createBrowserClient(supabaseUrl, supabaseAnonKey);
+  return browserClient;
 }
 
 export type DbCategory = { slug: string; title_bn: string };

@@ -139,10 +139,19 @@ export function WriterForm() {
         return;
       }
       const mediaIds = gallery.map((item) => item.id);
-      // The short description is derived server-side from the body.
+      // The short description is derived server-side from the body, so there is nothing to
+      // type — but `p_excerpt` still has to be *sent*.
+      //
+      // PostgREST matches a function by the argument names in the request, and it can only
+      // leave out an argument that has a default. `p_excerpt` is declared before the body,
+      // and PostgreSQL requires every parameter after a defaulted one to have a default too,
+      // so it cannot carry one without making the body optional as well. Omitting it
+      // therefore matched no candidate at all and every submission answered 404 "Could not
+      // find the function" — a valid-looking report that never reached the database.
       const result = await supabase.rpc("submit_article", {
         p_category_slug: categorySlug,
         p_title: title,
+        p_excerpt: null,
         p_body: body,
         p_media_keys: mediaIds.length ? mediaIds : null,
         p_hero_media_key: mediaIds[0] ?? null,
