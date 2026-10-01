@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, FormMessage } from "@/components/ui/field";
 import { errorMessage } from "@/lib/errors";
-import { supabaseBrowser } from "@/lib/supabase";
+import { freshAccessToken } from "@/lib/supabase";
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/avif";
 const MAX_FILES = 10;
@@ -40,20 +40,19 @@ export function GalleryUploader({
     // The media Worker reads the raw body with Content-Type + bearer token —
     // same contract the old editor used. HEIC is rejected server-side (415).
     //
-    // This must be the shared `@supabase/ssr` browser client: the app's session
-    // lives in the ssr cookie store, so a bare supabase-js client built here
-    // would read localStorage, find no session, and tell a signed-in reporter
-    // to "sign in with Google" before every upload.
-    const supabase = supabaseBrowser();
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) throw sessionError;
-    if (!session) throw new Error("ছবি পাঠাতে আগে গুগল দিয়ে প্রবেশ করুন।");
+    // The token comes from the shared `@supabase/ssr` session, and `freshAccessToken`
+    // refreshes it when the stored one has expired. A bare supabase-js client built
+    // here would read localStorage and find no session at all, and a stale cookie
+    // session would send a dead token the media Worker answers with 401 — both of
+    // which tell a signed-in reporter to sign in with Google before their own upload.
+    const token = await freshAccessToken();
+    if (!token) throw new Error("ছবি পাঠাতে আগে গুগল দিয়ে প্রবেশ করুন।");
     const endpoint = scope === "spotlight" ? "/spotlight/upload" : "/upload";
     const response = await fetch(`${mediaBase()}${endpoint}`, {
       method: "POST",
       headers: {
         "Content-Type": file.type,
-        Authorization: `Bearer ${session.access_token}`,
+        Authorization: `Bearer ${token}`,
       },
       body: file,
     });

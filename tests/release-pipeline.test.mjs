@@ -106,6 +106,36 @@ test('the release publishes the pending migration plan before it applies it', as
   );
 });
 
+test('the release owns the media Worker\'s Supabase credentials', async () => {
+  // The media Worker verifies every upload token against Supabase, so it needs the project URL
+  // and anon key. Nothing in the repository supplied them, so they lived in the Cloudflare
+  // dashboard and could silently stop matching the portal's — which the Worker can only report
+  // as a bare 401 to a signed-in reader. The release now writes them itself.
+  const release = await releaseJob();
+  const media = release.slice(
+    indexOf(release, 'Deploy media Worker'),
+    indexOf(release, 'Ensure the cache buckets exist'),
+  );
+  assert.match(media, /wrangler secret put SUPABASE_URL/, 'the Worker URL must be written');
+  assert.match(media, /wrangler secret put SUPABASE_ANON_KEY/, 'the Worker key must be written');
+  assert.match(
+    media,
+    /SUPABASE_URL: \$\{\{ vars\.SUPABASE_URL \|\| secrets\.SUPABASE_URL \}\}/,
+    'the Worker must read the same source the portal builds from',
+  );
+  assert.match(
+    media,
+    /SUPABASE_ANON_KEY: \$\{\{ vars\.SUPABASE_ANON_KEY \|\| secrets\.SUPABASE_ANON_KEY \}\}/,
+    'the Worker must read the same source the portal builds from',
+  );
+  const worker = await readProjectFile('worker/wrangler.jsonc');
+  assert.doesNotMatch(
+    worker,
+    /SUPABASE_(URL|ANON_KEY)/,
+    'credentials must never be committed into the Worker config',
+  );
+});
+
 test('a failed release reports which half landed', async () => {
   const release = await releaseJob();
   const summary = indexOf(release, 'Summarise the release');

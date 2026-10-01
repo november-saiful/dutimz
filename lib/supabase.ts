@@ -4,6 +4,8 @@ import {
 } from "@supabase/supabase-js";
 import { createBrowserClient } from "@supabase/ssr";
 
+import { reportError } from "./errors";
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
@@ -40,6 +42,37 @@ let browserClient: SupabaseClient | null = null;
 export function supabaseBrowser() {
   browserClient ??= createBrowserClient(supabaseUrl, supabaseAnonKey);
   return browserClient;
+}
+
+/** Treat a token as spent 30s early so it cannot expire mid-request. */
+const REFRESH_MARGIN_SECONDS = 30;
+
+/**
+ * Returns an access token that is actually valid right now, refreshing the stored session when
+ * it has expired — or null when nobody is signed in.
+ *
+ * `getSession()` hands back whatever the cookie store holds without refreshing it, so a session
+ * that has outlived its one-hour access token still looks signed in. A request carrying that
+ * dead token is refused by the server, which is how a signed-in reporter kept being told to
+ * sign in with Google before an upload. Going through here turns "a session exists" into "the
+ * token works", which is the only thing the caller can send anywhere.
+ */
+export async function freshAccessToken(): Promise<string | null> {
+  const supabase = supabaseBrowser();
+  const { data } = await supabase.auth.getSession();
+  const session = data.session;
+  if (
+    session?.expires_at &&
+    session.expires_at - REFRESH_MARGIN_SECONDS > Date.now() / 1000
+  ) {
+    return session.access_token;
+  }
+  const { data: refreshed, error } = await supabase.auth.refreshSession();
+  if (error) {
+    reportError("session refresh", error);
+    return session?.access_token ?? null;
+  }
+  return refreshed.session?.access_token ?? session?.access_token ?? null;
 }
 
 export type DbCategory = { slug: string; title_bn: string };

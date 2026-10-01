@@ -73,7 +73,14 @@ async function currentUser(request: Request, env: Env): Promise<User | null> {
   const userResponse = await fetch(`${env.SUPABASE_URL.replace(/\/$/, '')}/auth/v1/user`, {
     headers: { apikey: env.SUPABASE_ANON_KEY, Authorization: authorization },
   });
-  if (!userResponse.ok) return null;
+  // Every rejection used to collapse into the same 401, so an expired token, a rotated
+  // signing key and a mis-set Worker credential were indistinguishable from outside. The
+  // detail goes to the log only: the caller still gets one fixed reader-facing message.
+  if (!userResponse.ok) {
+    const detail = await userResponse.text().catch(() => '');
+    console.error('Supabase rejected the access token', userResponse.status, detail);
+    return null;
+  }
   return jsonFromResponse<User>(userResponse);
 }
 

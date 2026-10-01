@@ -257,10 +257,20 @@ jobs:
           BOOTSTRAP_ADMIN_EMAILS: ${{ secrets.BOOTSTRAP_ADMIN_EMAILS }}
       - name: Deploy media Worker
         id: media
-        run: npx wrangler deploy --config worker/wrangler.jsonc
+        # The media Worker verifies the caller's token against Supabase, so it needs the project
+        # URL and anon key. Nothing else in the repository supplied them, which left them
+        # hand-set in the dashboard where they could quietly stop matching the portal's own
+        # values — a mismatch the Worker can only answer with a bare 401. Rewritten from the
+        # same sources the portal builds from, on every release, so the two cannot disagree.
+        run: |
+          printf '%s' "$SUPABASE_URL" | npx wrangler secret put SUPABASE_URL --config worker/wrangler.jsonc
+          printf '%s' "$SUPABASE_ANON_KEY" | npx wrangler secret put SUPABASE_ANON_KEY --config worker/wrangler.jsonc
+          npx wrangler deploy --config worker/wrangler.jsonc
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
       - name: Ensure the cache buckets exist
         # `wrangler deploy` binds a bucket by name, it does not create one, so a fresh
         # environment would otherwise red-fail the release on a missing bucket. Created here

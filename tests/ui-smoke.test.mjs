@@ -820,15 +820,28 @@ test('the uploader sends the shared browser session, not a private client', asyn
   const uploader = await readProjectFile('components/account/gallery-uploader.tsx');
   assert.match(
     uploader,
-    /import \{ supabaseBrowser \} from "@\/lib\/supabase"/,
-    'the uploader must reuse the shared browser client',
+    /import \{ freshAccessToken \} from "@\/lib\/supabase"/,
+    'the uploader must take its token from the shared session',
   );
   assert.doesNotMatch(
     uploader,
     /from "@supabase\/supabase-js"/,
     'the uploader must not build its own supabase-js client',
   );
-  assert.match(uploader, /supabaseBrowser\(\)/, 'the uploader calls the shared client');
+  assert.match(uploader, /freshAccessToken\(\)/, 'the uploader asks for a usable token');
+});
+
+test('an upload never sends an expired access token', async () => {
+  // `getSession()` returns the stored session without refreshing it, so a session older than
+  // its one-hour access token still looks signed in while every request it authorises is
+  // refused. The uploader sent that dead token and the media Worker answered 401, which read
+  // to the reporter as "sign in with Google" while they were already signed in.
+  const source = await readProjectFile('lib/supabase.ts');
+  const body = source.slice(source.indexOf('export async function freshAccessToken'));
+  assert.match(body, /refreshSession\(\)/, 'an expired session must be refreshed');
+  assert.match(body, /expires_at/, 'the decision must be based on the token expiry');
+  const uploader = await readProjectFile('components/account/gallery-uploader.tsx');
+  assert.match(uploader, /Bearer \$\{token\}/, 'the upload must send the checked token');
 });
 
 test('only lib/supabase.ts and the OAuth callback touch the Supabase SDKs', async () => {
