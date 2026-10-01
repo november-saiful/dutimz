@@ -205,7 +205,7 @@ test('the live check proves the cache is serving, not merely that pages answer 2
   );
   assert.match(
     script,
-    /\{ path: '\/about\/', allowStale: false \}/,
+    /\{ path: '\/about\/', allowStale: false, required: true \}/,
     'a fully static page must be required to hit outright: it can never be legitimately stale, ' +
       'so a miss there cannot be excused as a page that is merely due for regeneration',
   );

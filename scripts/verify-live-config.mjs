@@ -218,18 +218,24 @@ async function cacheProblems(base) {
   const problems = [];
   const samples = [...canonicalSamples(await homeLinks(base)).keys()];
 
-  // `/about/` is fully static (`initialRevalidateSeconds: false`), so once it is in the cache
-  // it is always a hit and never goes stale. That makes it the deterministic proof, with no
-  // dependency on the revalidation queue doing its work in the background. The routes that
-  // export `revalidate` may legitimately answer STALE — the entry exists and was read, it is
-  // simply due to be regenerated — so they are held to a weaker bar: never MISS.
+  // These two are the deterministic proof, and they are gated:
+  //
+  // - `/about/` is fully static (`initialRevalidateSeconds: false`), so once it is in the
+  //   cache it is always a hit and can never be legitimately stale.
+  // - `/` exports `revalidate` and is prerendered, so it must at least be *found*; STALE is
+  //   accepted because the entry exists and was read and is merely due to be regenerated.
+  //
+  // The dynamic-segment routes are reported rather than gated. Whether a route under
+  // `[slug]` reports a cache state at all depends on its params having been prerendered, and
+  // this build only lists a bounded slice of them, so a miss there is not by itself proof of
+  // a missing cache — unlike the two above, which have no such excuse.
   const targets = [
-    { path: '/about/', allowStale: false },
-    { path: '/', allowStale: true },
-    ...(samples[0] ? [{ path: samples[0], allowStale: true }] : []),
+    { path: '/about/', allowStale: false, required: true },
+    { path: '/', allowStale: true, required: true },
+    ...samples.slice(0, 2).map((path) => ({ path, allowStale: true, required: false })),
   ];
 
-  for (const { path, allowStale } of targets) {
+  for (const { path, allowStale, required } of targets) {
     const url = new URL(path, base).toString();
     const observed = new Set();
     let verdict = null;
@@ -251,13 +257,19 @@ async function cacheProblems(base) {
 
     if (verdict) {
       console.log(`  ${path} is served from the incremental cache (${verdict})`);
+      continue;
+    }
+
+    const diagnosis =
+      `${path} is never served from the incremental cache (x-nextjs-cache: ${[...observed].join(', ')})` +
+      (allowStale ? '' : ', and this route is fully static so it has no reason to miss') +
+      ', so every visit re-renders it from the database; the portal Worker is most likely missing ' +
+      'its NEXT_INC_CACHE_R2_BUCKET or NEXT_CACHE_DO_QUEUE binding.';
+
+    if (required) {
+      problems.push(diagnosis);
     } else {
-      problems.push(
-        `${path} is never served from the incremental cache (x-nextjs-cache: ${[...observed].join(', ')})` +
-          (allowStale ? '' : ', and this route is fully static so it has no reason to miss') +
-          ', so every visit re-renders it from the database; the portal Worker is most likely missing ' +
-          'its NEXT_INC_CACHE_R2_BUCKET or NEXT_CACHE_DO_QUEUE binding.',
-      );
+      console.log(`::warning::${diagnosis}`);
     }
   }
 

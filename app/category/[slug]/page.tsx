@@ -10,9 +10,22 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { CATEGORY_NAMES } from "@/lib/site";
-import { getCategoryStories } from "@/lib/stories";
+import { getCategoryStories, getSitemapCategorySlugs } from "@/lib/stories";
 
 export const revalidate = 60;
+
+/**
+ * The live sections, prerendered at build time.
+ *
+ * A dynamic segment needs `generateStaticParams` before the `revalidate` export does anything:
+ * without it Next classifies the route `ƒ (Dynamic)` and re-renders it on every request. A
+ * section that goes live later is still fine — `dynamicParams` keeps its default, so it is
+ * rendered on demand and cached by the same 60 second window.
+ */
+export async function generateStaticParams() {
+  const slugs = await getSitemapCategorySlugs();
+  return slugs.map((slug) => ({ slug }));
+}
 
 export async function generateMetadata({
   params,

@@ -24,7 +24,11 @@ import {
   formatDateBn,
   mediaUrlFor,
 } from "@/lib/site";
-import { getLatestStories, getStoryBySlug } from "@/lib/stories";
+import {
+  getLatestStories,
+  getSitemapArticles,
+  getStoryBySlug,
+} from "@/lib/stories";
 import {
   ANONYMOUS_BYLINE,
   one,
@@ -33,6 +37,28 @@ import {
 } from "@/lib/supabase";
 
 export const revalidate = 60;
+
+/**
+ * How many of the newest stories are laid down at build time.
+ *
+ * Bounded because prerendering is a build-time cost, and unnecessary for freshness: see below.
+ */
+const PRERENDERED_STORIES = 50;
+
+/**
+ * Prerender the newest stories, which is what makes the `revalidate` above mean anything.
+ *
+ * For a dynamic segment the `revalidate` export on its own does nothing: without
+ * `generateStaticParams` Next classifies the route `ƒ (Dynamic)` and renders it from the
+ * database on every single request, which is the state this route shipped in while still
+ * declaring a 60 second window. Only a bounded slice is listed because that is enough to cover
+ * the pages that take nearly all the traffic, and `dynamicParams` keeps its default, so any
+ * other published slug is still rendered on demand and then cached by the same window.
+ */
+export async function generateStaticParams() {
+  const articles = await getSitemapArticles(PRERENDERED_STORIES);
+  return articles.map((article) => ({ slug: article.slug }));
+}
 
 export async function generateMetadata({
   params,
