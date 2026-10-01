@@ -138,6 +138,32 @@ test('spotlight moderation stays behind the audited RPCs and keeps media keys pr
   assert.ok(migration.trimEnd().endsWith('commit;'), 'the migration should be atomic');
 });
 
+test('the admin console migration puts the wallet on the row and audits the status change', async () => {
+  const migration = await readProjectFile('supabase/migrations/202610010005_admin_console_money_and_news.sql');
+  // The wallet figures have to match the member's own balance page, which is the only reason the
+  // id-paste box could be removed: the row the desk already sees now carries the money.
+  for (const column of ['held_tk', 'available_tk', 'reserved_tk']) {
+    assert.ok(migration.includes(column), `the member row must carry ${column}`);
+  }
+  // Changing a function's OUT columns is not a replaceable change: the old signature has to go
+  // first or the create fails and takes the whole migration directory with it.
+  assert.ok(
+    migration.includes('drop function if exists public.admin_member_records'),
+    'a changed return type needs the old signature dropped first',
+  );
+  assert.ok(migration.includes("'set_article_status'"), 'the new decision must satisfy the moderation log constraint');
+  for (const fn of ['admin_member_records', 'admin_set_article_status']) {
+    assert.ok(migration.includes(`function public.${fn}`), `${fn} should be defined`);
+    assert.ok(
+      migration.includes(`revoke all on function public.${fn}`),
+      `${fn} should be revoked so it is not callable past its own guard`,
+    );
+  }
+  assert.ok(migration.includes("using errcode = '42501'"), 'the new RPC refuses a caller who is not an administrator');
+  assert.ok(migration.includes('public.add_article_earning'), 'a restored story still reaches the reporter');
+  assert.ok(migration.trimEnd().endsWith('commit;'), 'the migration should be atomic');
+});
+
 test('the member records migration stays administrator-only and off the dropped column', async () => {
   const migration = await readProjectFile('supabase/migrations/202609290003_admin_member_records.sql');
   // profile_details.completion_percent was dropped by 202609240003, so a query against it reads

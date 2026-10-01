@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, Pencil } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Pencil, Wallet } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { AdminArticles } from "@/components/account/admin-articles";
 import { errorMessage } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
 import { bn, formatDateBn } from "@/lib/site";
@@ -39,6 +40,10 @@ type Member = {
   role: string;
   reporter_tier: string | null;
   completion_percent: number;
+  /** The three wallet figures the member sees on their own balance page. */
+  held_tk: number;
+  available_tk: number;
+  reserved_tk: number;
   created_at: string;
   total_count: number;
 };
@@ -164,7 +169,9 @@ function SortableHead({
 
 export function AdminDashboard() {
   const [allowed, setAllowed] = React.useState<boolean | null>(null);
-  const [tab, setTab] = React.useState<"members" | "spotlight" | "finance">("members");
+  const [tab, setTab] = React.useState<
+    "members" | "articles" | "spotlight" | "finance"
+  >("members");
   const [query, setQuery] = React.useState("");
   const [members, setMembers] = React.useState<Member[]>([]);
   const [total, setTotal] = React.useState(0);
@@ -173,9 +180,11 @@ export function AdminDashboard() {
   const [spotlight, setSpotlight] = React.useState<SpotlightPost[]>([]);
   const [spotlightReasons, setSpotlightReasons] = React.useState<Record<string, string>>({});
   const [reasons, setReasons] = React.useState<Record<string, string>>({});
-  const [adjustUserId, setAdjustUserId] = React.useState("");
+  const [adjustTarget, setAdjustTarget] = React.useState<Member | null>(null);
   const [adjustAmount, setAdjustAmount] = React.useState("");
   const [adjustReason, setAdjustReason] = React.useState("");
+  const [payeeQuery, setPayeeQuery] = React.useState("");
+  const [payeeMatches, setPayeeMatches] = React.useState<Member[]>([]);
   const [error, setError] = React.useState("");
   const [notice, setNotice] = React.useState("");
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -395,20 +404,51 @@ export function AdminDashboard() {
     }
   }
 
-  async function adjustBalance(event: React.FormEvent) {
-    event.preventDefault();
+  // Money starts from the member's own row, where the id the RPC needs is already in hand, so
+  // nothing in the panel asks the desk to type a member id by hand.
+  function openAdjust(member: Member) {
+    setAdjustTarget(member);
+    setAdjustAmount("");
+    setAdjustReason("");
+  }
+
+  // The finance tab still needs to reach a member the desk has not scrolled to; it searches by
+  // name through the same administrator-only directory and hands the chosen row to the dialog.
+  async function findPayees(term: string) {
+    setPayeeQuery(term);
+    if (term.trim().length < 2) {
+      setPayeeMatches([]);
+      return;
+    }
+    try {
+      const { data, error: lookupError } = await supabaseBrowser().rpc("admin_member_records", {
+        p_query: term.trim(),
+        p_limit: 8,
+        p_offset: 0,
+      });
+      if (lookupError) {
+        setError(errorMessage("payee lookup", lookupError, "সদস্য খুঁজে পাওয়া যায়নি। আবার চেষ্টা করুন।"));
+        return;
+      }
+      setPayeeMatches((data as Member[] | null) ?? []);
+    } catch (err) {
+      setError(errorMessage("payee lookup", err, "সদস্য খুঁজে পাওয়া যায়নি। আবার চেষ্টা করুন।"));
+    }
+  }
+
+  async function saveAdjust() {
+    if (!adjustTarget) return;
     setError("");
     setNotice("");
     const amountTk = Number(adjustAmount);
-    if (!adjustUserId.trim() || !Number.isInteger(amountTk) || adjustReason.trim().length < 3) {
-      setError("সদস্যের আইডি, পূর্ণসংখ্যা পরিমাণ ও কারণ আবশ্যক।");
+    if (!Number.isInteger(amountTk) || amountTk === 0 || adjustReason.trim().length < 3) {
+      setError("শূন্য ছাড়া পূর্ণসংখ্যা পরিমাণ ও কারণ আবশ্যক।");
       return;
     }
     setBusy("adjust");
     try {
-      const supabase = supabaseBrowser();
-      const { error } = await supabase.rpc("admin_adjust_balance", {
-        p_user_id: adjustUserId.trim(),
+      const { error } = await supabaseBrowser().rpc("admin_adjust_balance", {
+        p_user_id: adjustTarget.id,
         p_amount_tk: amountTk,
         p_reason: adjustReason.trim(),
       });
@@ -423,9 +463,11 @@ export function AdminDashboard() {
         return;
       }
       setNotice("জমা অর্থ সমন্বয় করা হয়েছে।");
-      setAdjustUserId("");
+      setAdjustTarget(null);
       setAdjustAmount("");
       setAdjustReason("");
+      // Reload so the row's wallet figures reflect the adjustment immediately.
+      await loadMembers(offset, query);
     } catch (err) {
       setError(errorMessage("balance adjustment", err, "জমা অর্থ সমন্বয় করা যায়নি। আবার চেষ্টা করুন।"));
     } finally {
@@ -447,6 +489,8 @@ export function AdminDashboard() {
           return member.reporter_tier ?? "";
         case "completion":
           return member.completion_percent;
+        case "money":
+          return member.available_tk;
         case "created_at":
         default:
           return member.created_at;
@@ -489,7 +533,7 @@ export function AdminDashboard() {
   }
 
   // Role editing happens on the member's own row now: the audited RPC needs
-  // the member id, which the table already holds, so no UUID pasting.
+  // the member id, which the table already holds, so nothing is pasted by hand.
   async function saveRole() {
     if (!editing) return;
     setError("");
@@ -592,6 +636,7 @@ export function AdminDashboard() {
         {(
           [
             ["members", "সদস্য"],
+            ["articles", "প্রতিবেদন"],
             ["spotlight", "স্পটলাইট"],
             ["finance", "অর্থ"],
           ] as const
@@ -665,6 +710,12 @@ export function AdminDashboard() {
                       onSort={toggleSort}
                     />
                     <SortableHead
+                      id="money"
+                      label="অর্থ (৳)"
+                      sort={sort}
+                      onSort={toggleSort}
+                    />
+                    <SortableHead
                       id="created_at"
                       label="যোগদান"
                       sort={sort}
@@ -680,7 +731,7 @@ export function AdminDashboard() {
                   {sortedMembers.length === 0 && (
                     <TableRow>
                       <TableCell
-                        colSpan={6}
+                        colSpan={7}
                         className="py-8 text-center text-muted-foreground"
                       >
                         কোনো সদস্য পাওয়া যায়নি।
@@ -726,19 +777,36 @@ export function AdminDashboard() {
                         <TableCell className="tabular-nums">
                           {bn(member.completion_percent)}%
                         </TableCell>
+                        <TableCell className="tabular-nums">
+                          <p className="text-sm font-medium">{bn(member.available_tk)}</p>
+                          <p className="whitespace-nowrap text-xs text-muted-foreground">
+                            আটকে {bn(member.held_tk)} · অপেক্ষমাণ {bn(member.reserved_tk)}
+                          </p>
+                        </TableCell>
                         <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">
                           {formatDateBn(member.created_at)}
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditor(member)}
-                            aria-label={`${name}-এর ভূমিকা সম্পাদনা`}
-                            title="ভূমিকা সম্পাদনা"
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openAdjust(member)}
+                              aria-label={`${name}-এর জমা অর্থ সমন্বয়`}
+                              title="জমা অর্থ সমন্বয়"
+                            >
+                              <Wallet className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEditor(member)}
+                              aria-label={`${name}-এর ভূমিকা সম্পাদনা`}
+                              title="ভূমিকা সম্পাদনা"
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     );
@@ -866,6 +934,8 @@ export function AdminDashboard() {
           </Dialog>
         </>
       )}
+
+      {tab === "articles" && <AdminArticles />}
 
       {tab === "spotlight" && (
         <Card>
@@ -1025,58 +1095,107 @@ export function AdminDashboard() {
             <CardHeader>
               <CardTitle>জমা অর্থ সমন্বয়</CardTitle>
             </CardHeader>
-            <CardContent>
-              <form onSubmit={adjustBalance} className="flex flex-col gap-4">
-                <FieldGrid>
-                  <Field
-                    label="সদস্যের আইডি (UUID)"
-                    htmlFor="adjust-user"
-                  >
-                    <Input
-                      id="adjust-user"
-                      value={adjustUserId}
-                      onChange={(e) => setAdjustUserId(e.target.value)}
-                    />
-                  </Field>
-                  <Field
-                    label="পরিমাণ (টাকা, ঋণাত্মক হতে পারে)"
-                    htmlFor="adjust-amount"
-                  >
-                    <Input
-                      id="adjust-amount"
-                      type="number"
-                      step={1}
-                      value={adjustAmount}
-                      onChange={(e) => setAdjustAmount(e.target.value)}
-                    />
-                  </Field>
-                  <Field
-                    label="কারণ (আবশ্যক)"
-                    htmlFor="adjust-reason"
-                    hint="কারণ অডিট লগে সংরক্ষিত হয়।"
-                  >
-                    <Textarea
-                      id="adjust-reason"
-                      value={adjustReason}
-                      onChange={(e) => setAdjustReason(e.target.value)}
-                      rows={2}
-                      minLength={3}
-                      maxLength={500}
-                    />
-                  </Field>
-                </FieldGrid>
-                <Button
-                  type="submit"
-                  disabled={busy === "adjust"}
-                  className="self-start"
-                >
-                  সমন্বয় সংরক্ষণ করুন
-                </Button>
-              </form>
+            <CardContent className="flex flex-col gap-3">
+              <Field
+                label="সদস্য খুঁজুন"
+                htmlFor="payee-search"
+                hint="নাম বা ইউজারনেম দিয়ে সদস্য বেছে নিন — কোনো আইডি টাইপ করতে হয় না। সদস্য তালিকার প্রতিটি সারিতে মানিব্যাগ চিহ্ন থেকেও সমন্বয় করা যায়।"
+              >
+                <Input
+                  id="payee-search"
+                  value={payeeQuery}
+                  onChange={(event) => void findPayees(event.target.value)}
+                  placeholder="নাম বা ইউজারনেম…"
+                />
+              </Field>
+              {payeeMatches.length > 0 && (
+                <ul className="flex flex-col gap-1">
+                  {payeeMatches.map((member) => (
+                    <li key={member.id}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full justify-between"
+                        onClick={() => {
+                          openAdjust(member);
+                          setPayeeMatches([]);
+                          setPayeeQuery("");
+                        }}
+                      >
+                        <span>{member.display_name?.trim() || `@${member.username}`}</span>
+                        <span className="tabular-nums text-muted-foreground">
+                          ৳{bn(member.available_tk)}
+                        </span>
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </CardContent>
           </Card>
         </div>
       )}
+
+      {/* One dialog serves both entry points: the wallet button on a member's own row, and the
+          member the finance tab's search hands over. Neither ever shows a raw id. */}
+      <Dialog
+        open={adjustTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setAdjustTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>জমা অর্থ সমন্বয়</DialogTitle>
+            <DialogDescription>
+              {adjustTarget && (
+                <>
+                  {adjustTarget.display_name?.trim() || `@${adjustTarget.username}`} — বর্তমানে পাওয়া
+                  যাবে ৳{bn(adjustTarget.available_tk)} (আটকে ৳{bn(adjustTarget.held_tk)}, অপেক্ষমাণ
+                  ৳{bn(adjustTarget.reserved_tk)})।
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <FieldGrid>
+            <Field
+              label="পরিমাণ (টাকা, ঋণাত্মক হতে পারে)"
+              htmlFor="adjust-amount"
+              hint="ধনাত্মক সংখ্যা যোগ করে, ঋণাত্মক সংখ্যা কেটে নেয়। শূন্য গ্রহণ করা হয় না।"
+            >
+              <Input
+                id="adjust-amount"
+                type="number"
+                step={1}
+                value={adjustAmount}
+                onChange={(e) => setAdjustAmount(e.target.value)}
+              />
+            </Field>
+            <Field
+              label="কারণ (আবশ্যক)"
+              htmlFor="adjust-reason"
+              hint="কারণ অডিট লগে সংরক্ষিত হয়।"
+            >
+              <Textarea
+                id="adjust-reason"
+                value={adjustReason}
+                onChange={(e) => setAdjustReason(e.target.value)}
+                rows={2}
+                minLength={3}
+                maxLength={500}
+              />
+            </Field>
+          </FieldGrid>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAdjustTarget(null)}>
+              বাতিল
+            </Button>
+            <Button onClick={() => void saveAdjust()} disabled={busy !== null}>
+              {busy === "adjust" ? "সংরক্ষণ হচ্ছে…" : "সমন্বয় সংরক্ষণ করুন"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

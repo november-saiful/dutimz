@@ -1,5 +1,5 @@
 begin;
-select plan(185);
+select plan(194);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -757,6 +757,44 @@ select lives_ok(
   $$select public.admin_update_article((select id from public.articles where slug = 'porikkha-mod'), 'মডারেটরের নিজের অপেক্ষমাণ প্রতিবেদন', 'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('পরীক্ষামূলক প্রতিবেদনের অংশ। ', 6), 'অপেক্ষমাণ অবস্থায় সম্পাদকীয় সংশোধন')$$,
   'The desk can edit a story that has not been published yet'
 );
+
+-- Taking a live story down, and putting it back. Approval and rejection already have a door, but
+-- it refuses anything not still pending, so a published story had no audited way off the site.
+select throws_ok(
+  $$select public.admin_set_article_status((select id from public.articles where slug = 'porikkha-dateline'), 'draft', 'অপ্রকাশিত খসড়ায় ফেরানোর চেষ্টা')$$,
+  'P0001', null,
+  'A story can be left only published or withheld, never returned to a queue it cannot wait in'
+);
+select throws_ok(
+  $$select public.admin_set_article_status((select id from public.articles where slug = 'porikkha-dateline'), 'published', 'ইতিমধ্যে প্রকাশিত প্রতিবেদন আবার প্রকাশের চেষ্টা')$$,
+  'P0001', null,
+  'A story already in a state cannot be moved into that same state again'
+);
+select lives_ok(
+  $$select public.admin_set_article_status((select id from public.articles where slug = 'porikkha-dateline'), 'rejected', 'যাচাই ছাড়া প্রকাশিত হওয়ায় প্রত্যাহার')$$,
+  'The desk can take a published story out of publication'
+);
+select results_eq(
+  $$select status::text, published_at = timestamptz '2026-08-15 09:00:00+00' from public.articles where slug = 'porikkha-dateline'$$,
+  $$values ('rejected', true)$$,
+  'A story taken out of publication keeps the dateline it went live with'
+);
+select lives_ok(
+  $$select public.admin_set_article_status((select id from public.articles where slug = 'porikkha-dateline'), 'published', 'পুনরায় প্রকাশের সিদ্ধান্ত')$$,
+  'The desk can put a withheld story back into publication'
+);
+select results_eq(
+  $$select status::text from public.articles where slug = 'porikkha-dateline'$$,
+  $$values ('published')$$,
+  'The restored story is public again'
+);
+select ok(
+  exists (select 1 from public.moderation_actions
+           where action = 'set_article_status'
+             and article_id = (select id from public.articles where slug = 'porikkha-dateline')),
+  'Every story status decision is written to the moderation log'
+);
+
 reset role;
 select set_config('request.jwt.claim.sub', '', true);
 
@@ -771,6 +809,11 @@ select throws_ok(
   $$select count(*) from public.admin_member_records(null, 50)$$,
   '42501', null,
   'A reporter cannot list the member records'
+);
+select throws_ok(
+  $$select public.admin_set_article_status((select id from public.articles where slug = 'porikkha-dateline'), 'rejected', 'অননুমোদিত অবস্থা পরিবর্তনের চেষ্টা')$$,
+  '42501', null,
+  'A reporter cannot take a story out of publication'
 );
 select throws_ok(
   $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{"display_name":"অননুমোদিত পরিবর্তন"}'::jsonb, '{}'::jsonb, 'অননুমোদিত সম্পাদনার চেষ্টা')$$,
@@ -791,6 +834,11 @@ select results_eq(
   $$select role::text, completion_percent, total_count from public.admin_member_records('reader_1100000000004000', 10, 0)$$,
   $$values ('reader', 13, 1::bigint)$$,
   'The desk sees every member with their role and how complete their record is'
+);
+select results_eq(
+  $$select held_tk, available_tk, reserved_tk from public.admin_member_records('reader_1100000000004000', 10, 0)$$,
+  $$values (0, 0, 0)$$,
+  'The member row carries the same three wallet figures the member sees on their own balance page'
 );
 select lives_ok(
   $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{"username":"staff_reader","display_name":"সংশোধিত পাঠক নাম"}'::jsonb, '{"department":"সংশোধিত বিভাগ","session":"২০২৪-২৫"}'::jsonb, 'সদস্যের তথ্য সংশোধন')$$,

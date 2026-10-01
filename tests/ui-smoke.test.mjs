@@ -568,8 +568,33 @@ test('admin members are managed from a sortable table, not a UUID form', async (
   assert.doesNotMatch(admin, /ভূমিকা নির্ধারণ/);
   assert.match(admin, /review_withdrawal/);
   assert.match(admin, /admin_adjust_balance/);
+  // Money is adjusted from a member's own row or from a search that returns a member, so the
+  // desk is never asked to paste an id into a field.
+  assert.match(admin, /openAdjust/, 'balance entry must come from a member, not a bare id');
+  assert.doesNotMatch(admin, /UUID/, 'no panel field may ask the desk to type a member id');
+  assert.doesNotMatch(admin, /adjustUserId/, 'the id-paste balance form is gone');
+  assert.match(admin, /<AdminArticles \/>/, 'the panel must surface stories, not only members');
   assert.ok(await exists('components/ui/table.tsx'), 'components/ui/table.tsx must exist');
   assert.ok(await exists('components/ui/dialog.tsx'), 'components/ui/dialog.tsx must exist');
+});
+
+test('the desk manages stories from the panel, not only the pending queue', async () => {
+  // The panel had no story surface at all: articles lived only in the moderation queue, which
+  // lists pending submissions and nothing else. Two audited RPCs already existed and were called
+  // from nowhere, and neither can take a live story down, so a third is added for that decision.
+  const articles = await readProjectFile('components/account/admin-articles.tsx');
+  for (const fn of [
+    'admin_update_article',
+    'admin_set_article_publication',
+    'admin_set_article_status',
+  ]) {
+    assert.ok(articles.includes(fn), `${fn} must be reachable from the panel`);
+  }
+  assert.match(articles, /from\("articles"\)/, 'the desk lists every story, whatever its status');
+  assert.doesNotMatch(articles, /UUID/, 'no story action may ask for a raw id');
+  assert.doesNotMatch(articles, /\.delete\(/, 'removal stays a status change, never a row delete');
+  // The author is chosen by name and resolved through the administrator-only directory.
+  assert.match(articles, /admin_member_records/);
 });
 
 test('article reader keeps reactions, bookmarks, share, corrections, and comments', async () => {
