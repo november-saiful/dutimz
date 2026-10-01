@@ -831,6 +831,39 @@ test('the uploader sends the shared browser session, not a private client', asyn
   assert.match(uploader, /supabaseBrowser\(\)/, 'the uploader calls the shared client');
 });
 
+test('only lib/supabase.ts and the OAuth callback touch the Supabase SDKs', async () => {
+  // Two clients exist by design: `lib/supabase.ts` owns the anonymous server client and the one
+  // memoized browser client, and the OAuth callback builds a cookie-writing server client it
+  // must have. Any other file that reaches into @supabase/* chooses a session store the app does
+  // not write to — which is exactly how the uploader decided a signed-in reporter was signed
+  // out. This walks the source tree so a new surface cannot quietly reintroduce the mismatch.
+  const walk = (url) =>
+    readdirSync(url, { withFileTypes: true }).flatMap((entry) => {
+      const child = new URL(`${entry.name}${entry.isDirectory() ? '/' : ''}`, url);
+      return entry.isDirectory() ? walk(child) : [child];
+    });
+  const roots = ['../app/', '../components/', '../lib/'];
+  const sources = roots.flatMap((root) => walk(new URL(root, import.meta.url)));
+  const allowed = new Set(
+    ['../lib/supabase.ts', '../app/auth/callback/route.ts'].map((path) =>
+      fileURLToPath(new URL(path, import.meta.url)),
+    ),
+  );
+  let scanned = 0;
+  for (const url of sources) {
+    if (!/\.(ts|tsx)$/.test(url.pathname)) continue;
+    if (allowed.has(fileURLToPath(url))) continue;
+    scanned += 1;
+    const source = await readFile(url, 'utf8');
+    assert.doesNotMatch(
+      source,
+      /from ["']@supabase\//,
+      `${fileURLToPath(url)} must go through lib/supabase.ts instead of building its own client`,
+    );
+  }
+  assert.ok(scanned > 50, 'the walk must actually reach the source tree');
+});
+
 test('a story is submitted with the excerpt argument the RPC requires', async () => {
   // The excerpt is derived server-side and never typed, but `p_excerpt` is a required argument
   // of submit_article: PostgreSQL will not let it default, because a defaulted parameter cannot
