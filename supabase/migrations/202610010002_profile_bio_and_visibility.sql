@@ -82,7 +82,7 @@ declare
   details public.profile_details;
   visibility jsonb;
 begin
-  select * into profile from public.profiles where username = lower(btrim(coalesce(p_username, '')));
+  select * into profile from public.profiles p where p.username = lower(btrim(coalesce(p_username, '')));
   if profile.id is null then return; end if;
   select * into details from public.profile_details d where d.user_id = profile.id;
   visibility := coalesce(profile.public_profile, '{}'::jsonb);
