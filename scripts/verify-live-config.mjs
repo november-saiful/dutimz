@@ -16,6 +16,10 @@
 // so only some carried the public/_headers guarantees, and the public hostname was attached
 // to a retired project. All three are ordinary HTTP behaviour, so all three are asserted here.
 //
+// The page cache is checked for a real hit as well. The adapter's incremental cache and queue
+// both default to no-ops, so a deployment can pass every other check here while re-rendering
+// every public page — even the fully static ones — from the database on every single request.
+//
 // The deployment is checked on the public domain first, and then — when that domain is still
 // pointed at a previous project, which is a manual Cloudflare step rather than a build
 // failure — on the address Cloudflare gives the Worker itself. Failing to reach the Worker
@@ -31,6 +35,8 @@ const attempts = Number(process.env.CONFIG_ATTEMPTS ?? 20);
 const delayMs = Number(process.env.CONFIG_DELAY_MS ?? 6000);
 const maxHops = Number(process.env.MAX_HOPS ?? 5);
 const requestTimeoutMs = Number(process.env.REQUEST_TIMEOUT_MS ?? 15000);
+const cacheAttempts = Number(process.env.CACHE_ATTEMPTS ?? 4);
+const cacheDelayMs = Number(process.env.CACHE_DELAY_MS ?? 2000);
 const REQUIRED = ['supabaseUrl', 'supabaseAnonKey', 'mediaUrl'];
 
 // Every HTML page the site serves has to carry these. public/_headers applies them to the
@@ -62,6 +68,21 @@ async function request(url) {
   return fetch(url, {
     redirect: 'manual',
     headers: { 'cache-control': 'no-cache' },
+    signal: AbortSignal.timeout(requestTimeoutMs),
+  });
+}
+
+/**
+ * A plain navigation, with no `cache-control` request header at all.
+ *
+ * The cached routes are checked with this rather than with `request()` above: that helper
+ * deliberately sends `cache-control: no-cache` to defeat any intermediary cache while the
+ * route checks walk redirects, and reusing it here would risk asserting the absence of the
+ * very caching this check exists to prove.
+ */
+async function visit(url) {
+  return fetch(url, {
+    redirect: 'follow',
     signal: AbortSignal.timeout(requestTimeoutMs),
   });
 }
@@ -182,6 +203,65 @@ function wwwHostFor(base) {
     return null;
   }
   return `${protocol}//www.${hostname}/`;
+}
+
+/**
+ * A route that exports `revalidate` has to be served from the incremental cache.
+ *
+ * This check exists because it silently was not. The adapter's incremental cache and queue
+ * both default to no-op implementations, so the site answered `x-nextjs-cache: MISS` on every
+ * request and the article route shipped `Cache-Control: no-store` — the whole newsroom
+ * re-reading the database for every page view — while every other check in this file, which
+ * only ever asked whether a response was 200, passed.
+ */
+async function cacheProblems(base) {
+  const problems = [];
+  const samples = [...canonicalSamples(await homeLinks(base)).keys()];
+
+  // `/about/` is fully static (`initialRevalidateSeconds: false`), so once it is in the cache
+  // it is always a hit and never goes stale. That makes it the deterministic proof, with no
+  // dependency on the revalidation queue doing its work in the background. The routes that
+  // export `revalidate` may legitimately answer STALE — the entry exists and was read, it is
+  // simply due to be regenerated — so they are held to a weaker bar: never MISS.
+  const targets = [
+    { path: '/about/', allowStale: false },
+    { path: '/', allowStale: true },
+    ...(samples[0] ? [{ path: samples[0], allowStale: true }] : []),
+  ];
+
+  for (const { path, allowStale } of targets) {
+    const url = new URL(path, base).toString();
+    const observed = new Set();
+    let verdict = null;
+
+    // The first visit renders the page and stores it; the second is the one that must be
+    // served from the cache. Retried because a freshly deployed build starts with an empty
+    // cache and the request that fills it may still be in flight when the next one arrives.
+    for (let attempt = 1; attempt <= cacheAttempts && !verdict; attempt += 1) {
+      for (let visitNumber = 0; visitNumber < 2; visitNumber += 1) {
+        const response = await visit(url);
+        await response.arrayBuffer().catch(() => undefined);
+        if (visitNumber === 0) continue;
+        const state = response.headers.get('x-nextjs-cache') ?? 'absent';
+        observed.add(state);
+        if (state === 'HIT' || (allowStale && state === 'STALE')) verdict = state;
+      }
+      if (!verdict && attempt < cacheAttempts) await sleep(cacheDelayMs);
+    }
+
+    if (verdict) {
+      console.log(`  ${path} is served from the incremental cache (${verdict})`);
+    } else {
+      problems.push(
+        `${path} is never served from the incremental cache (x-nextjs-cache: ${[...observed].join(', ')})` +
+          (allowStale ? '' : ', and this route is fully static so it has no reason to miss') +
+          ', so every visit re-renders it from the database; the portal Worker is most likely missing ' +
+          'its NEXT_INC_CACHE_R2_BUCKET or NEXT_CACHE_DO_QUEUE binding.',
+      );
+    }
+  }
+
+  return problems;
 }
 
 async function routeProblems(base) {
@@ -381,6 +461,15 @@ async function confirmDeployment(base, config) {
     return 1;
   }
   console.log(`Live routes OK: canonical URLs resolve directly, no redirect loops, headers present.`);
+
+  const cacheIssues = await cacheProblems(base);
+  if (cacheIssues.length > 0) {
+    for (const problem of cacheIssues) {
+      console.error(`::error::${problem}`);
+    }
+    return 1;
+  }
+  console.log('Live caching OK: revalidated routes are served from the incremental cache.');
 
   const visitorIssues = await visitorProblems(config);
   if (visitorIssues.length > 0) {

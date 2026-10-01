@@ -93,6 +93,13 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.PREVIEW_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.PREVIEW_SUPABASE_ANON_KEY }}
+      - name: Ensure the preview cache buckets exist
+        # Same reason as the release job, against the preview bucket the preview environment
+        # binds. A pull request cannot touch the production cache or its bucket.
+        run: node scripts/ensure-cache-buckets.mjs --env preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Deploy Workers preview
         # --env preview serves the staging environment, never production: an
         # unmerged pull request must not overwrite dutimz.com with a demo build.
@@ -254,6 +261,16 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Ensure the cache buckets exist
+        # `wrangler deploy` binds a bucket by name, it does not create one, so a fresh
+        # environment would otherwise red-fail the release on a missing bucket. Created here
+        # rather than clicked into the dashboard so a release stays self-contained, and
+        # idempotent so a re-run reports the existing bucket instead of failing.
+        id: buckets
+        run: node scripts/ensure-cache-buckets.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       - name: Deploy the production Worker
         # No build here: the bundle was compiled above and must be exactly the one that
         # passed, not a second build that happens to run later in the same job.
@@ -295,6 +312,7 @@ jobs:
             echo "| migrations applied | ${{ steps.migrate.outcome }} |"
             echo "| administrators synced | ${{ steps.admins.outcome }} |"
             echo "| media Worker deployed | ${{ steps.media.outcome }} |"
+            echo "| cache buckets ensured | ${{ steps.buckets.outcome }} |"
             echo "| portal Worker deployed | ${{ steps.portal.outcome }} |"
             echo "| live endpoints verified | ${{ steps.live.outcome }} |"
             echo ""

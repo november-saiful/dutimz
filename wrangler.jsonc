@@ -14,6 +14,37 @@
       "service": "dutimz"
     }
   ],
+  // Caching. Routes that export `revalidate` are served from the bucket below and regenerated
+  // by the Durable Object queue; without either binding the adapter falls back to its dummy
+  // implementations, every public page re-renders on every request, and the site returns
+  // `x-nextjs-cache: MISS` forever (which is exactly what the live site did).
+  //
+  // This bucket holds rendered pages and data-cache entries only — never media — so the media
+  // buckets stay bound to the media Worker alone. `observability` is what makes the Worker's
+  // own logs (including every reportError) queryable instead of write-only.
+  //
+  // Bindings are *not* inherited by environments, so `env.preview` re-declares each one.
+  "observability": { "enabled": true },
+  "r2_buckets": [
+    {
+      "binding": "NEXT_INC_CACHE_R2_BUCKET",
+      "bucket_name": "dutimz-cache"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "NEXT_CACHE_DO_QUEUE",
+        "class_name": "DOQueueHandler"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["DOQueueHandler"]
+    }
+  ],
   // The public hostnames are declared here instead of being clicked into the dashboard, so
   // every release re-asserts the binding rather than silently leaving them on a retired
   // Pages project. A Custom Domain matches one exact hostname, so the apex and www are both
@@ -42,6 +73,40 @@
       // A pull-request preview must never claim the production hostnames, so these routes are
       // cleared explicitly for this environment instead of being inherited.
       "routes": [],
+      // Bindings are non-inheritable, so the cache is declared again here rather than
+      // inherited. A preview renders demo content, so it writes to its own bucket: the cache
+      // key already includes the build id, but separate buckets keep preview churn from ever
+      // growing the namespace a real reader is served from.
+      "observability": { "enabled": true },
+      "r2_buckets": [
+        {
+          "binding": "NEXT_INC_CACHE_R2_BUCKET",
+          "bucket_name": "dutimz-cache-preview"
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "NEXT_CACHE_DO_QUEUE",
+            "class_name": "DOQueueHandler"
+          }
+        ]
+      },
+      "migrations": [
+        {
+          "tag": "v1",
+          "new_sqlite_classes": ["DOQueueHandler"]
+        }
+      ],
+      // The queue regenerates a stale page by calling the Worker back through this binding,
+      // and it has to name the preview script: `deploy --env preview` publishes
+      // `<name>-<env>`, so the self reference is dutimz-preview, not dutimz.
+      "services": [
+        {
+          "binding": "WORKER_SELF_REFERENCE",
+          "service": "dutimz-preview"
+        }
+      ],
       "vars": {
         "NEXT_PUBLIC_DEMO_MODE": "true",
         "NEXT_PUBLIC_SITE_URL": "https://dutimz.com"
