@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ToastProvider } from "@/components/ui/toast";
 import { SITE_URL } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -49,7 +50,9 @@ export default function RootLayout({
         >
           মূল লেখায় যান
         </a>
-        <div id="main-content">{children}</div>
+        <ToastProvider>
+          <div id="main-content">{children}</div>
+        </ToastProvider>
       </body>
     </html>
   );

@@ -584,6 +584,27 @@ test('admin members are managed from a sortable table, not a UUID form', async (
   assert.ok(await exists('components/ui/dialog.tsx'), 'components/ui/dialog.tsx must exist');
 });
 
+test('the desk settles a withdrawal from the member wallet, speaking the database\'s words', async () => {
+  // Settling used to live on the finance tab as its own list, and the panel sent 'approve'/'reject'
+  // while review_withdrawal accepts only 'paid'/'rejected', so neither button had ever settled a
+  // request. The decision now happens inside the member's wallet dialog, with the balance it is
+  // holding in view, and passes exactly the two words the function accepts.
+  const admin = await readProjectFile('components/account/admin-dashboard.tsx');
+  assert.match(admin, /targetWithdrawal/, 'the dialog must load the member\'s pending request');
+  assert.match(admin, /settleTargetWithdrawal\(['"]paid['"]\)/, 'paying must send the word the RPC expects');
+  assert.match(admin, /settleTargetWithdrawal\(['"]rejected['"]\)/, 'refusing must send the word the RPC expects');
+  assert.doesNotMatch(admin, /reviewWithdrawal\([^)]*['"]approve['"]/, 'the rejected vocabulary must be gone');
+  assert.doesNotMatch(admin, /reviewWithdrawal\([^)]*['"]reject['"]/, 'the rejected vocabulary must be gone');
+  assert.match(admin, /rpc\(['"]review_withdrawal['"]/, 'the audited RPC is still the only way to settle');
+  // The finance tab keeps the queue in view but points at the wallet dialog instead of deciding.
+  assert.match(admin, /openMemberWallet/, 'the finance list must open the member wallet');
+  assert.doesNotMatch(
+    admin,
+    /wreason-\$\{withdrawal\.id\}/,
+    'the separate finance decision form must be gone',
+  );
+});
+
 test('the desk manages stories from the panel, not only the pending queue', async () => {
   // The panel had no story surface at all: articles lived only in the moderation queue, which
   // lists pending submissions and nothing else. Two audited RPCs already existed and were called
@@ -956,7 +977,85 @@ test('the desk is not forced to type a reason, and is told why a username was re
 });
 
 test('shadcn primitives required by the dashboard shell exist', async () => {
-  for (const primitive of ['animated-file-tree', 'avatar', 'badge', 'button', 'card', 'chart', 'command', 'connected-carousel', 'field', 'input', 'popover', 'radio-group', 'select', 'separator', 'skeleton', 'textarea', 'tooltip', 'sheet', 'label', 'progress', 'sidebar']) {
+  for (const primitive of ['animated-file-tree', 'avatar', 'badge', 'button', 'card', 'chart', 'command', 'connected-carousel', 'field', 'input', 'popover', 'radio-group', 'select', 'separator', 'skeleton', 'textarea', 'toast', 'tooltip', 'sheet', 'label', 'progress', 'sidebar']) {
     assert.ok(await exists(`components/ui/${primitive}.tsx`), `components/ui/${primitive}.tsx must exist`);
   }
+});
+
+test('a session cookie is written with a lifetime, so a reader stays signed in', async () => {
+  // The callback used to drop the options Supabase hands it, which turned the auth cookie into a
+  // session cookie: no maxAge, gone the moment the browser closed. A reader was then silently
+  // signed out on their next visit even though the refresh token had never lapsed.
+  const callback = await readProjectFile('app/auth/callback/route.ts');
+  assert.match(
+    callback,
+    /cookieStore\.set\(name, value, \{/,
+    'the cookie options must survive the trip into cookies().set',
+  );
+  assert.match(callback, /maxAge: SESSION_MAX_AGE_SECONDS/, 'the auth cookie needs an explicit lifetime');
+  assert.match(callback, /cookieOptions:/, 'the server client must pin its own cookie options');
+  const supabase = await readProjectFile('lib/supabase.ts');
+  assert.match(supabase, /SESSION_MAX_AGE_SECONDS/, 'the browser client must agree on the lifetime');
+  assert.match(supabase, /isMissingSession/, 'a dropped connection must not read as a sign-out');
+});
+
+test('the spotlight marks issues and shows who solved them', async () => {
+  const forum = await readProjectFile('components/forum/spotlight-forum.tsx');
+  assert.match(forum, /mark_spotlight_issue/, 'marking goes through the audited RPC');
+  assert.match(forum, /spotlight_resolution_media/, 'proof pictures are shown with the post');
+  for (const status of ['open', 'in_progress', 'solved', 'invalid']) {
+    assert.ok(forum.includes(status), `the ${status} issue state must be reachable`);
+  }
+  for (const kind of ['student_wing', 'volunteers', 'dean_office', 'hall_authority']) {
+    assert.ok(forum.includes(kind), `${kind} must be offered as a solver`);
+  }
+  for (const slot of ['under_1h', '1_3d', 'over_1m']) {
+    assert.ok(forum.includes(slot), `${slot} must be offered as a solve-time bucket`);
+  }
+  assert.match(forum, /role === "moderator"/, 'the desk can mark any issue, not only their own');
+  assert.doesNotMatch(forum, /UUID/, 'no issue action may ask for a raw id');
+});
+
+test('spotlight accountability is public', async () => {
+  const stats = await readProjectFile('components/statistics/spotlight-stats.tsx');
+  assert.match(stats, /get_public_spotlight_stats/);
+  assert.match(stats, /get_public_spotlight_solvers/);
+  assert.match(stats, /false_count|invalid/, 'the false-issue count must be shown');
+  for (const label of ['এই সপ্তাহ', 'এই মাস', 'এই বছর', 'সর্বকালের']) {
+    assert.ok(stats.includes(label), `${label} window must be shown`);
+  }
+  const page = await readProjectFile('app/statistics/page.tsx');
+  assert.match(page, /<SpotlightStats \/>/, 'the statistics page must render it');
+});
+
+test('submitting a story reports its outcome with a spinner and a toast', async () => {
+  const writer = await readProjectFile('components/account/writer-form.tsx');
+  assert.match(writer, /useToast/);
+  assert.match(writer, /Loader2/);
+  assert.match(writer, /animate-spin/, 'the submit button must show a loading animation');
+  assert.match(writer, /toast\(\{/, 'each submission must raise a toast');
+  assert.match(writer, /aria-busy/, 'the button must announce that it is busy');
+  const toast = await readProjectFile('components/ui/toast.tsx');
+  assert.match(toast, /export function ToastProvider/);
+  assert.match(toast, /export function useToast/);
+  const layout = await readProjectFile('app/layout.tsx');
+  assert.match(layout, /ToastProvider/, 'the provider must be mounted once, at the root');
+});
+
+test('the member dashboard separates identity, news and spotlights', async () => {
+  const dashboard = await readProjectFile('components/account/account-dashboard.tsx');
+  for (const label of ['পরিচয়', 'আমার সংবাদ', 'আমার স্পটলাইট']) {
+    assert.ok(dashboard.includes(label), `the ${label} tab must exist`);
+  }
+  assert.match(dashboard, /get_my_articles/, 'the news tab reads the member\'s own stories');
+  assert.match(dashboard, /rejection_reason/, 'a rejected story must show the reason it was refused');
+  assert.match(dashboard, /spotlight_posts/, 'the spotlight tab lists the member\'s own issues');
+  assert.doesNotMatch(dashboard, /UUID/, 'no dashboard field may ask for a raw id');
+});
+
+test('the phone dock centre button carries the DUTIMZ mark', async () => {
+  const nav = await readProjectFile('components/dashboard/mobile-bottom-nav.tsx');
+  assert.match(nav, /\/brand-icon\.svg/, 'the menu button must use the site mark');
+  assert.match(nav, /মেনু/, 'the label must stay');
+  assert.ok(await exists('public/brand-icon.svg'), 'public/brand-icon.svg must exist');
 });

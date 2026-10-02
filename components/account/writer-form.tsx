@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import * as React from "react";
+import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { RadioGroup } from "@/components/ui/radio-group";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/toast";
 import {
   QuestionnaireFields,
   type QuestionnaireVersion,
@@ -33,6 +35,7 @@ import { CATEGORIES } from "@/lib/site";
 const PUBLISHING_ROLES = ["reporter", "moderator", "admin"];
 
 export function WriterForm() {
+  const { toast } = useToast();
   const [signedIn, setSignedIn] = React.useState<boolean | null>(null);
   // undefined while the role is being read; null when the reader has none (or a
   // plain reader), which is what decides whether the form is shown at all.
@@ -98,6 +101,13 @@ export function WriterForm() {
     };
   }, []);
 
+  // Every attempt reports its outcome the same way — inline next to the button, and as a toast
+  // that stays visible even after the form resets.
+  function fail(message: string, description?: string) {
+    setError(message);
+    toast({ tone: "error", title: message, description });
+  }
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -108,11 +118,11 @@ export function WriterForm() {
     const body = String(data.get("body") ?? "").trim();
     const categorySlug = String(data.get("category_slug") ?? "");
     if (!title || !body || !categorySlug) {
-      setError("শিরোনাম, প্রতিবেদন ও বিভাগ আবশ্যক।");
+      fail("শিরোনাম, প্রতিবেদন ও বিভাগ আবশ্যক।");
       return;
     }
     if (body.length < 100) {
-      setError("পূর্ণ প্রতিবেদন কমপক্ষে ১০০ অক্ষরের হতে হবে।");
+      fail("পূর্ণ প্রতিবেদন কমপক্ষে ১০০ অক্ষরের হতে হবে।");
       return;
     }
     setBusy(true);
@@ -120,14 +130,14 @@ export function WriterForm() {
       const supabase = supabaseBrowser();
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError) {
-        setError(errorMessage("writer session", authError, "প্রতিবেদন জমা দেওয়া যায়নি। আবার চেষ্টা করুন।"));
+        fail(errorMessage("writer session", authError, "প্রতিবেদন জমা দেওয়া যায়নি। আবার চেষ্টা করুন।"));
         return;
       }
       if (!user) {
         rememberReturnPath();
         const { error: oauthError } = await signInWithGoogle();
         if (oauthError) {
-          setError(errorMessage("writer sign-in", oauthError, "প্রবেশ করা যায়নি। আবার চেষ্টা করুন।"));
+          fail(errorMessage("writer sign-in", oauthError, "প্রবেশ করা যায়নি। আবার চেষ্টা করুন।"));
         }
         return;
       }
@@ -135,7 +145,7 @@ export function WriterForm() {
       // RPC allocates the slug, validates the questionnaire, records the
       // revision, and sets pending/published by reporter tier.
       if (!questionnaire) {
-        setError("প্রশ্নমালা এখনো প্রস্তুত নয়। পাতা রিফ্রেশ করে আবার চেষ্টা করুন।");
+        fail("প্রশ্নমালা এখনো প্রস্তুত নয়। পাতা রিফ্রেশ করে আবার চেষ্টা করুন।");
         return;
       }
       const mediaIds = gallery.map((item) => item.id);
@@ -160,7 +170,7 @@ export function WriterForm() {
         p_is_anonymous: data.get("is_anonymous") === "on",
       });
       if (result.error) {
-        setError(
+        fail(
           errorMessage(
             "article submission",
             result.error,
@@ -177,8 +187,13 @@ export function WriterForm() {
       setGallery([]);
       setDone("আপনার প্রতিবেদন পর্যালোচনার জন্য পাঠানো হয়েছে।");
       setStatus("প্রতিবেদন পাঠানো হয়েছে।");
+      toast({
+        tone: "success",
+        title: "প্রতিবেদন পাঠানো হয়েছে।",
+        description: "সম্পাদকীয় ডেস্ক পর্যালোচনার পর জানানো হবে।",
+      });
     } catch (err) {
-      setError(errorMessage("article submission", err, "প্রতিবেদন জমা দেওয়া যায়নি। আবার চেষ্টা করুন।"));
+      fail(errorMessage("article submission", err, "প্রতিবেদন জমা দেওয়া যায়নি। আবার চেষ্টা করুন।"));
     } finally {
       setBusy(false);
     }
@@ -359,7 +374,8 @@ export function WriterForm() {
           {error && <FormMessage>{error}</FormMessage>}
           {done && <FormMessage tone="success">{done}</FormMessage>}
           <div className="flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={busy}>
+            <Button type="submit" disabled={busy} aria-busy={busy}>
+              {busy && <Loader2 className="size-4 animate-spin" aria-hidden />}
               {busy ? "পাঠানো হচ্ছে…" : "প্রতিবেদন পাঠান →"}
             </Button>
             <span className="text-xs text-muted-foreground">{status}</span>

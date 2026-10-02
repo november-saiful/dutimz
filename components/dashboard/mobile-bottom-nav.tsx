@@ -161,14 +161,22 @@ export function MobileBottomNav() {
               aria-controls="mobile-quick-panel"
               onClick={() => setOpen((current) => !current)}
               className={cn(
-                "absolute -top-6 grid size-[62px] place-items-center rounded-full border-[5px] border-background text-primary-foreground shadow-[0_5px_13px_rgba(240,68,85,.23)] transition-transform hover:-translate-y-0.5",
-                open ? "bg-foreground" : "bg-primary",
+                "absolute -top-6 grid size-[62px] place-items-center overflow-hidden rounded-full border-[5px] border-background shadow-[0_5px_13px_rgba(95,35,103,.28)] transition-transform hover:-translate-y-0.5",
+                open ? "bg-foreground text-primary-foreground" : "bg-[#5f2367]",
               )}
             >
               {open ? (
                 <Plus className="size-[23px] rotate-45" strokeWidth={1.8} />
               ) : (
-                <Plus className="size-[23px]" strokeWidth={1.8} />
+                // The site's own mark, not a generic icon: the centre slot is the DUTIMZ button.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src="/brand-icon.svg"
+                  alt=""
+                  width={62}
+                  height={62}
+                  className="size-full object-cover"
+                />
               )}
             </button>
             <span className="absolute bottom-1 text-[11px] font-semibold text-foreground">
