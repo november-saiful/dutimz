@@ -30,8 +30,8 @@ import {
 } from "@/components/ui/table";
 import { AdminArticles } from "@/components/account/admin-articles";
 import { errorMessage } from "@/lib/errors";
-import { supabaseBrowser } from "@/lib/supabase";
-import { bn, formatDateBn } from "@/lib/site";
+import { one, supabaseBrowser } from "@/lib/supabase";
+import { bn, bnMoney, formatDateBn } from "@/lib/site";
 
 type Member = {
   id: string;
@@ -46,6 +46,25 @@ type Member = {
   reserved_tk: number;
   created_at: string;
   total_count: number;
+};
+
+type LedgerEntry = {
+  id: string;
+  amount_tk: number;
+  entry_type: string;
+  reason: string | null;
+  created_at: string;
+  articles: { title: string } | { title: string }[] | null;
+};
+
+// The ledger enum is the money's own vocabulary; the desk should read it in Bengali.
+const LEDGER_LABELS: Record<string, string> = {
+  article_earning_held: "প্রতিবেদনের আয় (আটকে)",
+  article_earning_available: "প্রতিবেদনের আয় (উত্তোলনযোগ্য)",
+  profile_release: "প্রোফাইল সম্পূর্ণ হওয়ায় আয় ছাড়",
+  withdrawal_reserve: "উত্তোলনের জন্য সংরক্ষিত",
+  withdrawal_refund: "উত্তোলন বাতিল — অর্থ ফেরত",
+  manual_adjustment: "কর্তৃপক্ষের সমন্বয়",
 };
 
 type Withdrawal = {
@@ -183,6 +202,10 @@ export function AdminDashboard() {
   const [adjustTarget, setAdjustTarget] = React.useState<Member | null>(null);
   const [adjustAmount, setAdjustAmount] = React.useState("");
   const [adjustReason, setAdjustReason] = React.useState("");
+  const [ledgerEntries, setLedgerEntries] = React.useState<LedgerEntry[]>([]);
+  const [ledgerState, setLedgerState] = React.useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
   const [payeeQuery, setPayeeQuery] = React.useState("");
   const [payeeMatches, setPayeeMatches] = React.useState<Member[]>([]);
   const [error, setError] = React.useState("");
@@ -404,12 +427,57 @@ export function AdminDashboard() {
     }
   }
 
+  // The desk should see why a balance is what it is, not only the total. Administrators already
+  // hold select on every ledger row through ledger_owner_or_admin_read, so the member's own
+  // history is one filtered read — the same shape the member sees on their balance page.
+  async function loadLedger(member: Member) {
+    setLedgerEntries([]);
+    setLedgerState("loading");
+    try {
+      const { data, error: ledgerError } = await supabaseBrowser()
+        .from("earnings_ledger")
+        .select("id,amount_tk,entry_type,reason,created_at,articles(title)")
+        .eq("user_id", member.id)
+        .order("created_at", { ascending: false })
+        .limit(40);
+      if (ledgerError) {
+        setError(
+          errorMessage(
+            "member ledger",
+            ledgerError,
+            "লেনদেনের ইতিহাস লোড করা যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
+        setLedgerState("error");
+        return;
+      }
+      setLedgerEntries((data as unknown as LedgerEntry[]) ?? []);
+      setLedgerState("ready");
+    } catch (err) {
+      setError(
+        errorMessage(
+          "member ledger",
+          err,
+          "লেনদেনের ইতিহাস লোড করা যায়নি। আবার চেষ্টা করুন।",
+        ),
+      );
+      setLedgerState("error");
+    }
+  }
+
+  function closeAdjust() {
+    setAdjustTarget(null);
+    setLedgerEntries([]);
+    setLedgerState("idle");
+  }
+
   // Money starts from the member's own row, where the id the RPC needs is already in hand, so
   // nothing in the panel asks the desk to type a member id by hand.
   function openAdjust(member: Member) {
     setAdjustTarget(member);
     setAdjustAmount("");
     setAdjustReason("");
+    void loadLedger(member);
   }
 
   // The finance tab still needs to reach a member the desk has not scrolled to; it searches by
@@ -463,7 +531,7 @@ export function AdminDashboard() {
         return;
       }
       setNotice("জমা অর্থ সমন্বয় করা হয়েছে।");
-      setAdjustTarget(null);
+      closeAdjust();
       setAdjustAmount("");
       setAdjustReason("");
       // Reload so the row's wallet figures reflect the adjustment immediately.
@@ -1137,16 +1205,18 @@ export function AdminDashboard() {
       )}
 
       {/* One dialog serves both entry points: the wallet button on a member's own row, and the
-          member the finance tab's search hands over. Neither ever shows a raw id. */}
+          member the finance tab's search hands over. Neither ever shows a raw id. It opens on
+          the member's full ledger history and the adjustment form sits underneath it, so the
+          desk reads the reason for a balance before it changes it. */}
       <Dialog
         open={adjustTarget !== null}
         onOpenChange={(open) => {
-          if (!open) setAdjustTarget(null);
+          if (!open) closeAdjust();
         }}
       >
-        <DialogContent>
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>জমা অর্থ সমন্বয়</DialogTitle>
+            <DialogTitle>সদস্যের মানিব্যাগ ও লেনদেন</DialogTitle>
             <DialogDescription>
               {adjustTarget && (
                 <>
@@ -1157,6 +1227,66 @@ export function AdminDashboard() {
               )}
             </DialogDescription>
           </DialogHeader>
+          <div className="rounded-md border">
+            <div className="flex items-center justify-between border-b px-3 py-2">
+              <p className="text-sm font-medium">লেনদেনের ইতিহাস</p>
+              {ledgerState === "ready" && (
+                <p className="text-xs text-muted-foreground">
+                  মোট {bn(ledgerEntries.length)}টি এন্ট্রি
+                </p>
+              )}
+            </div>
+            <div className="max-h-64 overflow-y-auto px-3 py-2">
+              {ledgerState === "idle" || ledgerState === "loading" ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  লেনদেনের ইতিহাস লোড হচ্ছে…
+                </p>
+              ) : null}
+              {ledgerState === "error" ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  লেনদেনের ইতিহাস লোড করা যায়নি।
+                </p>
+              ) : null}
+              {ledgerState === "ready" && ledgerEntries.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">
+                  এই সদস্যের এখনো কোনো লেনদেন নেই।
+                </p>
+              ) : null}
+              {ledgerState === "ready" &&
+                ledgerEntries.map((entry) => {
+                  const amount = Number(entry.amount_tk);
+                  const title = one(entry.articles)?.title;
+                  const detail = [title, entry.reason].filter(Boolean).join(" · ");
+                  return (
+                    <div
+                      key={entry.id}
+                      className="flex items-start gap-3 border-b py-2 last:border-0"
+                    >
+                      <span aria-hidden className="pt-0.5">
+                        {amount >= 0 ? "↗" : "↙"}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium">
+                          {LEDGER_LABELS[entry.entry_type] ?? entry.entry_type}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {detail ? `${detail} · ` : ""}
+                          {formatDateBn(entry.created_at)}
+                        </p>
+                      </div>
+                      <span
+                        className={`shrink-0 text-sm font-semibold tabular-nums ${
+                          amount < 0 ? "text-destructive" : ""
+                        }`}
+                      >
+                        {amount > 0 ? "+" : ""}
+                        {bnMoney(amount)}
+                      </span>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
           <FieldGrid>
             <Field
               label="পরিমাণ (টাকা, ঋণাত্মক হতে পারে)"
@@ -1187,7 +1317,7 @@ export function AdminDashboard() {
             </Field>
           </FieldGrid>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAdjustTarget(null)}>
+            <Button variant="outline" onClick={() => closeAdjust()}>
               বাতিল
             </Button>
             <Button onClick={() => void saveAdjust()} disabled={busy !== null}>

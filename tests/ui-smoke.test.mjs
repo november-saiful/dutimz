@@ -574,6 +574,12 @@ test('admin members are managed from a sortable table, not a UUID form', async (
   assert.doesNotMatch(admin, /UUID/, 'no panel field may ask the desk to type a member id');
   assert.doesNotMatch(admin, /adjustUserId/, 'the id-paste balance form is gone');
   assert.match(admin, /<AdminArticles \/>/, 'the panel must surface stories, not only members');
+  // Each member's wallet shows why the balance is what it is: the ledger rows behind the
+  // totals, reached from the same dialog the adjustment form lives in.
+  assert.match(admin, /from\(['"]earnings_ledger['"]\)/, 'the wallet must show the member ledger');
+  assert.match(admin, /loadLedger/, 'the ledger loads when a member wallet opens');
+  assert.match(admin, /LEDGER_LABELS/, 'every ledger entry type is named, not printed raw');
+  assert.match(admin, /লেনদেনের ইতিহাস/, 'the history section must be labelled for the desk');
   assert.ok(await exists('components/ui/table.tsx'), 'components/ui/table.tsx must exist');
   assert.ok(await exists('components/ui/dialog.tsx'), 'components/ui/dialog.tsx must exist');
 });
