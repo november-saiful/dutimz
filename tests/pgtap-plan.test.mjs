@@ -196,3 +196,37 @@ test('the member records migration stays administrator-only and off the dropped 
   assert.ok(migration.includes("'update_member'"), 'the change should be written to the accountability log');
   assert.ok(migration.trimEnd().endsWith('commit;'), 'the migration should be atomic');
 });
+
+test('the spotlight lifecycle keeps its decisions audited and its statistics public', async () => {
+  const lifecycle = await readProjectFile('supabase/migrations/202610020001_spotlight_issue_lifecycle.sql');
+  assert.ok(lifecycle.includes('function public.mark_spotlight_issue'), 'the marking RPC should be defined');
+  assert.ok(
+    lifecycle.includes('revoke all on function public.mark_spotlight_issue'),
+    'the RPC should be revoked so it is not callable past its own guard',
+  );
+  for (const state of ['open', 'in_progress', 'solved', 'invalid']) {
+    assert.ok(lifecycle.includes(`'${state}'`), `${state} must be a recognised issue state`);
+  }
+  assert.ok(lifecycle.includes("'resolve_spotlight'"), 'the mark must satisfy the moderation log constraint');
+  assert.ok(lifecycle.includes('spotlight_resolution_media'), 'proof pictures need their own attachment rows');
+  assert.ok(lifecycle.includes('spotlight_issue_events'), 'every mark should append an event');
+  assert.ok(lifecycle.includes('using errcode = \'42501\''), 'a non-author is refused');
+  assert.ok(lifecycle.trimEnd().endsWith('commit;'), 'the migration should be atomic');
+
+  const stats = await readProjectFile('supabase/migrations/202610020002_spotlight_statistics.sql');
+  for (const fn of ['get_public_spotlight_stats', 'get_public_spotlight_solvers']) {
+    assert.ok(stats.includes(`function public.${fn}`), `${fn} should be defined`);
+    assert.ok(stats.includes(`revoke all on function public.${fn}`), `${fn} should be revoked`);
+  }
+  assert.ok(stats.includes('to anon, authenticated'), 'the statistics must be readable by anyone');
+  assert.ok(stats.trimEnd().endsWith('commit;'), 'the migration should be atomic');
+
+  const dashboard = await readProjectFile('supabase/migrations/202610020003_member_dashboard_articles.sql');
+  assert.ok(dashboard.includes('function public.get_my_articles'), 'the dashboard needs its own news query');
+  assert.ok(dashboard.includes('article_attributions'), 'anonymously filed stories still belong to their author');
+  assert.ok(
+    dashboard.includes('revoke all on function public.get_my_articles() from public, anon'),
+    'one member\'s stories must not be readable by another',
+  );
+  assert.ok(dashboard.trimEnd().endsWith('commit;'), 'the migration should be atomic');
+});

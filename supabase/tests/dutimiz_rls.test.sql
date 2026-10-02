@@ -1,5 +1,5 @@
 begin;
-select plan(194);
+select plan(211);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -1166,6 +1166,99 @@ select ok(
   (select count(*) from public.moderation_actions where action = 'moderate_spotlight') >= 2,
   'Every Spotlight desk decision is recorded in the moderation log'
 );
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+
+-- Spotlight issue lifecycle. A post stays open until its author or the desk decides about it; a
+-- solve must say who did it and how long it took, and calling something irrelevant must say why.
+select has_table('public', 'spotlight_resolution_media', 'A solved issue can carry proof pictures');
+select has_table('public', 'spotlight_issue_events', 'Every issue marking is kept as an event');
+select has_column('public', 'spotlight_posts', 'issue_status', 'A post carries an issue status');
+select has_column('public', 'spotlight_posts', 'solve_duration', 'A solve records how long it took');
+select has_column('public', 'spotlight_issue_events', 'to_status', 'An event records the state it moved to');
+select ok(
+  has_function_privilege('anon', 'public.get_public_spotlight_stats()', 'execute'),
+  'A signed-out visitor can read the Spotlight statistics'
+);
+select ok(
+  has_function_privilege('anon', 'public.get_public_spotlight_solvers(integer)', 'execute'),
+  'A signed-out visitor can read who solved what'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select lives_ok(
+  $$select public.submit_spotlight_post('যাচাইযোগ্য নতুন ইস্যু', 'এই ইস্যুটি চিহ্নিত করার পরীক্ষার জন্য তৈরি।')$$,
+  'A reporter can raise an issue to mark'
+);
+reset role;
+
+-- A different member cannot decide about it.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '11000000-0000-4000-8000-000000000001', true);
+select throws_ok(
+  $$select public.mark_spotlight_issue((select id from public.spotlight_posts where title = 'যাচাইযোগ্য নতুন ইস্যু'), 'solved', 'student_wing', null, '1_3d')$$,
+  '42501', null,
+  'A member cannot mark an issue they did not raise'
+);
+reset role;
+
+-- The author can, but only with the detail each state requires.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select throws_ok(
+  $$select public.mark_spotlight_issue((select id from public.spotlight_posts where title = 'যাচাইযোগ্য নতুন ইস্যু'), 'solved', 'student_wing', null, null)$$,
+  'P0001', null,
+  'Solving asks how long it took before it is accepted'
+);
+select throws_ok(
+  $$select public.mark_spotlight_issue((select id from public.spotlight_posts where title = 'যাচাইযোগ্য নতুন ইস্যু'), 'invalid', null, null, null, null)$$,
+  'P0001', null,
+  'Calling an issue irrelevant asks for the reason'
+);
+reset role;
+
+-- The desk can decide about anyone's issue.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select lives_ok(
+  $$select public.mark_spotlight_issue((select id from public.spotlight_posts where title = 'যাচাইযোগ্য নতুন ইস্যু'), 'in_progress', 'authority', null, null)$$,
+  'The desk can mark any issue in progress'
+);
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select lives_ok(
+  $$select public.mark_spotlight_issue((select id from public.spotlight_posts where title = 'যাচাইযোগ্য নতুন ইস্যু'), 'solved', 'student_wing', 'শিক্ষার্থী উইং', '1_3d')$$,
+  'The author can mark their own issue solved'
+);
+reset role;
+
+select results_eq(
+  $$select issue_status, solver_kind, solve_duration from public.spotlight_posts where title = 'যাচাইযোগ্য নতুন ইস্যু'$$,
+  $$values ('solved', 'student_wing', '1_3d')$$,
+  'The solved issue records who fixed it and how long it took'
+);
+select results_eq(
+  $$select count(*)::int from public.spotlight_issue_events e join public.spotlight_posts p on p.id = e.post_id where p.title = 'যাচাইযোগ্য নতুন ইস্যু' and e.to_status = 'solved'$$,
+  $$values (1)$$,
+  'Solving appends an event the statistics can count'
+);
+select ok(
+  (select (public.get_public_spotlight_stats()->'totals'->>'solved')::int >= 1),
+  'The public statistics count the solved issue'
+);
+select ok(
+  exists (select 1 from public.get_public_spotlight_solvers(50) where solver_kind = 'student_wing' and solved_count >= 1),
+  'The public leaderboard credits the body that solved it'
+);
+
 reset role;
 select set_config('request.jwt.claim.sub', '', true);
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
 import { PublicStats } from "@/components/statistics/public-stats";
+import { SpotlightStats } from "@/components/statistics/spotlight-stats";
 import {
   Card,
   CardDescription,
@@ -32,6 +33,19 @@ export default function StatisticsPage() {
         </CardHeader>
       </Card>
       <PublicStats />
+      <Card>
+        <CardHeader>
+          <p className="text-xs font-medium text-muted-foreground">
+            জবাবদিহি
+          </p>
+          <CardTitle className="text-2xl">স্পটলাইটের ইস্যু</CardTitle>
+          <CardDescription>
+            স্পটলাইটে তোলা ইস্যুগুলোর কতটি সমাধান হয়েছে, কে সমাধান করেছে
+            এবং কতগুলো ভিত্তিহীন — সব এক জায়গায়।
+          </CardDescription>
+        </CardHeader>
+      </Card>
+      <SpotlightStats />
       <p className="text-xs text-muted-foreground">
         পরিসংখ্যানে শুধু প্রকাশিত প্রতিবেদনের সমষ্টিগত সংখ্যা দেখানো হয়।
         ভুক্তভোগী, অভিযুক্ত বা অন্য ব্যক্তির নাম ও পরিচয় এখানে দেখানো হয় না।
