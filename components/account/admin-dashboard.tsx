@@ -206,6 +206,9 @@ export function AdminDashboard() {
   const [ledgerState, setLedgerState] = React.useState<
     "idle" | "loading" | "ready" | "error"
   >("idle");
+  const [targetWithdrawal, setTargetWithdrawal] = React.useState<Withdrawal | null>(
+    null,
+  );
   const [payeeQuery, setPayeeQuery] = React.useState("");
   const [payeeMatches, setPayeeMatches] = React.useState<Member[]>([]);
   const [error, setError] = React.useState("");
@@ -359,11 +362,18 @@ export function AdminDashboard() {
     };
   }, [loadMembers, loadWithdrawals, loadSpotlight]);
 
-  async function reviewWithdrawal(id: string, decision: "approve" | "reject") {
+  // The RPC's own vocabulary is 'paid'/'rejected'. The panel used to send 'approve'/'reject',
+  // which the function refuses, so neither button had ever settled a request. It now speaks the
+  // database's two words and reports whether the decision was written, so the wallet dialog can
+  // refresh itself in place.
+  async function reviewWithdrawal(
+    id: string,
+    decision: "paid" | "rejected",
+  ): Promise<boolean> {
     const reason = (reasons[id] ?? "").trim();
     if (reason.length < 3) {
       setError("সিদ্ধান্তের কারণ লিখুন (অন্তত ৩ অক্ষর)।");
-      return;
+      return false;
     }
     setBusy(id);
     setError("");
@@ -382,12 +392,21 @@ export function AdminDashboard() {
             "সিদ্ধান্ত নথিভুক্ত করা যায়নি। আবার চেষ্টা করুন।",
           ),
         );
-        return;
+        return false;
       }
       setNotice("উত্তোলনের সিদ্ধান্ত নথিভুক্ত হয়েছে।");
-      await loadWithdrawals();
+      setReasons((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      // Paying or refusing moves reserved money back into the member's wallet, so both the pending
+      // list and the member's own row have to be re-read.
+      await Promise.all([loadWithdrawals(), loadMembers(offset, query)]);
+      return true;
     } catch (err) {
       setError(errorMessage("withdrawal review", err, "সিদ্ধান্ত নথিভুক্ত করা যায়নি। আবার চেষ্টা করুন।"));
+      return false;
     } finally {
       setBusy(null);
     }
@@ -465,10 +484,60 @@ export function AdminDashboard() {
     }
   }
 
+  // A member can have at most one pending request, so the wallet dialog shows it or nothing.
+  // The decision itself lives here now instead of on a separate finance list.
+  async function loadTargetWithdrawal(userId: string) {
+    setTargetWithdrawal(null);
+    try {
+      const { data, error: withdrawalError } = await supabaseBrowser()
+        .from("withdrawals")
+        .select("id,user_id,amount_tk,method,status,created_at")
+        .eq("user_id", userId)
+        .eq("status", "pending")
+        .maybeSingle();
+      if (withdrawalError) {
+        setError(
+          errorMessage(
+            "member withdrawal",
+            withdrawalError,
+            "অপেক্ষমাণ উত্তোলন লোড করা যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
+        return;
+      }
+      setTargetWithdrawal((data as unknown as Withdrawal | null) ?? null);
+    } catch (err) {
+      setError(
+        errorMessage(
+          "member withdrawal",
+          err,
+          "অপেক্ষমাণ উত্তোলন লোড করা যায়নি। আবার চেষ্টা করুন।",
+        ),
+      );
+    }
+  }
+
+  // Re-reads the member's own row so the dialog's wallet figures and the table agree after money
+  // moves. The directory search is the only lookup that never asks for an id.
+  async function refreshMember(member: Member) {
+    try {
+      const { data } = await supabaseBrowser().rpc("admin_member_records", {
+        p_query: member.username,
+        p_limit: 1,
+        p_offset: 0,
+      });
+      const fresh = (data as Member[] | null)?.[0];
+      if (fresh && fresh.id === member.id) setAdjustTarget(fresh);
+    } catch {
+      // The table reload that follows every decision still corrects the visible row.
+    }
+  }
+
   function closeAdjust() {
     setAdjustTarget(null);
     setLedgerEntries([]);
     setLedgerState("idle");
+    setTargetWithdrawal(null);
   }
 
   // Money starts from the member's own row, where the id the RPC needs is already in hand, so
@@ -478,6 +547,41 @@ export function AdminDashboard() {
     setAdjustAmount("");
     setAdjustReason("");
     void loadLedger(member);
+    void loadTargetWithdrawal(member.id);
+  }
+
+  // Opens a member's wallet from a pending request in the finance tab, resolved by username
+  // through the administrator-only directory rather than by the id the withdrawal carries.
+  async function openMemberWallet(username: string | undefined) {
+    if (!username) return;
+    try {
+      const { data, error: lookupError } = await supabaseBrowser().rpc("admin_member_records", {
+        p_query: username,
+        p_limit: 1,
+        p_offset: 0,
+      });
+      if (lookupError) {
+        setError(errorMessage("member lookup", lookupError, "সদস্য খুঁজে পাওয়া যায়নি। আবার চেষ্টা করুন।"));
+        return;
+      }
+      const member = (data as Member[] | null)?.[0];
+      if (!member) {
+        setError("সদস্য খুঁজে পাওয়া যায়নি।");
+        return;
+      }
+      openAdjust(member);
+    } catch (err) {
+      setError(errorMessage("member lookup", err, "সদস্য খুঁজে পাওয়া যায়নি। আবার চেষ্টা করুন।"));
+    }
+  }
+
+  async function settleTargetWithdrawal(decision: "paid" | "rejected") {
+    if (!targetWithdrawal || !adjustTarget) return;
+    const { id } = targetWithdrawal;
+    const settled = await reviewWithdrawal(id, decision);
+    if (!settled) return;
+    setTargetWithdrawal(null);
+    await Promise.all([loadLedger(adjustTarget), refreshMember(adjustTarget)]);
   }
 
   // The finance tab still needs to reach a member the desk has not scrolled to; it searches by
@@ -850,6 +954,11 @@ export function AdminDashboard() {
                           <p className="whitespace-nowrap text-xs text-muted-foreground">
                             আটকে {bn(member.held_tk)} · অপেক্ষমাণ {bn(member.reserved_tk)}
                           </p>
+                          {member.reserved_tk > 0 && (
+                            <Badge variant="secondary" className="mt-1">
+                              উত্তোলন অপেক্ষমাণ
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">
                           {formatDateBn(member.created_at)}
@@ -1094,6 +1203,8 @@ export function AdminDashboard() {
 
       {tab === "finance" && (
         <div className="flex flex-col gap-4">
+          {/* The decision itself no longer happens on this page. The desk opens the member's own
+              wallet, where the request sits with the balance it is holding, and settles it there. */}
           <Card>
             <CardHeader>
               <CardTitle>
@@ -1107,54 +1218,28 @@ export function AdminDashboard() {
                 </p>
               )}
               {withdrawals.map((withdrawal) => (
-                <div key={withdrawal.id} className="rounded-md border p-4">
-                  <p className="text-sm font-medium">
-                    {withdrawal.profiles?.display_name ??
-                      `@${withdrawal.profiles?.username ?? "সদস্য"}`}{" "}
-                    · {bn(withdrawal.amount_tk)} টাকা ·{" "}
-                    {withdrawal.method === "nagad" ? "নগদ" : "বিকাশ"}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDateBn(withdrawal.created_at)}
-                  </p>
-                  <div className="mt-2 grid gap-2">
-                    <Field
-                      label="সিদ্ধান্তের কারণ (আবশ্যক)"
-                      htmlFor={`wreason-${withdrawal.id}`}
-                      hint="কারণ অডিট লগে সংরক্ষিত হয়।"
-                    >
-                      <Textarea
-                        id={`wreason-${withdrawal.id}`}
-                        value={reasons[withdrawal.id] ?? ""}
-                        onChange={(e) =>
-                          setReasons({
-                            ...reasons,
-                            [withdrawal.id]: e.target.value,
-                          })
-                        }
-                        rows={2}
-                        minLength={3}
-                        maxLength={500}
-                      />
-                    </Field>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        disabled={busy === withdrawal.id}
-                        onClick={() => void reviewWithdrawal(withdrawal.id, "approve")}
-                      >
-                        পরিশোধ
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        disabled={busy === withdrawal.id}
-                        onClick={() => void reviewWithdrawal(withdrawal.id, "reject")}
-                      >
-                        প্রত্যাখ্যান
-                      </Button>
-                    </div>
+                <div
+                  key={withdrawal.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-4"
+                >
+                  <div>
+                    <p className="text-sm font-medium">
+                      {withdrawal.profiles?.display_name ??
+                        `@${withdrawal.profiles?.username ?? "সদস্য"}`}{" "}
+                      · {bn(withdrawal.amount_tk)} টাকা ·{" "}
+                      {withdrawal.method === "nagad" ? "নগদ" : "বিকাশ"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDateBn(withdrawal.created_at)} · নিষ্পত্তি সদস্যের মানিব্যাগ ডায়ালগে
+                    </p>
                   </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void openMemberWallet(withdrawal.profiles?.username)}
+                  >
+                    মানিব্যাগ খুলুন →
+                  </Button>
                 </div>
               ))}
             </CardContent>
@@ -1227,6 +1312,54 @@ export function AdminDashboard() {
               )}
             </DialogDescription>
           </DialogHeader>
+          {targetWithdrawal && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3">
+              <p className="text-sm font-medium">অপেক্ষমাণ উত্তোলন</p>
+              <p className="text-xs text-muted-foreground">
+                {bn(targetWithdrawal.amount_tk)} টাকা ·{" "}
+                {targetWithdrawal.method === "nagad" ? "নগদ" : "বিকাশ"} ·{" "}
+                {formatDateBn(targetWithdrawal.created_at)}
+              </p>
+              <div className="mt-2 grid gap-2">
+                <Field
+                  label="সিদ্ধান্তের কারণ (আবশ্যক)"
+                  htmlFor={`wreason-${targetWithdrawal.id}`}
+                  hint="কারণ অডিট লগে সংরক্ষিত হয়। পরিশোধ করলে সংরক্ষিত অর্থ সদস্যের উত্তোলনযোগ্য জমায় যোগ হয়; প্রত্যাখ্যান করলে ফেরত যায়।"
+                >
+                  <Textarea
+                    id={`wreason-${targetWithdrawal.id}`}
+                    value={reasons[targetWithdrawal.id] ?? ""}
+                    onChange={(e) =>
+                      setReasons({
+                        ...reasons,
+                        [targetWithdrawal.id]: e.target.value,
+                      })
+                    }
+                    rows={2}
+                    minLength={3}
+                    maxLength={500}
+                  />
+                </Field>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    disabled={busy === targetWithdrawal.id}
+                    onClick={() => void settleTargetWithdrawal("paid")}
+                  >
+                    {busy === targetWithdrawal.id ? "সংরক্ষণ হচ্ছে…" : "পরিশোধ করা হয়েছে"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={busy === targetWithdrawal.id}
+                    onClick={() => void settleTargetWithdrawal("rejected")}
+                  >
+                    প্রত্যাখ্যান
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="rounded-md border">
             <div className="flex items-center justify-between border-b px-3 py-2">
               <p className="text-sm font-medium">লেনদেনের ইতিহাস</p>
