@@ -26,6 +26,13 @@ export function supabaseServer() {
 }
 
 /**
+ * Browsers cap a `Set-Cookie` lifetime at 400 days. Every session cookie this site writes uses
+ * the same ceiling, so the OAuth callback and the browser client can never disagree about how
+ * long a reader stays signed in. See `app/auth/callback/route.ts`.
+ */
+const SESSION_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
+
+/**
  * Browser client for signed-in actions (reactions, bookmarks, comments, uploads).
  *
  * One instance per page, created on first use and then reused. `createBrowserClient` builds a
@@ -40,8 +47,31 @@ export function supabaseServer() {
 let browserClient: SupabaseClient | null = null;
 
 export function supabaseBrowser() {
-  browserClient ??= createBrowserClient(supabaseUrl, supabaseAnonKey);
+  browserClient ??= createBrowserClient(supabaseUrl, supabaseAnonKey, {
+    cookieOptions: {
+      path: "/",
+      sameSite: "lax",
+      httpOnly: false,
+      maxAge: SESSION_MAX_AGE_SECONDS,
+    },
+  });
   return browserClient;
+}
+
+/**
+ * Distinguishes "there is genuinely nobody signed in" from "the session could not be checked".
+ *
+ * Supabase reports an absent session as an `AuthSessionMissingError`, while a dropped network
+ * call reports something else entirely. Treating the second as the first is how a signed-in
+ * reader gets shown a sign-in button over a bad connection, so callers must be able to tell them
+ * apart before they clear any UI state.
+ */
+export function isMissingSession(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { name?: string }).name === "AuthSessionMissingError"
+  );
 }
 
 /** Treat a token as spent 30s early so it cannot expire mid-request. */

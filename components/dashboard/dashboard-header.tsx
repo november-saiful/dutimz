@@ -19,7 +19,7 @@ import {
   signInWithGoogle,
 } from "@/lib/auth-client";
 import { reportError } from "@/lib/errors";
-import { isSupabaseConfigured, supabaseBrowser } from "@/lib/supabase";
+import { isMissingSession, isSupabaseConfigured, supabaseBrowser } from "@/lib/supabase";
 
 export type Crumb = { label: string; href?: string };
 
@@ -125,7 +125,12 @@ export function DashboardHeader({
     (async () => {
       try {
         const { data: { user }, error } = await supabase.auth.getUser();
-        if (error) reportError("header session", error);
+        if (error) {
+          reportError("header session", error);
+          // A dropped connection is not a sign-out. Only a genuinely absent session may clear the
+          // menu; anything else leaves whatever the reader already sees in place.
+          if (!isMissingSession(error)) return;
+        }
         if (!cancelled)
           await loadUser(user?.id ?? null, (user?.user_metadata ?? {}) as Record<string, unknown>);
       } catch (err) {

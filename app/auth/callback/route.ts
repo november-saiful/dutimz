@@ -2,6 +2,14 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+/**
+ * Browsers cap a `Set-Cookie` lifetime at 400 days, so this is the longest a session can be
+ * remembered without signing in again. It must match the browser client's options in
+ * `lib/supabase.ts`: a cookie written here with a shorter life than the client renews would let
+ * the session lapse even while the reader is still using the site.
+ */
+const SESSION_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
+
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
@@ -19,13 +27,31 @@ export async function GET(request: Request) {
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
     {
+      cookieOptions: {
+        path: "/",
+        sameSite: "lax",
+        httpOnly: false,
+        maxAge: SESSION_MAX_AGE_SECONDS,
+      },
       cookies: {
         getAll: () => cookieStore.getAll(),
         setAll: (
           toSet: { name: string; value: string; options?: object }[],
         ) => {
-          for (const { name, value } of toSet) {
-            cookieStore.set(name, value);
+          /*
+            The options Supabase hands over carry the cookie's lifetime. Dropping them made Next
+            write a plain session cookie — no `maxAge`, so the browser discarded it the moment it
+            closed and the reader was silently signed out on their next visit. The whole object
+            has to survive the trip into `cookies().set`.
+          */
+          for (const { name, value, options } of toSet) {
+            cookieStore.set(name, value, {
+              path: "/",
+              sameSite: "lax",
+              httpOnly: false,
+              maxAge: SESSION_MAX_AGE_SECONDS,
+              ...options,
+            });
           }
         },
       },
