@@ -23,6 +23,8 @@ import {
   StoryArt,
   StoryCard,
 } from "@/components/dashboard/story-card";
+import { EditorialMustKnow } from "@/components/dashboard/editorial-must-know";
+import { CategoryPills } from "@/components/dashboard/category-pills";
 import {
   getDashboardStats,
   getLatestStories,
@@ -122,6 +124,12 @@ export default async function HomePage() {
   // recent-activity feed, which still read from the same stats object.
   return (
     <DutimzShell title="স্বাগতম" breaking={breaking}>
+      {/* Editorial 'Must you know today' section matching mockup */}
+      <EditorialMustKnow stories={railStories} />
+
+      {/* Category Pills Navigation matching mockup */}
+      <CategoryPills />
+
       {/*
         The deck leads the page: the newest reports, one in focus at a time, with
         the story behind it named on the card. Hovering holds the deck still so a

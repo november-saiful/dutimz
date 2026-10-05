@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 
 import { ArticleActions } from "@/components/article/article-actions";
 import { Comments } from "@/components/article/comments";
+import { LiveAlertToggle } from "@/components/article/live-alert-toggle";
 import { PendingArticle } from "@/components/article/pending-article";
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
 import { RecommendedItem, StoryArt } from "@/components/dashboard/story-card";
@@ -212,6 +213,9 @@ export default async function ArticlePage({
               </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-6">
+              {/* Live Alerts Toggle matching the mockup reader screen */}
+              <LiveAlertToggle />
+
               {article.hero_media_key ? (
                 <figure className="overflow-hidden rounded-lg">
                   <Image

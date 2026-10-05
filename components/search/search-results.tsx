@@ -6,6 +6,7 @@ import { StoryCard } from "@/components/dashboard/story-card";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { TopicSelector } from "@/components/search/topic-selector";
 import { reportError } from "@/lib/errors";
 import { one, supabaseBrowser, type Story } from "@/lib/supabase";
 
@@ -103,6 +104,22 @@ export function SearchResults({ initialQuery }: { initialQuery: string }) {
           {busy ? "খুঁজছে…" : "খুঁজুন ⌕"}
         </Button>
       </form>
+
+      {/* Visual Topic Picker matching Mockup */}
+      <TopicSelector
+        selectedTopic={query}
+        onSelectTopic={(topic) => {
+          setQuery(topic);
+          const params = new URLSearchParams(window.location.search);
+          params.set("q", topic);
+          window.history.replaceState(
+            {},
+            "",
+            `${window.location.pathname}?${params.toString()}`,
+          );
+          void run(topic);
+        }}
+      />
 
       {searched !== null && (
         <p className="text-sm text-muted-foreground" aria-live="polite">

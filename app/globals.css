@@ -56,6 +56,13 @@
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
 
+  /* Redesign v2 Tokens based on Mockup */
+  --color-editorial-dark: #121417;
+  --color-editorial-dark-card: #1c2024;
+  --color-editorial-mint: #70dfa7;
+  --color-editorial-mint-dark: #22c55e;
+  --color-editorial-badge-live: #ef4444;
+
   @keyframes accordion-down {
     from {
       height: 0;

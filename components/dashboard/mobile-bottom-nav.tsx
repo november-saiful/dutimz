@@ -139,7 +139,7 @@ export function MobileBottomNav() {
 
         <nav
           aria-label="মোবাইল নেভিগেশন"
-          className="relative grid h-[76px] grid-cols-5 items-end rounded-[26px] border border-border bg-card px-2 pb-2.5 shadow-[0_12px_36px_rgba(25,35,52,.10)]"
+          className="relative grid h-[74px] grid-cols-5 items-end rounded-[28px] border border-border/80 bg-card/95 backdrop-blur-md px-2 pb-2.5 shadow-[0_16px_40px_rgba(25,35,52,.12),0_2px_8px_rgba(25,35,52,.04)]"
         >
           <Link href="/" aria-current={homeActive ? "page" : undefined} className={itemClass(homeActive)}>
             <Home className="size-6" strokeWidth={1.6} />
