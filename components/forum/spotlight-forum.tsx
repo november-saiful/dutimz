@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 
 import { BadgeCheck, Trash2 } from "lucide-react";
 
@@ -559,7 +560,12 @@ export function SpotlightForum() {
                   </div>
                 </div>
                 <CardTitle className="text-lg leading-snug">
-                  {post.title}
+                  <Link
+                    href={`/spotlight/${post.id}/`}
+                    className="hover:underline"
+                  >
+                    {post.title}
+                  </Link>
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
@@ -615,6 +621,13 @@ export function SpotlightForum() {
                     )}
                   </div>
                 )}
+                <div>
+                  <Button variant="link" size="sm" asChild className="px-0">
+                    <Link href={`/spotlight/${post.id}/`}>
+                      বিস্তারিত ও সম্পূর্ণ ইতিহাস →
+                    </Link>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           );

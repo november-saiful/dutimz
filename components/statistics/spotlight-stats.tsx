@@ -1,8 +1,15 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -41,6 +48,21 @@ type SolverRow = {
   solved_count: number;
 };
 
+type RecentIssue = {
+  id: string;
+  title: string;
+  issue_status: string;
+  solver_kind: string | null;
+  solver_name: string | null;
+};
+
+const ISSUE_STATUS_LABELS: Record<string, string> = {
+  open: "খোলা",
+  in_progress: "কাজ চলছে",
+  solved: "সমাধান হয়েছে",
+  invalid: "ভিত্তিহীন / অপ্রাসঙ্গিক",
+};
+
 const SOLVER_LABELS: Record<string, string> = {
   authority: "প্রশাসন",
   student_wing: "শিক্ষার্থী উইং",
@@ -66,6 +88,7 @@ function asCount(value: unknown): number {
 export function SpotlightStats() {
   const [stats, setStats] = React.useState<SpotlightStats | null>(null);
   const [solvers, setSolvers] = React.useState<SolverRow[]>([]);
+  const [recent, setRecent] = React.useState<RecentIssue[]>([]);
   const [failed, setFailed] = React.useState(false);
 
   React.useEffect(() => {
@@ -74,9 +97,17 @@ export function SpotlightStats() {
     (async () => {
       try {
         const supabase = supabaseBrowser();
-        const [statsResult, solversResult] = await Promise.all([
+        const [statsResult, solversResult, recentResult] = await Promise.all([
           supabase.rpc("get_public_spotlight_stats"),
           supabase.rpc("get_public_spotlight_solvers", { p_limit: 20 }),
+          // Each decision links to the issue's own page, where the solver, the proof pictures and
+          // the whole history live. It is a public read of visible posts, so it needs no RPC.
+          supabase
+            .from("spotlight_posts")
+            .select("id,title,issue_status,solver_kind,solver_name")
+            .neq("issue_status", "open")
+            .order("marked_at", { ascending: false })
+            .limit(8),
         ]);
         if (cancelled) return;
         if (statsResult.error || solversResult.error) {
@@ -86,6 +117,13 @@ export function SpotlightStats() {
         }
         setStats((statsResult.data as unknown as SpotlightStats | null) ?? null);
         setSolvers((solversResult.data as unknown as SolverRow[] | null) ?? []);
+        // A missing decision list must not blank out the statistics above it.
+        if (recentResult.error) {
+          reportError("recent spotlight issues", recentResult.error);
+          setRecent([]);
+        } else {
+          setRecent((recentResult.data as unknown as RecentIssue[] | null) ?? []);
+        }
       } catch (err) {
         reportError("spotlight statistics", err);
         if (!cancelled) setFailed(true);
@@ -202,6 +240,45 @@ export function SpotlightStats() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">সাম্প্রতিক সিদ্ধান্ত</CardTitle>
+          <CardDescription>
+            যেসব ইস্যুতে সিদ্ধান্ত হয়েছে — প্রতিটির সমাধানকারী, প্রমাণ ও
+            সম্পূর্ণ ইতিহাস নিজের পাতায় দেখুন।
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {recent.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              এখনো কোনো ইস্যুতে সিদ্ধান্ত চিহ্নিত হয়নি।
+            </p>
+          ) : (
+            <ul className="flex flex-col divide-y">
+              {recent.map((issue) => (
+                <li key={issue.id}>
+                  <Link
+                    href={`/spotlight/${issue.id}/`}
+                    className="flex items-center justify-between gap-3 py-2 hover:underline"
+                  >
+                    <span className="min-w-0 truncate text-sm">
+                      {issue.title}
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {ISSUE_STATUS_LABELS[issue.issue_status] ??
+                        issue.issue_status}
+                      {issue.solver_kind
+                        ? ` · ${SOLVER_LABELS[issue.solver_kind] ?? issue.solver_kind}`
+                        : ""}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-3 sm:grid-cols-4">
         {[
