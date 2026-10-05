@@ -225,7 +225,7 @@ export function DashboardHeader({
   }
 
   return (
-    <div className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur-sm">
+    <div className="sticky top-0 z-10 border-b bg-background">
       <header className="grid h-16 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-2">
           {/*

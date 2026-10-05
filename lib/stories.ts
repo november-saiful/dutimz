@@ -117,6 +117,31 @@ export async function getStoryBySlug(
   }
 }
 
+/**
+ * True when some article — published or not — has claimed this slug.
+ *
+ * `getStoryBySlug` is filtered to published rows, so it cannot tell "no such story" (a real 404)
+ * apart from "a story that exists but is not live yet" (which the author and the desk may
+ * preview). This asks only whether the slug is taken, and shares nothing about the article.
+ */
+export async function articleSlugExists(slug: string): Promise<boolean> {
+  if (isDemoMode() || !slug) return false;
+  try {
+    const supabase = supabaseServer();
+    const { data, error } = await supabase.rpc("article_slug_exists", {
+      p_slug: slug,
+    });
+    if (error) {
+      reportError("article slug lookup", error);
+      return false;
+    }
+    return data === true;
+  } catch (error) {
+    reportError("article slug lookup", error);
+    return false;
+  }
+}
+
 export async function getCategoryStories(slug: string): Promise<{
   title: string;
   description: string;

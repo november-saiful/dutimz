@@ -1,6 +1,13 @@
 "use client";
 
 import * as React from "react";
+import {
+  Bookmark,
+  CircleUserRound,
+  LayoutDashboard,
+  LogOut,
+  type LucideIcon,
+} from "lucide-react";
 
 import { SignInButton } from "@/components/auth/sign-in-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,7 +20,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { type AccountMenuActionId } from "@/lib/account-menu";
 import { cn } from "@/lib/utils";
-import { Icon } from "@iconify/react";
 
 export type DropdownUser = {
   name: string;
@@ -24,7 +30,7 @@ export type DropdownUser = {
 };
 
 type MenuItem = {
-  icon: string;
+  icon: LucideIcon;
   label: string;
   action: AccountMenuActionId;
   /**
@@ -63,7 +69,7 @@ const GUEST_USER: DropdownUser = {
 /** The one entry a signed-out visitor keeps beyond sign-in. */
 const GUEST_ITEMS: MenuItem[] = [
   {
-    icon: "solar:bookmark-line-duotone",
+    icon: Bookmark,
     label: "সংরক্ষিত কনটেন্ট",
     action: "saved",
     requiresSession: true,
@@ -73,17 +79,17 @@ const GUEST_ITEMS: MenuItem[] = [
 /** The signed-in menu, exactly: dashboard, my profile, log out. */
 const ACCOUNT_ITEMS: MenuItem[] = [
   {
-    icon: "solar:widget-5-line-duotone",
+    icon: LayoutDashboard,
     label: "ড্যাশবোর্ড",
     action: "dashboard",
   },
   {
-    icon: "solar:user-circle-line-duotone",
+    icon: CircleUserRound,
     label: "আমার প্রোফাইল",
     action: "my-profile",
   },
   {
-    icon: "solar:logout-2-bold-duotone",
+    icon: LogOut,
     label: "লগ আউট",
     action: "logout",
   },
@@ -114,7 +120,7 @@ export const UserDropdown = ({
       onClick={() => runAction(item)}
     >
       <span className="flex items-center gap-1.5 font-medium">
-        <Icon icon={item.icon} className="size-5 text-muted-foreground" />
+        <item.icon className="size-5 text-muted-foreground" strokeWidth={1.8} />
         {item.label}
       </span>
     </DropdownMenuItem>

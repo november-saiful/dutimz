@@ -109,6 +109,7 @@ test('every portal route exists in the App Router', async () => {
     'app/account/admin/page.tsx',
     'app/u/[username]/page.tsx',
     'app/spotlight/page.tsx',
+    'app/spotlight/[id]/page.tsx',
     'app/sitemap.ts',
     'app/robots.ts',
   ]) {
@@ -505,6 +506,73 @@ test('the homepage leads with the report carousel and keeps the breaking ticker'
   const pkg = JSON.parse(await readProjectFile('package.json'));
   assert.ok(pkg.dependencies['framer-motion'], 'the deck needs framer-motion');
   assert.ok(!pkg.dependencies.motion, "the reel's own motion package must be gone");
+});
+
+test('the homepage rails name the newest five reports', async () => {
+  const page = await readProjectFile('app/page.tsx');
+  assert.match(page, /const HOME_RAIL_LIMIT = 5/);
+  assert.match(page, /\.slice\(0, HOME_RAIL_LIMIT\)/, 'one slice bounds both rails');
+  assert.match(page, /breaking = railStories\.map/, 'the ticker reads the shared slice');
+  assert.match(page, /carouselItems\(railStories\)/, 'the deck reads the same slice, not eight stories');
+});
+
+test('a shared story carries its own picture, not the site logo', async () => {
+  const article = await readProjectFile('app/news/[slug]/page.tsx');
+  assert.match(article, /openGraph:[\s\S]*images:/, 'the page must set its own og:image');
+  assert.match(article, /twitter:[\s\S]*summary_large_image/);
+  assert.match(article, /width: 1200, height: 630/, 'the card needs the large-image dimensions');
+  assert.match(article, /og-banner\.png/, 'a story without art falls back to the banner');
+  assert.match(article, /mediaUrlFor\(heroKey\)/, "the crawler picture is the story's own media");
+  const layout = await readProjectFile('app/layout.tsx');
+  assert.match(layout, /twitter:[\s\S]*images:/, 'every other page still gets a default card image');
+});
+
+test('a story link can be copied and previewed before it is published', async () => {
+  const writer = await readProjectFile('components/account/writer-form.tsx');
+  assert.match(writer, /navigator\.clipboard\.writeText/, 'the copy button uses the clipboard');
+  assert.match(writer, /SITE_URL\}\/news\//, "the copied link is the article's own address");
+  assert.match(writer, /result\.data[\s\S]*slug/, 'the real slug comes from the RPC response');
+  assert.doesNotMatch(writer, /slice\(0, 24\)/, 'no slug is guessed from the Bengali title');
+  const news = await readProjectFile('app/news/[slug]/page.tsx');
+  assert.match(news, /articleSlugExists/, 'an unpublished slug is told apart from an unknown one');
+  assert.match(news, /<PendingArticle/);
+  const pending = await readProjectFile('components/article/pending-article.tsx');
+  assert.match(pending, /get_my_article_by_slug/);
+  assert.match(pending, /AuthedMediaImage/, "private pictures load with the reader's token");
+  const stories = await readProjectFile('lib/stories.ts');
+  assert.match(stories, /article_slug_exists/);
+  const migration = await readProjectFile('supabase/migrations/202610030001_article_preview.sql');
+  assert.match(migration, /get_my_article_by_slug/);
+  assert.match(migration, /is_moderator_or_admin\(\)/, 'only the author or the desk may read it');
+});
+
+test('the article body fills its card instead of leaving a blank band', async () => {
+  const article = await readProjectFile('app/news/[slug]/page.tsx');
+  assert.doesNotMatch(article, /max-w-\[68ch\]/, 'the one-sided blank band must be gone');
+  assert.match(article, /article-body text-\[17px\]/);
+});
+
+test('the site paints without a blocking font and moves motion onto CSS', async () => {
+  const layout = await readProjectFile('app/layout.tsx');
+  assert.match(layout, /next\/font\/google/, 'the Bengali face is self-hosted');
+  assert.doesNotMatch(layout, /fonts\.googleapis\.com/, 'no render-blocking stylesheet remains');
+  const css = await readProjectFile('app/globals.css');
+  assert.match(css, /prefers-reduced-motion: reduce/, 'a global reduced-motion reset');
+  assert.match(css, /@keyframes dutimz-carousel-progress/);
+  const carousel = await readProjectFile('components/ui/connected-carousel.tsx');
+  assert.doesNotMatch(carousel, /requestAnimationFrame/, 'the deck must not re-render every frame');
+  assert.doesNotMatch(carousel, /setProgress/);
+  assert.match(carousel, /dutimz-carousel-progress/);
+  assert.match(carousel, /new IntersectionObserver/, 'the timer only runs while on screen');
+  const page = await readProjectFile('app/page.tsx');
+  assert.match(page, /<LazyThroughputChart/, 'recharts stays out of the initial bundle');
+  const lazy = await readProjectFile('components/dashboard/throughput-chart-lazy.tsx');
+  assert.match(lazy, /next\/dynamic/);
+  assert.match(lazy, /ssr: false/);
+  const dropdown = await readProjectFile('components/ui/user-dropdown.tsx');
+  assert.doesNotMatch(dropdown, /@iconify\/react/, 'no runtime icon fetch');
+  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
+  assert.doesNotMatch(header, /backdrop-blur/);
 });
 
 test('anonymous stories never receive a profile link', async () => {
@@ -1026,6 +1094,22 @@ test('spotlight accountability is public', async () => {
   }
   const page = await readProjectFile('app/statistics/page.tsx');
   assert.match(page, /<SpotlightStats \/>/, 'the statistics page must render it');
+});
+
+test('a Spotlight issue has its own public page with its full history', async () => {
+  const page = await readProjectFile('app/spotlight/[id]/page.tsx');
+  assert.match(page, /spotlight_issue_events/, 'the page shows the append-only history');
+  assert.match(page, /spotlight_resolution_media/, 'the page shows the proof gallery');
+  assert.match(page, /solver_kind/, 'the page names who solved the issue');
+  assert.match(page, /spotlightMediaUrlFor/, 'proof pictures resolve through the media Worker');
+  assert.match(page, /notFound\(\)/, 'an unknown or malformed id must 404');
+  assert.match(page, /generateMetadata/, 'the issue page must be shareable');
+  assert.doesNotMatch(page, /actor_id/, 'the public page must not read the hidden marking account');
+  // Every entry point must reach the page: the feed and the statistics both link to it.
+  const forum = await readProjectFile('components/forum/spotlight-forum.tsx');
+  assert.match(forum, /\/spotlight\/\$\{post\.id\}\//, 'a feed card links to its issue page');
+  const stats = await readProjectFile('components/statistics/spotlight-stats.tsx');
+  assert.match(stats, /\/spotlight\/\$\{issue\.id\}\//, 'a public decision links to its issue page');
 });
 
 test('submitting a story reports its outcome with a spinner and a toast', async () => {

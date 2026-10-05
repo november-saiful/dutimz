@@ -1,5 +1,5 @@
 begin;
-select plan(211);
+select plan(215);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -1261,6 +1261,26 @@ select ok(
 
 reset role;
 select set_config('request.jwt.claim.sub', '', true);
+
+-- A story's link has to work before the story is published — but only for the author and the desk.
+-- The existence check shares nothing about the story; the function that reads the body is refused
+-- to a signed-out visitor.
+select ok(
+  has_function_privilege('anon', 'public.article_slug_exists(text)', 'execute'),
+  'A signed-out visitor can ask whether a slug is taken'
+);
+select has_function(
+  'public', 'article_slug_exists', array['text'],
+  'A slug can be checked for existence without reading the story'
+);
+select ok(
+  not has_function_privilege('anon', 'public.get_my_article_by_slug(text)', 'execute'),
+  'A signed-out visitor cannot read an unpublished story'
+);
+select ok(
+  has_function_privilege('authenticated', 'public.get_my_article_by_slug(text)', 'execute'),
+  'A signed-in author can read back their own unpublished story'
+);
 
 select * from finish();
 rollback;

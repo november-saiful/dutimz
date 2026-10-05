@@ -230,3 +230,24 @@ test('the spotlight lifecycle keeps its decisions audited and its statistics pub
   );
   assert.ok(dashboard.trimEnd().endsWith('commit;'), 'the migration should be atomic');
 });
+
+test('the article preview keeps an unpublished body to its author and the desk', async () => {
+  const migration = await readProjectFile('supabase/migrations/202610030001_article_preview.sql');
+  for (const fn of ['article_slug_exists', 'get_my_article_by_slug']) {
+    assert.ok(migration.includes(`function public.${fn}`), `${fn} should be defined`);
+    assert.ok(
+      migration.includes(`revoke all on function public.${fn}`),
+      `${fn} should be revoked so it is not callable past its own guard`,
+    );
+  }
+  // Existence may be public; the body may not.
+  assert.ok(migration.includes('to anon, authenticated'), 'a slug can be checked by anyone');
+  assert.ok(migration.includes('from public, anon'), 'the body read is not granted to a visitor');
+  assert.ok(migration.includes('is_moderator_or_admin()'), 'only the author or the desk may read it');
+  assert.ok(
+    migration.includes('article_attributions'),
+    'an anonymously filed draft still belongs to its author',
+  );
+  assert.ok(migration.includes("set search_path = ''"), 'a SECURITY DEFINER function must pin its search path');
+  assert.ok(migration.trimEnd().endsWith('commit;'), 'the migration should be atomic');
+});

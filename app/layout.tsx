@@ -1,7 +1,20 @@
 import type { Metadata } from "next";
+import { Noto_Serif_Bengali } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
 import { SITE_URL } from "@/lib/site";
+
+/**
+ * The Bengali face is self-hosted by `next/font` rather than fetched from a `<link>` in the head.
+ * The external stylesheet was render-blocking and needed two extra origins warmed up before any
+ * text could paint; now the font files ship from our own origin with the rest of the CSS.
+ */
+const bengali = Noto_Serif_Bengali({
+  subsets: ["bengali", "latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+  variable: "--font-bengali",
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -17,7 +30,10 @@ export const metadata: Metadata = {
     type: "website",
     images: [{ url: "/og-banner.png", width: 1200, height: 630, alt: "DUTIMZ" }],
   },
-  twitter: { card: "summary_large_image" },
+  twitter: {
+    card: "summary_large_image",
+    images: ["/og-banner.png"],
+  },
 };
 
 export default function RootLayout({
@@ -26,22 +42,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="bn">
+    <html lang="bn" className={bengali.variable}>
       <head>
         <meta name="theme-color" content="#5f2367" />
         <meta name="color-scheme" content="light" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="apple-touch-icon" href="/brand-icon.svg" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Noto+Serif+Bengali:wght@400;500;600;700;800&display=swap"
-          rel="stylesheet"
-        />
       </head>
       <body>
         <a

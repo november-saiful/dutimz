@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 
 import { ArticleActions } from "@/components/article/article-actions";
 import { Comments } from "@/components/article/comments";
+import { PendingArticle } from "@/components/article/pending-article";
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
 import { RecommendedItem, StoryArt } from "@/components/dashboard/story-card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -25,6 +26,7 @@ import {
   mediaUrlFor,
 } from "@/lib/site";
 import {
+  articleSlugExists,
   getLatestStories,
   getSitemapArticles,
   getStoryBySlug,
@@ -67,8 +69,28 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { slug } = await params;
   const article = await getStoryBySlug(slug);
-  if (!article) return { title: "প্রতিবেদন পাওয়া যায়নি" };
+  if (!article) {
+    // An unpublished story is cased exactly as the page cases it: only if its slug exists at all.
+    if (await articleSlugExists(slug)) {
+      return {
+        title: "পর্যালোচনার অপেক্ষায়",
+        robots: { index: false, follow: false },
+      };
+    }
+    return { title: "প্রতিবেদন পাওয়া যায়নি" };
+  }
   const url = `/news/${encodeURIComponent(article.slug)}/`;
+  // The crawler's picture is the story's own hero, or its first gallery image, or the site banner
+  // when the reporter attached no art. It has to be absolute and set per article: Next replaces a
+  // page's `openGraph` rather than merging it, so without this every share fell back to the text
+  // logo in the layout default.
+  const heroKey =
+    article.hero_media_key ??
+    (article.article_media ?? [])
+      .slice()
+      .sort((a, b) => a.position - b.position)[0]?.media_id ??
+    null;
+  const image = heroKey ? mediaUrlFor(heroKey) : "/og-banner.png";
   return {
     title: article.title,
     description: article.excerpt,
@@ -79,6 +101,13 @@ export async function generateMetadata({
       description: article.excerpt,
       url,
       publishedTime: article.published_at,
+      images: [{ url: image, width: 1200, height: 630, alt: article.title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${article.title} | DUTIMZ`,
+      description: article.excerpt,
+      images: [image],
     },
   };
 }
@@ -90,7 +119,20 @@ export default async function ArticlePage({
 }) {
   const { slug } = await params;
   const article = await getStoryBySlug(slug);
-  if (!article) notFound();
+  if (!article) {
+    // A slug no story has ever claimed is a real 404. One that a story has claimed but that is not
+    // published yet is served as a gated preview, so an author can open the link they copied from
+    // the write form; the client component decides whether this reader may see it.
+    if (!(await articleSlugExists(slug))) notFound();
+    return (
+      <DutimzShell
+        title="পর্যালোচনার অপেক্ষায়"
+        crumbs={[{ label: "প্রতিবেদন" }]}
+      >
+        <PendingArticle slug={slug} />
+      </DutimzShell>
+    );
+  }
 
   const category = storyCategory(article);
   const credit = storyCredit(article);
@@ -188,7 +230,7 @@ export default async function ArticlePage({
                   className="aspect-video w-full rounded-lg"
                 />
               )}
-              <div className="article-body max-w-[68ch] text-[17px] leading-8">
+              <div className="article-body text-[17px] leading-8">
                 {paragraphs.map((paragraph, index) => (
                   <p key={index}>{paragraph}</p>
                 ))}

@@ -154,7 +154,7 @@
     --chart-3: 320 40% 60%;
     --chart-4: 260 40% 62%;
     --chart-5: 335 45% 55%;
-    --font-bengali: "Noto Serif Bengali", "Noto Sans Bengali", Georgia, serif;
+    /* --font-bengali is set by next/font on <html>; it is not redeclared here. */
   }
 }
 
@@ -210,5 +210,30 @@
 @media (prefers-reduced-motion: reduce) {
   .ticker-track {
     animation: none;
+  }
+}
+
+/* The carousel's progress dot is driven by CSS, not by a React state update every frame. */
+@keyframes dutimz-carousel-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/*
+  One reset for every surface, not a per-component opt-in: a reader who has asked their system for
+  less motion should not have to hope each animation remembered to check. Durations collapse, so
+  the end state still arrives; elements are not hidden.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

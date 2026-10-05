@@ -30,9 +30,18 @@ import { SignInButton } from "@/components/auth/sign-in-button";
 import { rememberReturnPath, signInWithGoogle } from "@/lib/auth-client";
 import { errorMessage, reportError } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
-import { CATEGORIES } from "@/lib/site";
+import { CATEGORIES, SITE_URL } from "@/lib/site";
 
 const PUBLISHING_ROLES = ["reporter", "moderator", "admin"];
+
+/** The path of a stored absolute article URL, for a router link. */
+function previewPathFor(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return "/";
+  }
+}
 
 export function WriterForm() {
   const { toast } = useToast();
@@ -40,7 +49,10 @@ export function WriterForm() {
   // undefined while the role is being read; null when the reader has none (or a
   // plain reader), which is what decides whether the form is shown at all.
   const [role, setRole] = React.useState<string | null | undefined>(undefined);
-  const [slugPreview, setSlugPreview] = React.useState("/news/…");
+  // The article's real link, filled in from the row `submit_article` returns. Before submission
+  // there is no slug to show — the server allocates it — so the field stays a plain hint.
+  const [createdUrl, setCreatedUrl] = React.useState("");
+  const [copied, setCopied] = React.useState(false);
   const [error, setError] = React.useState("");
   const [status, setStatus] = React.useState(
     "জুনিয়র রিপোর্টারের প্রতিবেদন অনুমোদনের অপেক্ষায় থাকবে।",
@@ -106,6 +118,19 @@ export function WriterForm() {
   function fail(message: string, description?: string) {
     setError(message);
     toast({ tone: "error", title: message, description });
+  }
+
+  async function copyCreatedLink() {
+    if (!createdUrl) return;
+    try {
+      await navigator.clipboard.writeText(createdUrl);
+      setCopied(true);
+      toast({ tone: "success", title: "লিংক কপি হয়েছে।" });
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      reportError("copy article link", err);
+      toast({ tone: "error", title: "লিংক কপি করা যায়নি।" });
+    }
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -179,12 +204,21 @@ export function WriterForm() {
         );
         return;
       }
+      // `submit_article` allocates the slug server-side; the row it returns is the only place
+      // the real address exists. Showing anything else before now is what produced a wrong URL.
+      const createdSlug =
+        typeof (result.data as { slug?: unknown } | null)?.slug === "string"
+          ? ((result.data as { slug: string }).slug)
+          : "";
       form.reset();
-      setSlugPreview("/news/…");
       setAnswers({});
       setAnonymous("off");
       for (const item of gallery) URL.revokeObjectURL(item.objectUrl);
       setGallery([]);
+      setCopied(false);
+      setCreatedUrl(
+        createdSlug ? `${SITE_URL}/news/${encodeURIComponent(createdSlug)}/` : "",
+      );
       setDone("আপনার প্রতিবেদন পর্যালোচনার জন্য পাঠানো হয়েছে।");
       setStatus("প্রতিবেদন পাঠানো হয়েছে।");
       toast({
@@ -275,11 +309,6 @@ export function WriterForm() {
                   maxLength={180}
                   required
                   placeholder="আপনার প্রতিবেদনের শিরোনাম"
-                  onChange={(event) =>
-                    setSlugPreview(
-                      `/news/${event.target.value.trim().slice(0, 24) || "…"}/`,
-                    )
-                  }
                 />
               </Field>
               <Field label="বিভাগ" htmlFor="write-category">
@@ -301,10 +330,12 @@ export function WriterForm() {
               </Field>
               <Field
                 label="প্রতিবেদনের ঠিকানা"
-                hint="শিরোনাম থেকে ইংরেজি ঠিকানা স্বয়ংক্রিয়ভাবে তৈরি হবে।"
+                hint="জমা দেওয়ার পর প্রকৃত ইংরেজি ঠিকানা তৈরি হয়; তখনই লিংক কপি করা যাবে।"
               >
-                <p className="flex h-10 min-w-0 items-center rounded-md border bg-muted px-3 text-sm text-muted-foreground">
-                  {slugPreview}
+                <p className="flex h-10 min-w-0 items-center overflow-hidden rounded-md border bg-muted px-3 text-sm text-muted-foreground">
+                  <span className="truncate">
+                    {createdUrl || "জমা দেওয়ার পর তৈরি হবে"}
+                  </span>
                 </p>
               </Field>
             </FieldGrid>
@@ -373,6 +404,32 @@ export function WriterForm() {
 
           {error && <FormMessage>{error}</FormMessage>}
           {done && <FormMessage tone="success">{done}</FormMessage>}
+          {createdUrl && (
+            <div className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3">
+              <p className="text-sm font-medium">প্রতিবেদনের লিংক</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <code className="min-w-0 break-all rounded bg-background px-2 py-1 text-xs">
+                  {createdUrl}
+                </code>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void copyCreatedLink()}
+                >
+                  {copied ? "কপি হয়েছে" : "লিংক কপি করুন"}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" asChild>
+                  <Link href={previewPathFor(createdUrl)}>
+                    প্রিভিউ দেখুন →
+                  </Link>
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                প্রকাশের আগে এই লিংকটি শুধু আপনি ও সম্পাদকীয় ডেস্ক খুলতে পারবেন।
+              </p>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={busy} aria-busy={busy}>
               {busy && <Loader2 className="size-4 animate-spin" aria-hidden />}

@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
-import { ThroughputChart } from "@/components/dashboard/throughput-chart";
+import { LazyThroughputChart } from "@/components/dashboard/throughput-chart-lazy";
 import {
   CalendlyCarousel,
   type CarouselItem,
@@ -42,6 +42,12 @@ export const revalidate = 30;
  * attached no hero art borrows its section's picture instead of rendering a
  * broken frame, and `opinion` shares the culture one the way `slugArtClass` does.
  */
+/**
+ * Both homepage rails — the breaking ticker and the carousel deck — name the newest five reports,
+ * and they read from this one slice so they can never disagree about what "latest" means.
+ */
+const HOME_RAIL_LIMIT = 5;
+
 const SECTION_ART: Record<string, string> = {
   campus:
     "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&q=85",
@@ -99,13 +105,16 @@ export default async function HomePage() {
   const side: (Story | PreviewStory)[] = demo
     ? previewStories.slice(1)
     : stories.slice(1, 7);
-  const breaking = (demo ? previewStories : stories).slice(0, 5).map((s) => ({
+  const railStories: (Story | PreviewStory)[] = (
+    demo ? previewStories : stories
+  ).slice(0, HOME_RAIL_LIMIT);
+  const breaking = railStories.map((s) => ({
     href: `/news/${"slug" in s ? s.slug : ""}/`,
     title: s.title,
   }));
-  // The deck repeats whatever it is given to fill the ring, so a handful of
-  // stories is enough — and the same shape serves demo mode and the archive.
-  const deck = carouselItems(demo ? previewStories : stories.slice(0, 8));
+  // The deck repeats whatever it is given to fill the ring, so five stories is
+  // enough — and the same shape serves demo mode and the archive.
+  const deck = carouselItems(railStories);
 
   // The desk-wide counts (reports, sections, authors, comments) live in the
   // admin dashboard, not on the public homepage: they answer an editorial
@@ -182,7 +191,7 @@ export default async function HomePage() {
         </CardHeader>
         <CardContent>
           {stats.weekly.length ? (
-            <ThroughputChart data={stats.weekly} />
+            <LazyThroughputChart data={stats.weekly} />
           ) : (
             <p className="py-8 text-center text-sm text-muted-foreground">
               {demo
