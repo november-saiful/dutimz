@@ -117,64 +117,19 @@ test('every route stays inside the viewport at common widths', async () => {
             failures.push(`${route} at ${width}px: uncaught client error — ${pageErrors[0]}`);
             break;
           }
-          // The homepage deck is one layout — the desktop one — scaled to the box
-          // it is given, so a phone shows a smaller copy of the desktop deck rather
-          // than a rearrangement of it. When the card gets too small for its own
-          // smaller type, that type is dropped instead of printed unreadably.
+          // The homepage is a paper grid, not a carousel deck: the lead
+          // section, the reader links into each story, and the finale
+          // wordmark are what prove it rendered at this width.
           if (route === '/') {
-            await page
-              .waitForFunction(
-                () =>
-                  document.querySelector(
-                    '[aria-roledescription="carousel"] #carousel-view-panel > div > div',
-                  )?.style.opacity === '1',
-                null,
-                { timeout: 5000 },
-              )
-              .catch(() => {});
-            const deck = await page.evaluate(() => {
-              const root = document.querySelector('[aria-roledescription="carousel"]');
-              const surface = root?.querySelector('#carousel-view-panel > div > div');
-              const active = surface?.querySelector('[data-offset="0"]');
-              if (!surface || !active) return null;
-              const card = active.getBoundingClientRect();
-              const chips = [...active.querySelectorAll('span')].filter((span) =>
-                String(span.className).includes('rounded-[4px]'),
-              ).length;
-              return {
-                scale: Number(/scale\(([\d.]+)\)/.exec(surface.style.transform)?.[1] ?? 0),
-                // The ring is drawn at most 1:1, so its box is capped at the design's
-                // own 1012px however wide the page gets.
-                box: Math.min(1, root.clientWidth / 1012),
-                width: card.width,
-                height: card.height,
-                quote: !!active.querySelector('p'),
-                badge: !!active.querySelector('span[class*="bg-primary/10"]'),
-                chips,
-              };
-            });
-            // Allow a pixel of rounding either way on a measured box.
-            const near = (a, b) => Math.abs(a - b) <= 1;
-            if (!deck) {
-              failures.push(`${route} at ${width}px: the deck did not render`);
-            } else {
-              if (!near(deck.scale, deck.box)) {
-                failures.push(
-                  `${route} at ${width}px: the deck is not scaled to its own box (scale ${deck.scale} for a ${deck.box} box)`,
-                );
-              }
-              if (!near(deck.width, 762 * deck.scale) || !near(deck.height, 513 * deck.scale)) {
-                failures.push(
-                  `${route} at ${width}px: the card in focus is not the desktop card scaled (${Math.round(deck.width)}×${Math.round(deck.height)} at scale ${deck.scale})`,
-                );
-              }
-              // Every card shows its section badge, short description and byline
-              // chips at every scale — a deck carrying only the headline read empty.
-              if (!deck.quote || !deck.badge || deck.chips === 0) {
-                failures.push(
-                  `${route} at ${width}px: the card is missing its badge, short description or chips at scale ${deck.scale}`,
-                );
-              }
+            const home = await page.evaluate(() => ({
+              grid: !!document.querySelector('section[aria-label="প্রধান প্রতিবেদন"]'),
+              finale: !!document.querySelector('.paper-giant'),
+              cards: document.querySelectorAll('section[aria-label="প্রধান প্রতিবেদন"] a[aria-label^="পড়ুন:"]').length,
+            }));
+            if (!home.grid || !home.finale || home.cards === 0) {
+              failures.push(
+                `${route} at ${width}px: the front page did not render (grid: ${home.grid}, finale: ${home.finale}, cards: ${home.cards})`,
+              );
             }
           }
           const result = await page.evaluate(measure);

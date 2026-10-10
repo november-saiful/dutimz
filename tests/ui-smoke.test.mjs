@@ -428,28 +428,47 @@ test('every form renders through the shared field primitives', async () => {
   assert.match(writer, /data\.get\(["']is_anonymous["']\) === ["']on["']/);
 });
 
-test('the homepage leads with the report carousel and keeps the breaking ticker', async () => {
-  // The deck is the first thing under the header: newest reports, one card in
-  // focus, the ticker still running above it, and the featured hero below it.
+test('the homepage leads with the front-page grid, not the retired deck', async () => {
+  // The deck retired with the redesign: the front page is now one 12-column
+  // paper grid (lead story, second story, latest rail, desk callouts) with a
+  // finale that settles the lead picture under the rising DUTIMZ wordmark.
+  // An approved story still has to appear at once, so the route renders per
+  // request.
   const page = await readProjectFile('app/page.tsx');
-  assert.match(page, /<CalendlyCarousel/);
-  assert.match(page, /breaking=\{breaking\}/);
-  const order = ['<CalendlyCarousel', 'নির্বাচিত প্রতিবেদন', 'প্রকাশনা প্রবাহ'].map(
-    (needle) => {
-      const at = page.indexOf(needle);
-      assert.ok(at > -1, `the homepage must still render ${needle}`);
-      return at;
-    },
-  );
-  assert.deepEqual(
-    [...order].sort((a, b) => a - b),
-    order,
-    'the carousel must come before the featured hero and the throughput chart',
-  );
-  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
-  assert.match(header, /ব্রেকিং/);
-
-  // The reel is gone — component, section and all.
+  assert.match(page, /export const dynamic = "force-dynamic"/);
+  assert.match(page, /<DutimzShell title="স্বাগতম">/);
+  assert.match(page, /aria-label="প্রধান প্রতিবেদন"/);
+  assert.match(page, /md:grid-cols-6 xl:grid-cols-12/);
+  assert.match(page, /getLatestStories\(25\)/);
+  assert.match(page, /items\.slice\(0, 5\)/);
+  assert.match(page, /সর্বশেষ প্রতিবেদন/);
+  assert.match(page, /stories\.slice\(5\)/);
+  assert.match(page, /aria-label="আরও প্রতিবেদন"/);
+  // Every card links the story's own canonical address and shows its art,
+  // byline and excerpt — a card with only a headline read as empty.
+  assert.match(page, /\/news\/\$\{encodeURIComponent\(/);
+  assert.match(page, /পড়ুন: \$/);
+  assert.match(page, /<StoryArt/);
+  assert.match(page, /<ShareStory/);
+  assert.match(page, /<Meta item=/);
+  assert.match(page, /\{lead\.excerpt\}/);
+  // Demo and empty states come from the preview fixture, never a blank page.
+  assert.match(page, /previewStories/);
+  assert.match(page, /<EmptyDesk/);
+  // The finale settles the lead picture (or the paper's own horizon when the
+  // lead has no art) under the rising wordmark. Motion is gated behind
+  // motion-safe, so readers who ask for reduced motion get a still page.
+  assert.match(page, /<PaperWordmark text="DUTIMZ" \/>/);
+  assert.match(page, /<HorizonScene \/>/);
+  assert.match(page, /motion-safe:animate-\[paper-settle/);
+  assert.match(page, /paper-rise/);
+  // The desk callouts point at the real places the site asks readers to go.
+  assert.match(page, /href="\/account\/write\/"/);
+  assert.match(page, /href="\/spotlight\/"/);
+  // The retired deck must not come back, and the reel stays gone —
+  // component, section and all.
+  assert.doesNotMatch(page, /CalendlyCarousel/);
+  assert.doesNotMatch(page, /HaloReel/);
   for (const path of [
     'components/ruixen/halo-reel.tsx',
     'components/dashboard/halo-reel-section.tsx',
@@ -459,61 +478,34 @@ test('the homepage leads with the report carousel and keeps the breaking ticker'
       `${path} belonged to the retired reel and must not come back`,
     );
   }
-  assert.doesNotMatch(page, /HaloReel/);
+  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
+  assert.match(header, /ব্রেকিং/);
 
   // Cards come from the real archive, not from the registry demo's copy.
   assert.doesNotMatch(page, /21st\.dev/);
   assert.match(page, /storyCredit/);
   assert.match(page, /mediaUrlFor\(story\.hero_media_key\)/);
-  assert.match(page, /previewStories/);
-  // A story without hero art falls back to Unsplash, which next.config allows.
-  assert.match(page, /images\.unsplash\.com/);
+  // The preview fixtures fall back to Unsplash art, which next.config allows.
+  const stories = await readProjectFile('lib/stories.ts');
+  assert.match(stories, /images\.unsplash\.com/);
   const config = await readProjectFile('next.config.ts');
   assert.match(config, /images\.unsplash\.com/);
 
-  const carousel = await readProjectFile('components/ui/connected-carousel.tsx');
-  assert.match(carousel, /from "framer-motion"/);
-  assert.match(carousel, /aria-roledescription="carousel"/);
-  assert.match(carousel, /role="tablist"/);
-  assert.match(carousel, /ArrowLeft/);
-  assert.match(carousel, /onTouchStart=\{handleTouchStart\}/);
-  assert.match(carousel, /onTouchEnd=\{handleTouchEnd\}/);
-  assert.match(carousel, /onTouchCancel/);
-  assert.match(carousel, /Math\.abs\(deltaX\) < Math\.abs\(deltaY\) \* 1\.25/);
-  assert.match(carousel, /if \(total === 1 && offset !== 0\) return null/);
-  // One ring drawn in design units and scaled to the room the page gives it — not
-  // three hand-tuned layouts, which is what shipped upstream and made a phone a
-  // different arrangement of the card rather than a smaller copy of it.
-  assert.match(carousel, /RING_WIDTH/);
-  assert.match(carousel, /new ResizeObserver/);
-  assert.match(carousel, /transform: `scale\(/);
-  assert.doesNotMatch(carousel, /ScreenTier|peekW/, 'the phone-only geometry must be gone');
-  // The box is reserved in CSS, so the ring appearing does not move the page.
-  assert.match(carousel, /aspectRatio:/);
-  // Every card carries its section badge and short description at every width;
-  // a deck that showed only the headline read as empty.
-  assert.doesNotMatch(carousel, /DETAIL_MIN_SCALE|showDetail/);
-  assert.match(carousel, /item\.category/);
-  assert.match(carousel, /item\.quote/);
-  // The dots keep their thumb-sized hit area; swipes are an additional phone control.
-  assert.match(carousel, /dotHit/);
-  // An auto-rotating deck has to stop when the reader asks motion to stop.
-  assert.match(carousel, /prefers-reduced-motion/);
-  // Its accessible names speak the site's language, like every other label.
-  assert.doesNotMatch(carousel, /"Customer stories"|"Use cases"/);
-  assert.match(carousel, /aria-label="সাম্প্রতিক প্রতিবেদনের ক্যারোসেল"/);
-
   const pkg = JSON.parse(await readProjectFile('package.json'));
-  assert.ok(pkg.dependencies['framer-motion'], 'the deck needs framer-motion');
+  assert.ok(pkg.dependencies['framer-motion'], 'animated-file-tree still needs framer-motion');
   assert.ok(!pkg.dependencies.motion, "the reel's own motion package must be gone");
 });
 
-test('the homepage rails name the newest five reports', async () => {
+test('the front page serves its slots from one archive read', async () => {
+  // One read serves the whole front page: the newest reports fill the lead
+  // slots and the latest rail, and everything past the fifth slot drops into
+  // the archive grid below the finale.
   const page = await readProjectFile('app/page.tsx');
-  assert.match(page, /const HOME_RAIL_LIMIT = 5/);
-  assert.match(page, /\.slice\(0, HOME_RAIL_LIMIT\)/, 'one slice bounds both rails');
-  assert.match(page, /breaking = railStories\.map/, 'the ticker reads the shared slice');
-  assert.match(page, /carouselItems\(railStories\)/, 'the deck reads the same slice, not eight stories');
+  assert.match(page, /getLatestStories\(25\)/);
+  assert.match(page, /const lead = items\[0\]/);
+  assert.match(page, /const latest = items\.slice\(0, 5\)/);
+  assert.match(page, /const below = stories\.slice\(5\)/);
+  assert.match(page, /freshCount/, 'the rail still badges what arrived today');
 });
 
 test('a shared story carries its own picture, not the site logo', async () => {
@@ -559,13 +551,15 @@ test('the site paints without a blocking font and moves motion onto CSS', async 
   const css = await readProjectFile('app/globals.css');
   assert.match(css, /prefers-reduced-motion: reduce/, 'a global reduced-motion reset');
   assert.match(css, /@keyframes dutimz-carousel-progress/);
-  const carousel = await readProjectFile('components/ui/connected-carousel.tsx');
-  assert.doesNotMatch(carousel, /requestAnimationFrame/, 'the deck must not re-render every frame');
-  assert.doesNotMatch(carousel, /setProgress/);
-  assert.match(carousel, /dutimz-carousel-progress/);
-  assert.match(carousel, /new IntersectionObserver/, 'the timer only runs while on screen');
+  // The finale's settle and the cards' rise are CSS gated behind motion-safe,
+  // so no frame loop re-renders the page and reduced-motion readers get stills.
   const page = await readProjectFile('app/page.tsx');
-  assert.match(page, /<LazyThroughputChart/, 'recharts stays out of the initial bundle');
+  assert.match(page, /motion-safe:animate-\[paper-settle/);
+  assert.match(page, /paper-rise/);
+  assert.doesNotMatch(page, /requestAnimationFrame/);
+  // recharts stays out of the initial bundle: the homepage imports no chart,
+  // and the lazy wrapper still suspends what it loads to the client.
+  assert.doesNotMatch(page, /recharts/);
   const lazy = await readProjectFile('components/dashboard/throughput-chart-lazy.tsx');
   assert.match(lazy, /next\/dynamic/);
   assert.match(lazy, /ssr: false/);
