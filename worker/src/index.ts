@@ -30,10 +30,16 @@ const ALLOWED_TYPES = new Set([
 // Every accepted image is re-encoded, whatever its source format.
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
 const COMPRESSED_MIME = 'image/webp';
-// Visually near-lossless: a reader cannot tell the difference at 85, while the file is a fraction
-// of the original JPEG/PNG. The uncompressed source is replaced rather than kept beside it, which
-// is the whole point of compressing on upload.
-const COMPRESSION_QUALITY = 85;
+// Every stored image is at most 200 KB, whatever its source size or format. Re-encoding walks this
+// ladder from the sharpest step down and keeps the first WebP that fits under the cap.
+const MAX_STORED_IMAGE_BYTES = 200 * 1024;
+const COMPRESSION_LADDER = [
+  { width: 1600, quality: 80 },
+  { width: 1600, quality: 65 },
+  { width: 1280, quality: 60 },
+  { width: 1024, quality: 55 },
+  { width: 800, quality: 50 },
+];
 const MIME_EXTENSIONS: Record<string, string> = {
   'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif',
   'image/avif': 'avif', 'application/pdf': 'pdf', 'audio/mpeg': 'mp3',
@@ -108,26 +114,32 @@ function limitBody(body: ReadableStream<Uint8Array>, maximum: number) {
 }
 
 /**
- * Re-encode any accepted image to WebP at a visually lossless quality. Returns null when the
- * source cannot be processed, so the caller stores the original unchanged rather than failing the
- * upload. The result is verified to be a real WebP before it is trusted.
+ * Re-encode an accepted image to WebP no larger than MAX_STORED_IMAGE_BYTES. Each ladder step is
+ * a fresh transform of the source (the stream can only be read once), and the first result that is
+ * a real WebP under the cap wins. Returns null when no step produces one, so the caller decides
+ * what to do with the original instead of silently storing an oversized file.
  */
-async function compressImage(env: Env, source: Uint8Array, mime: string): Promise<Uint8Array | null> {
+async function compressImage(env: Env, source: Uint8Array, mime: string): Promise<{ bytes: Uint8Array; compression: string } | null> {
   if (!IMAGE_TYPES.has(mime)) return null;
-  try {
-    const input = new Blob([source]).stream();
-    const optimized = await (await env.IMAGES.input(input).output({
-      format: COMPRESSED_MIME,
-      quality: COMPRESSION_QUALITY,
-      anim: true,
-    })).response();
-    if (!optimized.ok) return null;
-    const bytes = new Uint8Array(await optimized.arrayBuffer());
-    if (bytes.byteLength <= 0 || !isWebp(bytes)) return null;
-    return bytes;
-  } catch {
-    return null;
+  for (const step of COMPRESSION_LADDER) {
+    try {
+      const input = new Blob([source]).stream();
+      const result = await env.IMAGES.input(input)
+        .transform({ width: step.width, fit: 'scale-down' })
+        .output({ format: COMPRESSED_MIME, quality: step.quality, anim: true });
+      const optimized = await result.response();
+      if (!optimized.ok) continue;
+      const bytes = new Uint8Array(await optimized.arrayBuffer());
+      if (bytes.byteLength > 0 && bytes.byteLength <= MAX_STORED_IMAGE_BYTES && isWebp(bytes)) {
+        return { bytes, compression: `webp-${step.width}w-q${step.quality}` };
+      }
+    } catch (error) {
+      // Images is unavailable or rejected this input: report it and let the caller decide.
+      console.error('Image transform failed', step, error);
+      return null;
+    }
   }
+  return null;
 }
 
 async function upload(request: Request, env: Env, allowedOrigin: string, scope: Scope) {
@@ -155,6 +167,7 @@ async function upload(request: Request, env: Env, allowedOrigin: string, scope: 
   let storedMime = mime;
   let body: ReadableStream | Uint8Array;
   let optimized = false;
+  let compression = 'original-retained';
 
   if (mime.startsWith('image/')) {
     // An image has to be fully read to be transcoded, so the size cap is enforced while reading.
@@ -171,11 +184,15 @@ async function upload(request: Request, env: Env, allowedOrigin: string, scope: 
     }
     const compressed = await compressImage(env, originalBytes, mime);
     if (compressed) {
-      body = compressed;
+      body = compressed.bytes;
       storedMime = COMPRESSED_MIME;
       optimized = true;
-    } else {
+      compression = compressed.compression;
+    } else if (originalBytes.byteLength <= MAX_STORED_IMAGE_BYTES) {
       body = originalBytes;
+    } else {
+      // Never store an oversized image under a name that promises it was compressed.
+      return json({ error: 'ছবিটি ২০০ কিলোবাইটের মধ্যে আনা যায়নি। ছবিটি ছোট করে আবার চেষ্টা করুন।' }, 413, allowedOrigin);
     }
   } else {
     body = limitBody(request.body, maximum).stream;
@@ -186,7 +203,7 @@ async function upload(request: Request, env: Env, allowedOrigin: string, scope: 
   try {
     await bucket.put(originalKey, body, {
       httpMetadata: { contentType: storedMime, cacheControl: 'private, max-age=0, must-revalidate' },
-      customMetadata: { ownerId: user.id, mediaAssetId: id, compression: optimized ? `webp-quality-${COMPRESSION_QUALITY}` : 'original-retained' },
+      customMetadata: { ownerId: user.id, mediaAssetId: id, compression },
     });
   } catch (error) {
     if (error instanceof Error && error.message === 'UPLOAD_TOO_LARGE') {
@@ -229,7 +246,7 @@ async function upload(request: Request, env: Env, allowedOrigin: string, scope: 
     originalBytes: original.size,
     derivativeBytes: null,
     optimized,
-    compression: optimized ? `webp-quality-${COMPRESSION_QUALITY}` : 'original-retained',
+    compression,
   }, 201, allowedOrigin);
 }
 

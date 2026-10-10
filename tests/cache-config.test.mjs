@@ -141,26 +141,23 @@ test('the preview names its own script in the self reference', async () => {
   );
 });
 
-test('the routes served from the shared cache never read the request', async () => {
-  // A shared cache is only safe while the server renders the same HTML for everyone. The
-  // moment one of these routes reads a cookie or a header, one visitor's page can be handed
-  // to another. Personalization in this app is client-side by design.
+test('the pages that show approvals render per request and never read the request', async () => {
+  // A story approved in the desk has to be on the front page, its section and its own page at once.
+  // A cached copy of these pages keeps the old state until a background regeneration runs, which
+  // is how approved stories stayed missing for hours. So they render per request. Because they are
+  // not cached for everyone, they must also not read cookies or headers into their output: a
+  // personalised render would otherwise be served to the wrong visitor.
   for (const path of ['app/page.tsx', 'app/news/[slug]/page.tsx', 'app/category/[slug]/page.tsx']) {
     const source = await readProjectFile(path);
+    assert.match(
+      source,
+      /export const dynamic\s*=\s*"force-dynamic"/,
+      `${path} must render per request so an approved story shows up at once`,
+    );
     assert.doesNotMatch(
       source,
       /next\/headers/,
-      `${path} is cached for every visitor and must not read cookies or headers`,
-    );
-    assert.doesNotMatch(
-      source,
-      /\bunstable_noStore\b|\bnoStore\(/,
-      `${path} must stay cacheable`,
-    );
-    assert.doesNotMatch(
-      source,
-      /export const dynamic\s*=\s*"force-dynamic"/,
-      `${path} must stay cacheable`,
+      `${path} renders the same HTML for every visitor and must not read cookies or headers`,
     );
   }
 });
