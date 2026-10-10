@@ -117,18 +117,19 @@ test('every route stays inside the viewport at common widths', async () => {
             failures.push(`${route} at ${width}px: uncaught client error — ${pageErrors[0]}`);
             break;
           }
-          // The homepage is a paper grid, not a carousel deck: the lead
-          // section, the reader links into each story, and the finale
-          // wordmark are what prove it rendered at this width.
+          // The homepage is the reference design's home view: the hero with
+          // its orb, the reader links into each story, and both story
+          // carousels are what prove it rendered at this width.
           if (route === '/') {
             const home = await page.evaluate(() => ({
-              grid: !!document.querySelector('section[aria-label="প্রধান প্রতিবেদন"]'),
-              finale: !!document.querySelector('.paper-giant'),
-              cards: document.querySelectorAll('section[aria-label="প্রধান প্রতিবেদন"] a[aria-label^="পড়ুন:"]').length,
+              hero: !!document.querySelector('section[aria-label="প্রধান প্রতিবেদন"]'),
+              orb: !!document.querySelector('.orb'),
+              stories: document.querySelectorAll('a[href^="/news/"]').length,
+              carousels: document.querySelectorAll('.carousel').length,
             }));
-            if (!home.grid || !home.finale || home.cards === 0) {
+            if (!home.hero || !home.orb || home.stories === 0 || home.carousels < 2) {
               failures.push(
-                `${route} at ${width}px: the front page did not render (grid: ${home.grid}, finale: ${home.finale}, cards: ${home.cards})`,
+                `${route} at ${width}px: the front page did not render (hero: ${home.hero}, orb: ${home.orb}, stories: ${home.stories}, carousels: ${home.carousels})`,
               );
             }
           }

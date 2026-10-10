@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -8,17 +7,17 @@ import { ArticleGallery } from "@/components/article/article-gallery";
 import { QuestionnaireSummary } from "@/components/article/questionnaire-summary";
 import { Comments } from "@/components/article/comments";
 import { PendingArticle } from "@/components/article/pending-article";
+import { ReadingProgress } from "@/components/article/reading-progress";
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
-import { RecommendedItem, StoryArt } from "@/components/dashboard/story-card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { StoryCarousel } from "@/components/dashboard/story-carousel";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  BlockHead,
+  CarouselCard,
+  MiniRow,
+  storyItemFromStory,
+  storyUrl,
+} from "@/components/dashboard/story-blocks";
+import { StoryArt } from "@/components/dashboard/story-card";
 import {
   CATEGORIES,
   SITE_URL,
@@ -133,205 +132,200 @@ export default async function ArticlePage({
     .map((key) => mediaUrlFor(key));
 
   const questionnaire = await getArticleQuestionnaire(article.id);
-  const related = (await getLatestStories(10)).filter(
+  const related = ((await getLatestStories(10)).filter(
     (story) => story.id !== article.id,
-  );
+  )).map(storyItemFromStory);
   const sameCategory = related.filter(
-    (story) => storyCategory(story).slug === category.slug,
+    (story) => story.sectionSlug === category.slug,
   );
   const recommended = (sameCategory.length ? sameCategory : related).slice(0, 5);
+  const monthBest = related.slice(5, 7);
+  const forYou = related.slice(0, 5);
+  // The design's previous/next pair walks the same newest-first list: the
+  // newest neighbour is "next", the oldest "previous".
+  const next = related[0] ?? null;
+  const previous = related.length > 1 ? related[related.length - 1] : null;
   const correctionSubject = `সংশোধন: ${article.title}`;
+  const articleUrl = `${SITE_URL}/news/${encodeURIComponent(article.slug)}/`;
+  const desks = [
+    { slug: category.slug, label: category.title_bn },
+    ...CATEGORIES.filter(
+      (desk) => desk.slug !== "all" && desk.slug !== category.slug,
+    ),
+  ];
 
   return (
-    <DutimzShell
-      title={article.title}
-      crumbs={[
-        { label: category.title_bn, href: `/category/${category.slug}/` },
-        { label: article.title },
-      ]}
-    >
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="flex min-w-0 flex-col gap-6">
-          <article className="flex min-w-0 flex-col gap-6">
-            <header className="flex flex-col gap-3 border-b border-strong pb-5">
-              <div className="flex flex-wrap items-center gap-2 text-[10.5px] tracking-[0.05em] text-muted-foreground uppercase">
-                <Link
-                  href={`/category/${category.slug}/`}
-                  className="font-semibold text-foreground hover:text-highlight"
-                >
-                  {category.title_bn}
-                </Link>
-                <i className="not-italic opacity-60" aria-hidden>
-                  •
-                </i>
-                <time dateTime={article.published_at}>
-                  {formatDateBn(article.published_at)}
-                </time>
-              </div>
-              <h1 className="font-serif text-[clamp(26px,3.4vw,44px)] leading-[1.12] font-bold">
-                {article.title}
-              </h1>
-              <p className="text-[15px] leading-relaxed text-muted-foreground">
-                {article.excerpt}
-              </p>
-              <div className="flex items-center gap-3 pt-1">
-                <Avatar className="size-10">
-                  <AvatarFallback>ঢা</AvatarFallback>
-                </Avatar>
-                <div className="text-sm">
-                  {credit.href ? (
-                    <Link href={credit.href} className="font-medium hover:text-highlight">
-                      {credit.name}
-                    </Link>
-                  ) : (
-                    <strong>{ANONYMOUS_BYLINE}</strong>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    প্রকাশিত {formatDateBn(article.published_at)}
-                  </p>
-                </div>
-              </div>
-            </header>
+    <DutimzShell bare>
+      {/*
+        The reading bar: back, the running title, and the reader's own chips
+        (likes, saves, comments). The purple progress hairline tracks how far
+        the reader has come.
+      */}
+      <div className="article-bar">
+        <div className="bar-in">
+          <Link href="/" className="back">
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M19 12H5M11 6l-6 6 6 6" />
+            </svg>
+            ফিরে যান
+          </Link>
+          <div className="ab-title">{article.title}</div>
+          <ArticleActions
+            variant="chips"
+            articleId={article.id}
+            articleTitle={article.title}
+            correctionSubject={correctionSubject}
+          />
+        </div>
+        <ReadingProgress />
+      </div>
 
-            {article.hero_media_key ? (
-              <figure className="overflow-hidden border border-line">
-                <Image
-                  src={mediaUrlFor(article.hero_media_key)}
-                  alt=""
-                  width={1200}
-                  height={675}
-                  priority
-                  className="h-auto w-full object-cover"
-                />
-              </figure>
+      <div className="article-grid">
+        <article className="article-main">
+          <div className="crumb">
+            <Link href={`/category/${category.slug}/`}>{category.title_bn}</Link>
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+            <span>{article.title}</span>
+          </div>
+
+          <h1>{article.title}</h1>
+
+          <div className="meta" style={{ margin: "18px 0 4px" }}>
+            {credit.href ? (
+              <Link href={credit.href}>{credit.name}</Link>
             ) : (
-              <StoryArt
-                slug={category.slug}
-                title={article.title}
-                className="aspect-[16/9] w-full border border-line"
-              />
+              <strong className="text-foreground">{ANONYMOUS_BYLINE}</strong>
             )}
+            <i aria-hidden>•</i>
+            <time dateTime={article.published_at}>
+              প্রকাশিত {formatDateBn(article.published_at)}
+            </time>
+          </div>
 
-            <div className="article-body text-[17px] leading-8 text-foreground/90">
-              {paragraphs.map((paragraph, index) => (
-                <p key={index}>{paragraph}</p>
-              ))}
+          <div className="a-row">
+            <div className="tags">
+              <span>#{category.title_bn}</span>
             </div>
-          </article>
+            <ArticleActions
+              variant="socials"
+              articleId={article.id}
+              articleTitle={article.title}
+              articleUrl={articleUrl}
+              correctionSubject={correctionSubject}
+            />
+          </div>
+
+          <figure className="fig fig-big">
+            <StoryArt
+              slug={category.slug}
+              imageUrl={
+                article.hero_media_key
+                  ? mediaUrlFor(article.hero_media_key)
+                  : null
+              }
+              title={article.title}
+              className="h-full w-full"
+            />
+          </figure>
+
+          <div className="article-body">
+            {paragraphs.map((paragraph, index) => (
+              <p key={index}>{paragraph}</p>
+            ))}
+          </div>
 
           {gallery.length > 0 && (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>ছবির গ্যালারি</CardTitle>
-                    <CardDescription>প্রতিবেদনের ছবি</CardDescription>
-                  </div>
-                  <span className="border border-strong px-2.5 py-0.5 text-xs font-semibold">
-                    {bn(gallery.length)}টি
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <ArticleGallery
-                  images={gallery.map((item, index) => ({
-                    src: mediaUrlFor(item.media_id),
-                    alt: `${article.title} — ছবি ${index + 1}`,
-                  }))}
-                />
-              </CardContent>
-            </Card>
+            <section aria-label="ছবির গ্যালারি" className="mt-6">
+              <h2>
+                ছবির গ্যালারি{" "}
+                <span className="text-sm font-normal text-muted-foreground">
+                  ({bn(gallery.length)}টি)
+                </span>
+              </h2>
+              <ArticleGallery
+                images={gallery.map((item, index) => ({
+                  src: mediaUrlFor(item.media_id),
+                  alt: `${article.title} — ছবি ${index + 1}`,
+                }))}
+              />
+            </section>
           )}
 
           {questionnaire && <QuestionnaireSummary questionnaire={questionnaire} />}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>মন্তব্য</CardTitle>
-              <CardDescription>পাঠকের আলোচনা</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Comments articleId={article.id} />
-            </CardContent>
-          </Card>
-        </div>
+          <section className="comments" id="comments">
+            <h3>মন্তব্য</h3>
+            <Comments articleId={article.id} />
+          </section>
 
-        <aside className="flex min-w-0 flex-col gap-6">
-          <div className="lg:sticky lg:top-32 lg:flex lg:flex-col lg:gap-6">
-            {/* Desktop: the one action bar. Phones use the floating call to action below. */}
-            <Card className="hidden lg:block">
-              <CardContent className="pt-6">
-                <ArticleActions
-                  articleId={article.id}
-                  articleTitle={article.title}
-                  correctionSubject={correctionSubject}
-                />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>লেখক</CardTitle>
-              </CardHeader>
-              <CardContent className="flex items-center gap-3">
-                <Avatar className="size-10">
-                  <AvatarFallback>ঢা</AvatarFallback>
-                </Avatar>
-                <div className="text-sm">
-                  {credit.href ? (
-                    <Link href={credit.href} className="font-medium hover:text-highlight">
-                      {credit.name}
-                    </Link>
-                  ) : (
-                    <strong>{ANONYMOUS_BYLINE}</strong>
-                  )}
-                  <p className="text-xs text-muted-foreground">DUTIMZ সদস্য</p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>আরও পড়ুন</CardTitle>
-                <CardDescription>
-                  {category.title_bn} বিভাগ থেকে
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {recommended.length ? (
-                  recommended.map((story) => (
-                    <RecommendedItem key={story.id} story={story} />
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    সম্পর্কিত প্রতিবেদন শীঘ্রই এখানে দেখা যাবে।
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>বিষয়</CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                {CATEGORIES.filter((c) => c.slug !== "all")
-                  .slice(0, 6)
-                  .map((c) => (
-                    <Button key={c.slug} variant="outline" size="sm" asChild>
-                      <Link href={`/category/${c.slug}/`}># {c.label}</Link>
-                    </Button>
-                  ))}
-              </CardContent>
-            </Card>
+          <div className="pn">
+            {previous ? (
+              <Link href={storyUrl(previous)}>
+                <span className="lbl">
+                  <svg viewBox="0 0 24 24" aria-hidden>
+                    <path d="M19 12H5M11 6l-6 6 6 6" />
+                  </svg>
+                  আগের প্রতিবেদন
+                </span>
+                <span className="t clamp2">{previous.title}</span>
+              </Link>
+            ) : (
+              <span />
+            )}
+            {next && (
+              <Link href={storyUrl(next)} className="next">
+                <span className="lbl">
+                  পরের প্রতিবেদন
+                  <svg viewBox="0 0 24 24" aria-hidden>
+                    <path d="M5 12h14M13 6l6 6-6 6" />
+                  </svg>
+                </span>
+                <span className="t clamp2">{next.title}</span>
+              </Link>
+            )}
+          </div>
+        </article>
+
+        <aside className="a-aside">
+          {recommended.length > 0 && (
+            <>
+              <span className="flag">প্রস্তাবিত</span>
+              {recommended.map((item, index) => (
+                <MiniRow key={`${item.slug}-${index}`} item={item} />
+              ))}
+            </>
+          )}
+          {monthBest.length > 0 && (
+            <>
+              <span className="flag">মাসের সেরা</span>
+              {monthBest.map((item, index) => (
+                <MiniRow key={`${item.slug}-${index}`} item={item} />
+              ))}
+            </>
+          )}
+          <span className="flag">আরও খবর</span>
+          <div className="tagpills">
+            {desks.map((desk) => (
+              <Link key={desk.slug} href={`/category/${desk.slug}/`}>
+                {desk.label}
+              </Link>
+            ))}
           </div>
         </aside>
       </div>
 
-      {/* Phones and tablets: one floating call to action that unfolds every article action. */}
-      <ArticleActions
-        variant="floating"
-        articleId={article.id}
-        articleTitle={article.title}
-        correctionSubject={correctionSubject}
-      />
+      {forYou.length > 0 && (
+        <section className="block" aria-label="আপনার জন্য আরও">
+          <BlockHead flag="আপনার জন্য আরও" moreHref="/search/" />
+          <StoryCarousel label="আপনার জন্য আরও">
+            {forYou.map((item, index) => (
+              <CarouselCard key={`${item.slug}-${index}`} item={item} />
+            ))}
+          </StoryCarousel>
+        </section>
+      )}
 
       <script
         type="application/ld+json"

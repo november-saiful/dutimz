@@ -4,9 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
-import { Badge } from "@/components/ui/badge";
-import { CommandPalette } from "@/components/dashboard/command-palette";
-import { SidebarTrigger } from "@/components/ui/sidebar";
 import { UserDropdown } from "@/components/ui/user-dropdown";
 import {
   ACCOUNT_HIDDEN_ACTIONS,
@@ -47,17 +44,21 @@ function initialsFor(name: string): string {
   return `${first}${second}`.toUpperCase();
 }
 
+/**
+ * The site's top bar, in the reference design's shape: the mark on the left,
+ * the section pills beside it, and the language chip, search field, account
+ * menu and phone burger on the right. The section pills are the real desks from
+ * the database, so a retired desk disappears from the bar on its own.
+ */
 export function DashboardHeader({
-  title,
-  crumbs = [],
-  breaking = [],
+  sections,
 }: {
-  title: string;
-  crumbs?: Crumb[];
-  breaking?: { href: string; title: string }[];
+  sections: { slug: string; label: string }[];
 }) {
   const router = useRouter();
   const pathname = usePathname() ?? "/";
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
   // undefined while the session is being resolved, null when signed out. Both
   // render the account menu in its signed-out shape, so the header never shifts
   // on load and a visitor always has the menu (and can sign in from it).
@@ -165,6 +166,12 @@ export function DashboardHeader({
     if (target && target !== pathname) router.replace(target);
   }, [menuUser, pathname, router]);
 
+  // The phone menu is a disclosure over the section pills; it closes on any
+  // navigation, including the reader's own back button.
+  React.useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
+
   // Google is the only provider and there is no sign-in page, so both the menu's
   // sign-in button and its session-only rows start the OAuth flow directly.
   async function startGoogleSignIn() {
@@ -217,73 +224,88 @@ export function DashboardHeader({
     }
 
     // Every remaining entry is a plain route from the shared table, so the menu
-    // and the handler cannot drift apart. Sections are not in the menu — the
-    // sidebar owns them — so there is no slug-shaped action left to resolve.
+    // and the handler cannot drift apart. The section bar owns the desks.
     const href = (ACCOUNT_ROUTES as Record<string, string>)[action];
 
     if (href) router.push(href);
   }
 
+  function submitSearch(event: React.FormEvent) {
+    event.preventDefault();
+    const trimmed = query.trim();
+    router.push(trimmed ? `/search/?q=${encodeURIComponent(trimmed)}` : "/search/");
+  }
+
   return (
-    <div className="sticky top-0 z-10 border-b bg-background">
-      <header className="grid h-16 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-4 sm:px-6">
-        <div className="flex min-w-0 items-center gap-2">
-          {/*
-            Phones open the rail as a drawer; on desktop the rail is fixed and
-            expanded, so the trigger is only offered where the drawer exists.
-          */}
-          <SidebarTrigger aria-label="Toggle navigation" className="md:hidden" />
-          <div className="min-w-0">
-            <nav
-              aria-label="অবস্থান"
-              className="hidden items-center gap-1 text-xs text-muted-foreground md:flex"
-            >
-              <Link href="/" className="hover:text-foreground">
-                মূলপাতা
-              </Link>
-              {crumbs.map((crumb) => (
-                <React.Fragment key={crumb.label}>
-                  <span aria-hidden>›</span>
-                  {crumb.href ? (
-                    <Link href={crumb.href} className="hover:text-foreground">
-                      {crumb.label}
-                    </Link>
-                  ) : (
-                    <span className="truncate text-foreground">
-                      {crumb.label}
-                    </span>
-                  )}
-                </React.Fragment>
-              ))}
-            </nav>
-            <h1 className="hidden truncate text-lg font-semibold md:block">
-              {title}
-            </h1>
-          </div>
-        </div>
-        {/*
-          The centre track is `auto` between two equal `1fr` tracks, so the mark
-          sits at the exact centre of the bar no matter how wide the title or
-          the actions grow. The same wordmark is used at every width: because the
-          page title is desktop-only, the text logo, the drawer trigger and the
-          three controls fit a 360px bar.
-        */}
-        <Link
-          href="/"
-          aria-label="DUTIMZ মূলপাতা"
-          className="flex items-center justify-center px-1 sm:px-2"
-        >
+    <header className="topbar">
+      <div className="topbar-in">
+        <Link href="/" className="logo" aria-label="DUTIMZ মূলপাতা">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/dutimz-text-logo.svg"
-            alt="DUTIMZ"
-            width={120}
-            height={35}
-            className="h-6 w-auto sm:h-7"
-          />
+          <img src="/brand-icon.svg" alt="" width={22} height={22} />
+          <b>DUTIMZ</b>
         </Link>
-        <div className="flex items-center justify-end gap-1">
-          <CommandPalette />
+
+        <nav
+          id="site-nav"
+          className={`nav${menuOpen ? " open" : ""}`}
+          aria-label="বিভাগ"
+        >
+          {sections.map((section) => {
+            const href =
+              section.slug === "all" ? "/" : `/category/${section.slug}/`;
+            const active =
+              section.slug === "all"
+                ? pathname === "/"
+                : pathname.startsWith(`/category/${section.slug}`);
+            return (
+              <Link
+                key={section.slug}
+                href={href}
+                className={`pill${active ? " active" : ""}`}
+                aria-current={active ? "page" : undefined}
+              >
+                {section.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="top-actions">
+          {/*
+            The site publishes in Bengali only, so the language control is shown
+            but disabled until a second edition exists — an honest "coming soon"
+            rather than a menu that switches nothing.
+          */}
+          <button
+            type="button"
+            className="lang"
+            disabled
+            aria-label="বাংলা (শীঘ্রই আসছে)"
+            title="শীঘ্রই আসছে"
+          >
+            বাং
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+
+          <form className="search" role="search" onSubmit={submitSearch}>
+            <input
+              type="text"
+              name="q"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="প্রতিবেদন, বিষয়, বিভাগ..."
+              aria-label="খুঁজুন"
+            />
+            <button type="submit" aria-label="খুঁজুন">
+              <svg viewBox="0 0 24 24" aria-hidden>
+                <circle cx="11" cy="11" r="7" />
+                <path d="M16.5 16.5L21 21" />
+              </svg>
+            </button>
+          </form>
+
           {/*
             The account menu is always present: signed-out visitors get a
             sign-in call to action inside it instead of a bare avatar that
@@ -294,33 +316,21 @@ export function DashboardHeader({
             onAction={handleMenuAction}
             hiddenActions={HIDDEN_MENU_ACTIONS}
           />
+
+          <button
+            type="button"
+            className="burger"
+            aria-label="মেনু"
+            aria-expanded={menuOpen}
+            aria-controls="site-nav"
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
         </div>
-      </header>
-      {pathname === "/" && breaking.length > 0 && (
-        <div className="group flex items-center gap-2 overflow-hidden border-t px-4 py-1.5 sm:px-6">
-          <Badge className="shrink-0">ব্রেকিং</Badge>
-          {/*
-            The track carries the list twice and slides exactly one copy to the
-            left, so it can loop forever without a visible jump. Motion stops for
-            readers who ask for reduced motion, and pauses while hovered.
-          */}
-          <div className="relative flex-1 overflow-hidden">
-            <div className="ticker-track flex w-max gap-8 whitespace-nowrap text-xs text-muted-foreground">
-              {[...breaking.slice(0, 5), ...breaking.slice(0, 5)].map(
-                (item, index) => (
-                  <Link
-                    key={`${item.href}-${index}`}
-                    href={item.href}
-                    className="hover:text-foreground"
-                  >
-                    {item.title}
-                  </Link>
-                ),
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      </div>
+    </header>
   );
 }

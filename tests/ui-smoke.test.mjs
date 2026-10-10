@@ -178,45 +178,61 @@ test('the config endpoint keeps the public shape and never leaks secrets', async
   assert.match(route, /no-store/);
 });
 
-test('the desktop sidebar is fixed and expanded; phones keep the drawer', async () => {
-  // The rail used to be a minimizable icon rail backed by a cookie. It is now
-  // fixed and always expanded on desktop, while the phone drawer still works
-  // through the Sidebar's own Sheet.
-  const state = await readProjectFile('components/dashboard/sidebar-state.tsx');
-  assert.match(state, /SidebarProvider/);
-  assert.match(state, /open/);
-  assert.doesNotMatch(state, /sidebar_state/);
-  assert.doesNotMatch(state, /useState/);
-  const sidebar = await readProjectFile('components/dashboard/dutimz-sidebar.tsx');
-  assert.match(sidebar, /collapsible="offcanvas"/);
-  assert.doesNotMatch(sidebar, /collapsible="none"/);
-  const shell = await readProjectFile('components/dashboard/dutimz-shell.tsx');
-  assert.match(shell, /SidebarState/);
-  assert.doesNotMatch(shell, /<SidebarProvider>/);
+test('the top bar is the reference design\'s bar: mark, section pills, search, account', async () => {
+  // The sidebar, the phone dock and the command palette retired with the
+  // redesign: navigation is the design's pill bar fed by the real desks, and
+  // phones get the same pills behind the burger. The account menu stays the
+  // session dropdown.
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
-  assert.match(header, /SidebarTrigger/);
-  assert.match(header, /md:hidden/, 'the desktop rail has no minimize trigger');
-  const provider = await readProjectFile('components/ui/sidebar.tsx');
-  assert.match(provider, /Sheet open=\{openMobile\}/, 'phones must still get the drawer');
-  assert.match(
-    provider,
-    /setOpenMobile\(\(current\) => !current\)/,
-    'the toggle must drive the mobile drawer',
-  );
+  assert.match(header, /className="topbar"/);
+  assert.match(header, /className="logo"/);
+  assert.match(header, /brand-icon\.svg/, 'the mark leads the bar');
+  assert.match(header, /pill\$\{active \? " active" : ""\}/, 'the desks are pills with a real active state');
+  assert.match(header, /id="site-nav"/);
+  assert.match(header, /aria-controls="site-nav"/, 'the burger is a disclosure over the pills');
+  assert.match(header, /aria-expanded=\{menuOpen\}/);
+  assert.match(header, /UserDropdown/);
+  for (const path of [
+    'components/dashboard/dutimz-sidebar.tsx',
+    'components/dashboard/sidebar-state.tsx',
+    'components/dashboard/mobile-bottom-nav.tsx',
+    'components/dashboard/command-palette.tsx',
+    'components/ui/sidebar.tsx',
+  ]) {
+    await assert.rejects(
+      () => exists(path),
+      `${path} belonged to the retired rail, dock or palette and must not come back`,
+    );
+  }
 });
 
-test('the dashboard shell wraps every page with the DUTIMZ sidebar', async () => {
+test('the shell wraps every page with the top bar and the footer', async () => {
   const shell = await readProjectFile('components/dashboard/dutimz-shell.tsx');
-  assert.match(shell, /SidebarState/);
-  assert.match(shell, /DutimzSidebar/);
-  assert.match(shell, /SidebarInset/);
-  const sidebar = await readProjectFile('components/dashboard/dutimz-sidebar.tsx');
-  for (const label of ['সব খবর', 'পরিসংখ্যান', 'সংরক্ষিত', 'আমার ড্যাশবোর্ড', 'প্রতিবেদন লিখুন']) {
-    assert.ok(sidebar.includes(label), `sidebar must link ${label}`);
+  assert.match(shell, /DashboardHeader/);
+  assert.match(shell, /SiteFooter/);
+  assert.match(shell, /getNavCategories/, 'the bar and the footer share one desk read');
+  assert.match(shell, /bare/, 'bare pages draw their own containers');
+  const footer = await readProjectFile('components/dashboard/site-footer.tsx');
+  for (const href of [
+    '/spotlight/',
+    '/statistics/',
+    '/corrections/',
+    '/saved/',
+    '/about/',
+    '/guidelines/',
+    '/account/write/',
+  ]) {
+    assert.ok(footer.includes(`href="${href}"`), `the footer must link ${href}`);
   }
-  for (const slug of ['campus', 'university', 'student-life', 'culture', 'opinion', 'sports']) {
-    assert.ok(sidebar.includes(slug) || (await readProjectFile('lib/site.ts')).includes(slug), `sidebar categories must include ${slug}`);
-  }
+  // The columns carry the real desks from the database, not a fixed link farm.
+  assert.match(footer, /sections\s*\.filter/);
+  assert.match(footer, /mailto:hello@dutimz\.com/);
+  const subscribe = await readProjectFile('components/dashboard/subscribe-form.tsx');
+  assert.match(
+    subscribe,
+    /mailto:hello@dutimz\.com/,
+    'the subscribe box must perform a real action, not swallow the address',
+  );
 });
 
 test('the header account menu is the session dropdown with DUTIMZ routes', async () => {
@@ -335,21 +351,15 @@ test('every account menu action maps to a route, a hidden id, or an auth action'
   );
 });
 
-test('the header search is a command palette over the archive', async () => {
-  // The inline header field could only hand the reader off to /search. The palette
-  // opens on ⌘K, searches the published archive and offers sections and pages as
-  // shortcuts, so the header must no longer ship a search input.
+test('the top bar search sends the reader to the archive page', async () => {
+  // The design's search field is a real form: it submits to /search with the
+  // reader's query, and the archive endpoint stays the only place that reads
+  // the published index.
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
-  assert.match(header, /CommandPalette/);
-  assert.doesNotMatch(header, /dashboard-search/);
-  assert.doesNotMatch(header, /role="search"/);
-  const palette = await readProjectFile('components/dashboard/command-palette.tsx');
-  assert.match(palette, /metaKey/);
-  assert.match(palette, /ctrlKey/);
-  assert.match(palette, /\/api\/search/);
-  assert.match(palette, /CATEGORIES/);
-  // Archive reads belong to the endpoint; the palette must not hold a Supabase client.
-  assert.doesNotMatch(palette, /supabase/i);
+  assert.match(header, /role="search"/);
+  assert.match(header, /\/search\/\?q=/, 'the field submits the query to the archive page');
+  assert.match(header, /aria-label="খুঁজুন"/);
+  assert.doesNotMatch(header, /CommandPalette/);
   const route = await readProjectFile('app/api/search/route.ts');
   assert.match(route, /search_public_articles/);
   assert.match(route, /isDemoMode/);
@@ -357,19 +367,15 @@ test('the header search is a command palette over the archive', async () => {
   assert.doesNotMatch(route, /service_role|SERVICE_ROLE|secret/i);
 });
 
-test('the wordmark is centred in the top bar and gone from the rail', async () => {
+test('the mark and the wordmark lead the top bar at every width', async () => {
+  // The design puts the brand on the left of the bar — mark plus wordmark —
+  // and the footer repeats it beside the copyright.
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
-  assert.match(header, /dutimz-text-logo\.svg/);
-  assert.match(header, /grid-cols-\[minmax\(0,1fr\)_auto_minmax\(0,1fr\)\]/);
-  assert.doesNotMatch(header, /brand-icon\.svg/, 'the bar shows the wordmark at every width');
-  assert.match(
-    header,
-    /hidden truncate text-lg font-semibold md:block/,
-    'the page title belongs to desktop; phones show the wordmark alone',
-  );
-  const sidebar = await readProjectFile('components/dashboard/dutimz-sidebar.tsx');
-  assert.doesNotMatch(sidebar, /dutimz-text-logo\.svg/);
-  assert.doesNotMatch(sidebar, /brand-icon\.svg/, 'the rail carries no branding');
+  assert.match(header, /brand-icon\.svg/);
+  assert.match(header, /<b>DUTIMZ<\/b>/);
+  assert.doesNotMatch(header, /dutimz-text-logo\.svg/, 'the old centred lockup is gone');
+  const footer = await readProjectFile('components/dashboard/site-footer.tsx');
+  assert.match(footer, /brand-icon\.svg/, 'the footer carries the mark beside the copyright');
 });
 
 test('saved content moved out of the header into the account menu', async () => {
@@ -428,45 +434,37 @@ test('every form renders through the shared field primitives', async () => {
   assert.match(writer, /data\.get\(["']is_anonymous["']\) === ["']on["']/);
 });
 
-test('the homepage leads with the front-page grid, not the retired deck', async () => {
-  // The deck retired with the redesign: the front page is now one 12-column
-  // paper grid (lead story, second story, latest rail, desk callouts) with a
-  // finale that settles the lead picture under the rising DUTIMZ wordmark.
-  // An approved story still has to appear at once, so the route renders per
-  // request.
+test('the homepage is the reference design\'s home view over the real archive', async () => {
+  // The front page is the design's composition — hero with the orb, the three
+  // previews, the recommended rail, the latest rows and the two carousels —
+  // and every slot is filled from the archive read. An approved story still
+  // has to appear at once, so the route renders per request.
   const page = await readProjectFile('app/page.tsx');
   assert.match(page, /export const dynamic = "force-dynamic"/);
-  assert.match(page, /<DutimzShell title="স্বাগতম">/);
+  assert.match(page, /<DutimzShell bare>/);
+  assert.match(page, /hero-grid/);
   assert.match(page, /aria-label="প্রধান প্রতিবেদন"/);
-  assert.match(page, /md:grid-cols-6 xl:grid-cols-12/);
-  assert.match(page, /getLatestStories\(25\)/);
-  assert.match(page, /items\.slice\(0, 5\)/);
-  assert.match(page, /সর্বশেষ প্রতিবেদন/);
-  assert.match(page, /stories\.slice\(5\)/);
-  assert.match(page, /aria-label="আরও প্রতিবেদন"/);
-  // Every card links the story's own canonical address and shows its art,
-  // byline and excerpt — a card with only a headline read as empty.
-  assert.match(page, /\/news\/\$\{encodeURIComponent\(/);
-  assert.match(page, /পড়ুন: \$/);
-  assert.match(page, /<StoryArt/);
-  assert.match(page, /<ShareStory/);
-  assert.match(page, /<Meta item=/);
-  assert.match(page, /\{lead\.excerpt\}/);
+  assert.match(page, /সপ্তাহের সেরা/, 'the hero keeps the design\'s flag');
+  assert.match(page, /<Orb \/>/, 'the hero carries the design\'s orb');
+  assert.match(page, /className="previews"/);
+  assert.match(page, /hero-aside/);
+  assert.match(page, /প্রস্তাবিত/);
+  assert.match(page, /সর্বশেষ খবর/);
+  assert.match(page, /পাঠকের পছন্দ/);
+  assert.match(page, /মাসের সেরা/);
+  assert.match(page, /<StoryCarousel/);
   // Demo and empty states come from the preview fixture, never a blank page.
   assert.match(page, /previewStories/);
   assert.match(page, /<EmptyDesk/);
-  // The finale settles the lead picture (or the paper's own horizon when the
-  // lead has no art) under the rising wordmark. Motion is gated behind
-  // motion-safe, so readers who ask for reduced motion get a still page.
-  assert.match(page, /<PaperWordmark text="DUTIMZ" \/>/);
-  assert.match(page, /<HorizonScene \/>/);
-  assert.match(page, /motion-safe:animate-\[paper-settle/);
-  assert.match(page, /paper-rise/);
-  // The desk callouts point at the real places the site asks readers to go.
-  assert.match(page, /href="\/account\/write\/"/);
-  assert.match(page, /href="\/spotlight\/"/);
-  // The retired deck must not come back, and the reel stays gone —
-  // component, section and all.
+  assert.match(page, /href="\/account\/write\/"/, 'the empty state points at the write form');
+  // Cards come from the real archive and link each story's own canonical
+  // address with its own media — never the registry demo's copy.
+  assert.doesNotMatch(page, /21st\.dev/);
+  const blocks = await readProjectFile('components/dashboard/story-blocks.tsx');
+  assert.match(blocks, /\/news\/\$\{encodeURIComponent\(item\.slug\)\}\//);
+  assert.match(blocks, /storyCredit/);
+  assert.match(blocks, /mediaUrlFor\(story\.hero_media_key\)/);
+  // The retired deck and reel stay gone — component, section and all.
   assert.doesNotMatch(page, /CalendlyCarousel/);
   assert.doesNotMatch(page, /HaloReel/);
   for (const path of [
@@ -478,13 +476,6 @@ test('the homepage leads with the front-page grid, not the retired deck', async 
       `${path} belonged to the retired reel and must not come back`,
     );
   }
-  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
-  assert.match(header, /ব্রেকিং/);
-
-  // Cards come from the real archive, not from the registry demo's copy.
-  assert.doesNotMatch(page, /21st\.dev/);
-  assert.match(page, /storyCredit/);
-  assert.match(page, /mediaUrlFor\(story\.hero_media_key\)/);
   // The preview fixtures fall back to Unsplash art, which next.config allows.
   const stories = await readProjectFile('lib/stories.ts');
   assert.match(stories, /images\.unsplash\.com/);
@@ -496,16 +487,16 @@ test('the homepage leads with the front-page grid, not the retired deck', async 
   assert.ok(!pkg.dependencies.motion, "the reel's own motion package must be gone");
 });
 
-test('the front page serves its slots from one archive read', async () => {
-  // One read serves the whole front page: the newest reports fill the lead
-  // slots and the latest rail, and everything past the fifth slot drops into
-  // the archive grid below the finale.
+test('the front page serves every slot from one archive read', async () => {
+  // One read serves the whole front page: the hero slots, the rails and both
+  // carousels are picked from the same newest-first list, and a short feed
+  // cycles its own stories rather than leaving holes.
   const page = await readProjectFile('app/page.tsx');
   assert.match(page, /getLatestStories\(25\)/);
-  assert.match(page, /const lead = items\[0\]/);
-  assert.match(page, /const latest = items\.slice\(0, 5\)/);
-  assert.match(page, /const below = stories\.slice\(5\)/);
-  assert.match(page, /freshCount/, 'the rail still badges what arrived today');
+  const reads = page.match(/getLatestStories\(/g) ?? [];
+  assert.equal(reads.length, 1, 'the front page must take one read, not one per slot');
+  assert.match(page, /pick\(items, 0\)/, 'the lead slot comes from that list');
+  assert.match(page, /pick\(items, 4\)/, 'the recommended rail comes from that list');
 });
 
 test('a shared story carries its own picture, not the site logo', async () => {
@@ -538,25 +529,27 @@ test('a story link can be copied and previewed before it is published', async ()
   assert.match(migration, /is_moderator_or_admin\(\)/, 'only the author or the desk may read it');
 });
 
-test('the article body fills its card instead of leaving a blank band', async () => {
+test('the article body fills its column instead of leaving a blank band', async () => {
   const article = await readProjectFile('app/news/[slug]/page.tsx');
   assert.doesNotMatch(article, /max-w-\[68ch\]/, 'the one-sided blank band must be gone');
-  assert.match(article, /article-body text-\[17px\]/);
+  assert.match(article, /className="article-body"/);
+  const css = await readProjectFile('app/globals.css');
+  assert.match(css, /\.article-main p\s*\{/, 'body copy keeps the design\'s own measure and rhythm');
 });
 
-test('the site paints without a blocking font and moves motion onto CSS', async () => {
+test('the site paints without a blocking font and keeps motion on CSS', async () => {
   const layout = await readProjectFile('app/layout.tsx');
-  assert.match(layout, /next\/font\/google/, 'the Bengali face is self-hosted');
+  assert.match(layout, /next\/font\/google/, 'the type is self-hosted');
   assert.doesNotMatch(layout, /fonts\.googleapis\.com/, 'no render-blocking stylesheet remains');
+  assert.match(layout, /--font-inter/, 'Latin text renders in the design\'s Inter');
+  assert.match(layout, /--font-bengali/, 'Bengali falls through to the paired Bengali face');
   const css = await readProjectFile('app/globals.css');
   assert.match(css, /prefers-reduced-motion: reduce/, 'a global reduced-motion reset');
-  assert.match(css, /@keyframes dutimz-carousel-progress/);
-  // The finale's settle and the cards' rise are CSS gated behind motion-safe,
-  // so no frame loop re-renders the page and reduced-motion readers get stills.
+  // Glass is a dose-capped accent: only the sticky bars may blur.
+  const blur = css.match(/^\s*backdrop-filter: blur/gm) ?? [];
+  assert.ok(blur.length <= 2, 'backdrop blur belongs to the sticky bars alone');
   const page = await readProjectFile('app/page.tsx');
-  assert.match(page, /motion-safe:animate-\[paper-settle/);
-  assert.match(page, /paper-rise/);
-  assert.doesNotMatch(page, /requestAnimationFrame/);
+  assert.doesNotMatch(page, /requestAnimationFrame/, 'no frame loop re-renders the page');
   // recharts stays out of the initial bundle: the homepage imports no chart,
   // and the lazy wrapper still suspends what it loads to the client.
   assert.doesNotMatch(page, /recharts/);
@@ -566,7 +559,7 @@ test('the site paints without a blocking font and moves motion onto CSS', async 
   const dropdown = await readProjectFile('components/ui/user-dropdown.tsx');
   assert.doesNotMatch(dropdown, /@iconify\/react/, 'no runtime icon fetch');
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
-  assert.doesNotMatch(header, /backdrop-blur/);
+  assert.doesNotMatch(header, /backdrop-blur/, 'the blur lives in the stylesheet, on the bars alone');
 });
 
 test('anonymous stories never receive a profile link', async () => {
@@ -753,7 +746,6 @@ test('reader-facing errors never show raw provider text', async () => {
     'components/article/comments.tsx',
     'components/auth/sign-in-button.tsx',
     'components/corrections/corrections-list.tsx',
-    'components/dashboard/command-palette.tsx',
     'components/dashboard/dashboard-header.tsx',
     'components/profile/profile-edit-dialog.tsx',
     'components/profile/public-profile.tsx',
@@ -832,7 +824,6 @@ test('Supabase failures use safe Bengali fallbacks and never render exception te
     'components/article/comments.tsx',
     'components/auth/sign-in-button.tsx',
     'components/corrections/corrections-list.tsx',
-    'components/dashboard/command-palette.tsx',
     'components/dashboard/dashboard-header.tsx',
     'components/profile/profile-edit-dialog.tsx',
     'components/profile/public-profile.tsx',
@@ -850,8 +841,6 @@ test('Supabase failures use safe Bengali fallbacks and never render exception te
     const source = await readProjectFile(`components/${relative}`);
     assert.ok(!source.includes('.message'), `${relative} must not read exception messages`);
   }
-  const palette = await readProjectFile('components/dashboard/command-palette.tsx');
-  assert.ok(palette.includes('প্রতিবেদন খোঁজা যাচ্ছে না। আবার চেষ্টা করুন।'));
   const search = await readProjectFile('components/search/search-results.tsx');
   assert.ok(search.includes('খবর খোঁজা যাচ্ছে না। আবার চেষ্টা করুন।'));
   const helper = await readProjectFile('lib/errors.ts');
@@ -863,25 +852,17 @@ test('Supabase failures use safe Bengali fallbacks and never render exception te
   assert.ok(saved.includes('সংরক্ষিত প্রতিবেদন লোড করা যায়নি'));
 });
 
-test('the phone dock carries home, search, menu, AI and account', async () => {
-  // The mobile dock is five slots with the page list raised in the centre, so
-  // every page has one obvious home on a phone. The AI slot is intentionally
-  // inert until its behaviour is specified.
+test('the phone menu shows the same desks behind the burger', async () => {
+  // Phones get the design's burger: a disclosure over the same section pills
+  // the desktop bar shows, so a reader on a phone loses no destination.
+  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
+  assert.match(header, /className="burger"/);
+  assert.match(header, /id="site-nav"/);
+  assert.match(header, /menuOpen \? " open" : ""/, 'the nav opens through the design\'s own class');
+  assert.match(header, /aria-expanded=\{menuOpen\}/);
+  assert.match(header, /aria-label="মেনু"/);
   const shell = await readProjectFile('components/dashboard/dutimz-shell.tsx');
-  assert.match(shell, /MobileBottomNav/);
-  const dock = await readProjectFile('components/dashboard/mobile-bottom-nav.tsx');
-  for (const label of ['হোম', 'খুঁজুন', 'মেনু', 'এআই', 'অ্যাকাউন্ট']) {
-    assert.ok(dock.includes(label), `the dock must label ${label}`);
-  }
-  assert.match(dock, /md:hidden/, 'the dock is phone-only');
-  // The popover renders whatever this list holds, so future pages are added once.
-  assert.match(dock, /QUICK_ACTIONS/);
-  for (const href of ['/spotlight', '/statistics', '/corrections', '/guidelines', '/about', '/saved']) {
-    assert.ok(dock.includes(`"${href}"`), `the page list must include ${href}`);
-  }
-  assert.match(dock, /aria-expanded/, 'the centre toggle is a disclosure');
-  assert.match(dock, /aria-label="এআই সহায়ক \(শীঘ্রই আসছে\)"/, 'the AI slot announces it is not ready');
-  assert.match(dock, /disabled/);
+  assert.doesNotMatch(shell, /MobileBottomNav/, 'the retired phone dock stays gone');
 });
 
 test('spotlight authors remove their own posts; the desk hides or removes any', async () => {
@@ -1039,7 +1020,7 @@ test('the desk is not forced to type a reason, and is told why a username was re
 });
 
 test('shadcn primitives required by the dashboard shell exist', async () => {
-  for (const primitive of ['animated-file-tree', 'avatar', 'badge', 'button', 'card', 'chart', 'command', 'connected-carousel', 'field', 'input', 'popover', 'radio-group', 'select', 'separator', 'skeleton', 'textarea', 'toast', 'tooltip', 'sheet', 'label', 'progress', 'sidebar']) {
+  for (const primitive of ['animated-file-tree', 'avatar', 'badge', 'button', 'card', 'chart', 'command', 'connected-carousel', 'field', 'input', 'popover', 'radio-group', 'select', 'separator', 'skeleton', 'textarea', 'toast', 'tooltip', 'sheet', 'label', 'progress']) {
     assert.ok(await exists(`components/ui/${primitive}.tsx`), `components/ui/${primitive}.tsx must exist`);
   }
 });
@@ -1131,9 +1112,8 @@ test('the member dashboard separates identity, news and spotlights', async () =>
   assert.doesNotMatch(dashboard, /UUID/, 'no dashboard field may ask for a raw id');
 });
 
-test('the phone dock centre button carries the DUTIMZ mark', async () => {
-  const nav = await readProjectFile('components/dashboard/mobile-bottom-nav.tsx');
-  assert.match(nav, /\/brand-icon\.svg/, 'the menu button must use the site mark');
-  assert.match(nav, /মেনু/, 'the label must stay');
+test('the site mark ships with the bar and the footer', async () => {
   assert.ok(await exists('public/brand-icon.svg'), 'public/brand-icon.svg must exist');
+  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
+  assert.match(header, /\/brand-icon\.svg/, 'the bar must use the site mark');
 });

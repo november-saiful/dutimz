@@ -1,15 +1,23 @@
 import type { Metadata } from "next";
-import { Noto_Serif_Bengali } from "next/font/google";
+import { Inter, Noto_Sans_Bengali } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/toast";
 import { SITE_URL } from "@/lib/site";
 
 /**
- * The Bengali face is self-hosted by `next/font` rather than fetched from a `<link>` in the head.
- * The external stylesheet was render-blocking and needed two extra origins warmed up before any
- * text could paint; now the font files ship from our own origin with the rest of the CSS.
+ * Both faces are self-hosted by `next/font` rather than fetched from a `<link>` in the head:
+ * Latin text renders in Inter and Bengali falls through to Noto Sans Bengali, the sans pairing
+ * the reference design asks for. The files ship from our own origin with the rest of the CSS,
+ * so the page never waits on an external font host before painting.
  */
-const bengali = Noto_Serif_Bengali({
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  display: "swap",
+  variable: "--font-inter",
+});
+
+const bengali = Noto_Sans_Bengali({
   subsets: ["bengali", "latin"],
   weight: ["400", "500", "600", "700", "800"],
   display: "swap",
@@ -42,9 +50,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="bn" className={bengali.variable}>
+    <html lang="bn" className={`${inter.variable} ${bengali.variable}`}>
       <head>
-        <meta name="theme-color" content="#5f2367" />
+        <meta name="theme-color" content="#f5f6fa" />
         <meta name="color-scheme" content="light" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="apple-touch-icon" href="/brand-icon.svg" />

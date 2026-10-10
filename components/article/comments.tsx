@@ -2,7 +2,6 @@
 
 import * as React from "react";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Field, FormMessage } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -104,7 +103,7 @@ export function Comments({ articleId }: { articleId: string }) {
 
   return (
     <div>
-      <form onSubmit={submit} className="flex flex-col gap-2">
+      <form onSubmit={submit} className="comment">
         <Field label="আপনার মন্তব্য" htmlFor="comment-body" hideLabel>
           <Textarea
             id="comment-body"
@@ -116,21 +115,23 @@ export function Comments({ articleId }: { articleId: string }) {
             placeholder="শ্রদ্ধাশীল ভাষায় আপনার মতামত লিখুন…"
           />
         </Field>
-        <Button type="submit" disabled={submitting} className="self-start">
-          {submitting ? "প্রকাশ হচ্ছে…" : "মন্তব্য করুন →"}
-        </Button>
+        <div className="c-actions">
+          <Button type="submit" disabled={submitting} className="self-start">
+            {submitting ? "প্রকাশ হচ্ছে…" : "মন্তব্য করুন"}
+          </Button>
+        </div>
       </form>
       {error && (
         <div className="mt-2">
           <FormMessage>{error}</FormMessage>
         </div>
       )}
-      <div className="mt-4 flex flex-col gap-3">
+      <div className="mt-4">
         {!loaded && <p className="text-sm text-muted-foreground">লোড হচ্ছে…</p>}
         {loaded && comments.length === 0 && (
-          <div className="rounded-md bg-muted p-4 text-sm">
+          <div className="comment">
             <strong>আলোচনা শুরু করুন</strong>
-            <p className="text-muted-foreground">
+            <p className="c-text">
               শ্রদ্ধাশীল ভাষায় প্রথম মন্তব্যটি লিখুন।
             </p>
           </div>
@@ -143,24 +144,16 @@ export function Comments({ articleId }: { articleId: string }) {
           const name =
             author.display_name?.trim() || `@${author.username || "পাঠক"}`;
           return (
-            <article key={comment.id} className="flex items-start gap-3">
-              <Avatar className="size-8">
-                <AvatarFallback className="text-xs">
-                  {name.slice(0, 2)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1 rounded-md border p-3">
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <strong className="min-w-0 truncate text-foreground">
-                    <a href={`/u/${encodeURIComponent(author.username)}/`}>
-                      {name}
-                    </a>
-                  </strong>
-                  <span aria-hidden>·</span>
-                  <time className="shrink-0">{relativeTimeBn(comment.created_at)}</time>
-                </div>
-                <p className="mt-1 wrap-break-word text-sm">{comment.body}</p>
+            <article key={comment.id} className="comment">
+              <div className="c-name">
+                <a href={`/u/${encodeURIComponent(author.username)}/`}>{name}</a>
               </div>
+              <div className="c-time">
+                <time dateTime={comment.created_at}>
+                  {relativeTimeBn(comment.created_at)}
+                </time>
+              </div>
+              <p className="c-text wrap-break-word">{comment.body}</p>
             </article>
           );
         })}

@@ -1,9 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Bookmark, Heart, Plus, Share2, X } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { rememberReturnPath, signInWithGoogle } from "@/lib/auth-client";
 import { errorMessage, reportError } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
@@ -12,26 +10,29 @@ import { cn } from "@/lib/utils";
 type ArticleActionsProps = {
   articleId: string;
   articleTitle: string;
+  /** Absolute canonical URL of the story, for the share buttons. */
+  articleUrl?: string;
   correctionSubject: string;
   /**
-   * "inline" (default) is the row of actions; "floating" is the phone-only
-   * single call to action that unfolds the same actions when tapped.
+   * "chips" (default) is the reading bar's row of counters — likes, saves and
+   * the jump to the comments. "socials" is the share row beside the tags.
    */
-  variant?: "inline" | "floating";
+  variant?: "chips" | "socials";
 };
 
 export function ArticleActions({
   articleId,
   articleTitle,
+  articleUrl,
   correctionSubject,
-  variant = "inline",
+  variant = "chips",
 }: ArticleActionsProps) {
   const [likes, setLikes] = React.useState<number | null>(null);
+  const [comments, setComments] = React.useState<number | null>(null);
   const [reacted, setReacted] = React.useState(false);
   const [bookmarked, setBookmarked] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [notice, setNotice] = React.useState("");
-  const [open, setOpen] = React.useState(false);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -51,6 +52,7 @@ export function ArticleActions({
         if (cancelled) return;
         const likesCount = (stats as { likes?: number } | null)?.likes ?? 0;
         setLikes(likesCount);
+        setComments((stats as { comments?: number } | null)?.comments ?? 0);
         if (authError || !user) return;
         const { data: reactions, error: reactionsError } = await supabase
           .from("reactions")
@@ -179,137 +181,103 @@ export function ArticleActions({
   async function share() {
     if (navigator.share) {
       try {
-        await navigator.share({ title: articleTitle, url: location.href });
+        await navigator.share({ title: articleTitle, url: articleUrl ?? location.href });
       } catch {
         /* the reader dismissed the share sheet — not a failure */
       }
     } else {
-      await navigator.clipboard?.writeText(location.href);
+      await navigator.clipboard?.writeText(articleUrl ?? location.href);
       setNotice("প্রতিবেদনের লিংক কপি করা হয়েছে।");
     }
   }
 
-  const likeLabel = `${likes === null ? "…" : new Intl.NumberFormat("bn-BD").format(likes)} ভালো লেগেছে`;
   const correctionHref = `mailto:corrections@dutimz.com?subject=${encodeURIComponent(correctionSubject)}`;
+  const shareHref = articleUrl ?? "";
+  const countLabel = (count: number | null) => count === null ? "…" : new Intl.NumberFormat("bn-BD").format(count);
 
-  /*
-    Phones get one floating call to action instead of a bar of four buttons: the
-    round button unfolds the same actions, so the article body stays clear while
-    every action is still one tap away. Desktop keeps the inline row.
-  */
-  if (variant === "floating") {
+  if (variant === "socials") {
     return (
-      <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-3 lg:hidden">
-        {open && (
-          <>
-            <button
-              type="button"
-              aria-label="কার্যক্রম বন্ধ করুন"
-              className="fixed inset-0 -z-10 cursor-default bg-background/40 backdrop-blur-[1px]"
-              onClick={() => setOpen(false)}
-            />
-            <div className="flex flex-col items-end gap-2">
-              <button
-                type="button"
-                onClick={toggleReaction}
-                disabled={busy}
-                aria-pressed={reacted}
-                className={cn(
-                  "flex items-center gap-2 rounded-full border bg-background px-3.5 py-2 text-sm font-medium shadow-sm",
-                  reacted && "border-primary text-primary",
-                )}
-              >
-                <Heart className={cn("size-4", reacted && "fill-current")} />
-                {likeLabel}
-              </button>
-              <button
-                type="button"
-                onClick={toggleBookmark}
-                disabled={busy}
-                aria-pressed={bookmarked}
-                className={cn(
-                  "flex items-center gap-2 rounded-full border bg-background px-3.5 py-2 text-sm font-medium shadow-sm",
-                  bookmarked && "border-primary text-primary",
-                )}
-              >
-                <Bookmark className={cn("size-4", bookmarked && "fill-current")} />
-                {bookmarked ? "সংরক্ষিত" : "সংরক্ষণ"}
-              </button>
-              <button
-                type="button"
-                onClick={share}
-                className="flex items-center gap-2 rounded-full border bg-background px-3.5 py-2 text-sm font-medium shadow-sm"
-              >
-                <Share2 className="size-4" />
-                শেয়ার করুন
-              </button>
-              <a
-                href={correctionHref}
-                className="flex items-center gap-2 rounded-full border bg-background px-3.5 py-2 text-sm font-medium shadow-sm"
-              >
-                সংশোধন জানান
-              </a>
-            </div>
-            {notice && (
-              <p
-                className="max-w-[16rem] rounded-lg border bg-background px-3 py-2 text-xs text-muted-foreground shadow-sm"
-                role="status"
-              >
-                {notice}
-              </p>
-            )}
-          </>
+      <div>
+        <div className="socials">
+          <a
+            href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareHref)}&text=${encodeURIComponent(articleTitle)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="X-এ শেয়ার করুন"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M22 5.8c-.7.3-1.5.6-2.3.7a4 4 0 0 0 1.7-2.2c-.8.5-1.6.8-2.5 1a4 4 0 0 0-6.9 3.6A11.3 11.3 0 0 1 3.9 4.7a4 4 0 0 0 1.2 5.3c-.6 0-1.3-.2-1.8-.5v.1a4 4 0 0 0 3.2 3.9 4 4 0 0 1-1.8.1 4 4 0 0 0 3.7 2.8A8 8 0 0 1 2 18.1a11.3 11.3 0 0 0 6.1 1.8c7.4 0 11.4-6.1 11.4-11.4v-.5c.8-.6 1.5-1.3 2-2.2z" />
+            </svg>
+          </a>
+          <a
+            href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareHref)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="ফেসবুকে শেয়ার করুন"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M14 9h3l-.4 3H14v9h-3v-9H8V9h3V7.5A3.5 3.5 0 0 1 14.5 4H17v3h-2.5a.5.5 0 0 0-.5.5V9z" />
+            </svg>
+          </a>
+          <button type="button" onClick={share} aria-label="লিংক শেয়ার করুন">
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M18 8a3 3 0 1 0-2.8-4H15a3 3 0 0 0 .1 1.3L8.9 8.4a3 3 0 1 0 0 7.2l6.2 3.1A3 3 0 1 0 18 16c-.8 0-1.5.3-2 .8l-6-3a3 3 0 0 0 0-1.6l6-3c.5.5 1.2.8 2 .8z" />
+            </svg>
+          </button>
+          <a href={correctionHref} aria-label="সংশোধন জানান">
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M3 5h18v14H3z" fill="none" stroke="currentColor" strokeWidth="1.8" />
+              <path d="M3 6l9 7 9-7" fill="none" stroke="currentColor" strokeWidth="1.8" />
+            </svg>
+          </a>
+        </div>
+        {notice && (
+          <p className="mt-2 text-xs text-muted-foreground" role="status">
+            {notice}
+          </p>
         )}
-        <Button
-          type="button"
-          size="icon"
-          aria-expanded={open}
-          aria-label={open ? "কার্যক্রম বন্ধ করুন" : "প্রতিবেদনের কার্যক্রম"}
-          onClick={() => setOpen((current) => !current)}
-          className="size-14 rounded-full shadow-lg"
-        >
-          {open ? <X className="size-6" /> : <Plus className="size-6" />}
-        </Button>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          variant={reacted ? "default" : "outline"}
-          size="sm"
-          onClick={toggleReaction}
-          disabled={busy}
-          aria-pressed={reacted}
-        >
-          <Heart className="mr-1 size-4" />
-          {likes === null ? "…" : new Intl.NumberFormat("bn-BD").format(likes)}{" "}
-          ভালো লেগেছে
-        </Button>
-        <Button
-          variant={bookmarked ? "default" : "outline"}
-          size="sm"
-          onClick={toggleBookmark}
-          disabled={busy}
-          aria-pressed={bookmarked}
-        >
-          <Bookmark className="mr-1 size-4" />
-          {bookmarked ? "সংরক্ষিত" : "সংরক্ষণ"}
-        </Button>
-        <Button variant="outline" size="sm" onClick={share}>
-          <Share2 className="mr-1 size-4" />
-          শেয়ার করুন
-        </Button>
-        <Button variant="outline" size="sm" asChild>
-          <a href={correctionHref}>সংশোধন জানান</a>
-        </Button>
-      </div>
+    <div className="bar-chips">
+      <button
+        type="button"
+        className={cn("chip", reacted && "liked")}
+        onClick={toggleReaction}
+        disabled={busy}
+        aria-pressed={reacted}
+        aria-label="ভালো লেগেছে"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" />
+        </svg>
+        <b>{countLabel(likes)}</b>
+      </button>
+      <button
+        type="button"
+        className={cn("chip", bookmarked && "liked")}
+        onClick={toggleBookmark}
+        disabled={busy}
+        aria-pressed={bookmarked}
+        aria-label={bookmarked ? "সংরক্ষিত" : "সংরক্ষণ করুন"}
+      >
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <path d="M6 3h12v18l-6-4.5L6 21z" />
+        </svg>
+        <b>{bookmarked ? "সংরক্ষিত" : "সংরক্ষণ"}</b>
+      </button>
+      <a className="chip" href="#comments" aria-label="মন্তব্যে যান">
+        <svg viewBox="0 0 24 24" aria-hidden>
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+        <b>{countLabel(comments)}</b>
+      </a>
       {notice && (
-        <p className="mt-2 text-xs text-muted-foreground" role="status">
+        <span role="status" className="sr-only">
           {notice}
-        </p>
+        </span>
       )}
     </div>
   );

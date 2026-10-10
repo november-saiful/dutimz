@@ -1,74 +1,69 @@
 import * as React from "react";
 
-import { SidebarInset } from "@/components/ui/sidebar";
-import { DutimzSidebar } from "@/components/dashboard/dutimz-sidebar";
-import { MobileBottomNav } from "@/components/dashboard/mobile-bottom-nav";
-import { SidebarState } from "@/components/dashboard/sidebar-state";
-import {
-  DashboardHeader,
-  type Crumb,
-} from "@/components/dashboard/dashboard-header";
+import { DashboardHeader, type Crumb } from "@/components/dashboard/dashboard-header";
+import { SiteFooter } from "@/components/dashboard/site-footer";
+import { getNavCategories } from "@/lib/stories";
 
-export function DutimzShell({
+/**
+ * The site shell in the reference design's shape: the sticky top bar, the
+ * page's own content, and the footer with the real desks and pages. `bare`
+ * hands the whole viewport to the page (the front page and the article view
+ * draw their own containers and sticky bars); every other page gets one framed
+ * column with a breadcrumb head.
+ */
+export async function DutimzShell({
   title,
   crumbs,
-  breaking,
+  bare = false,
   children,
 }: {
-  title: string;
+  title?: string;
   crumbs?: Crumb[];
-  breaking?: { href: string; title: string }[];
+  /** The page draws its own containers: no frame, no breadcrumb head. */
+  bare?: boolean;
   children: React.ReactNode;
 }) {
+  // One read serves the top bar and the footer, so the desks can never drift
+  // between them. Demo mode and a failed query fall back to the static list.
+  const sections = await getNavCategories();
+
   return (
-    <SidebarState>
-      <DutimzSidebar />
-      {/*
-        min-w-0: the inset is a flex item, and a flex item's min-width is `auto`, so it
-        refuses to shrink below the min-content width of the widest thing inside it. At
-        tablet widths, where the sidebar becomes permanent, that pushed the inset ~23px
-        past the viewport and ate the right padding off every card.
-      */}
-      <SidebarInset className="min-w-0">
-        <DashboardHeader title={title} crumbs={crumbs} breaking={breaking} />
-        {/*
-          min-w-0 again: this main is itself a flex item of the column flex
-          container above. Without it, an unbreakable string (e.g. a raw error
-          message in a card) sets the min-content width and stretches the whole
-          document past the viewport on phones.
-        */}
-        {/*
-          pb-28 on phones keeps the fixed bottom dock from covering the last
-          card; desktop has no dock and keeps its normal padding.
-        */}
-        <main className="flex min-w-0 flex-1 flex-col gap-6 p-4 pb-28 sm:p-6 md:pb-6">
+    <>
+      <DashboardHeader sections={sections} />
+      {bare ? (
+        <main id="main-content">{children}</main>
+      ) : (
+        <main id="main-content" className="block flex min-w-0 flex-col gap-6">
+          {(title || crumbs?.length) && (
+            <header className="min-w-0">
+              {crumbs && crumbs.length > 0 && (
+                <nav aria-label="অবস্থান" className="crumb">
+                  <a href="/">মূলপাতা</a>
+                  {crumbs.map((crumb) => (
+                    <React.Fragment key={crumb.label}>
+                      <svg viewBox="0 0 24 24" aria-hidden>
+                        <path d="M5 12h14M13 6l6 6-6 6" />
+                      </svg>
+                      {crumb.href ? (
+                        <a href={crumb.href}>{crumb.label}</a>
+                      ) : (
+                        <span>{crumb.label}</span>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </nav>
+              )}
+              {title && (
+                <h1 className="text-[clamp(22px,2.6vw,30px)] leading-tight font-bold tracking-[-0.4px]">
+                  {title}
+                </h1>
+              )}
+            </header>
+          )}
           {children}
         </main>
-        <footer className="border-t px-4 py-6 text-center text-xs text-muted-foreground sm:px-6">
-          <p className="font-semibold text-foreground">DUTIMZ</p>
-          <p>ঢাকা বিশ্ববিদ্যালয়ের কণ্ঠস্বর</p>
-          <nav
-            className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1"
-            aria-label="প্রয়োজনীয় লিংক"
-          >
-            <a href="/about/" className="hover:text-foreground">
-              আমাদের পরিচয়
-            </a>
-            <a href="/guidelines/" className="hover:text-foreground">
-              সম্পাদকীয় নীতিমালা
-            </a>
-            <a href="/corrections/" className="hover:text-foreground">
-              সংশোধন ও তথ্য যাচাই
-            </a>
-            <a href="mailto:hello@dutimz.com" className="hover:text-foreground">
-              যোগাযোগ
-            </a>
-          </nav>
-          <p className="mt-2">© {new Date().getFullYear()} DUTIMZ</p>
-        </footer>
-        {/* The phone-only dock: home, search, the page list, AI and account. */}
-        <MobileBottomNav />
-      </SidebarInset>
-    </SidebarState>
+      )}
+      <SiteFooter sections={sections} />
+    </>
   );
 }
