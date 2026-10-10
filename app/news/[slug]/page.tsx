@@ -144,6 +144,7 @@ export default async function ArticlePage({
 
   return (
     <DutimzShell
+      title={article.title}
       crumbs={[
         { label: category.title_bn, href: `/category/${category.slug}/` },
         { label: article.title },

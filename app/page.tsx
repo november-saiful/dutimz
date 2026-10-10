@@ -173,7 +173,7 @@ export default async function HomePage() {
   const finaleImage = lead?.image ?? null;
 
   return (
-    <DutimzShell>
+    <DutimzShell title="স্বাগতম">
       {items.length === 0 ? (
         <div className="grid grid-cols-1">
           <EmptyDesk />
