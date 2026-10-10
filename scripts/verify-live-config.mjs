@@ -216,23 +216,19 @@ function wwwHostFor(base) {
  */
 async function cacheProblems(base) {
   const problems = [];
-  const samples = [...canonicalSamples(await homeLinks(base)).keys()];
 
-  // These two are the deterministic proof, and they are gated:
+  // This is the deterministic proof, and it is gated:
   //
   // - `/about/` is fully static (`initialRevalidateSeconds: false`), so once it is in the
   //   cache it is always a hit and can never be legitimately stale.
-  // - `/` exports `revalidate` and is prerendered, so it must at least be *found*; STALE is
-  //   accepted because the entry exists and was read and is merely due to be regenerated.
+  // The homepage and the news and section pages are rendered per request (`force-dynamic`) so an
+  // approved story appears at once, so they are deliberately not gated here: a fresh render is the
+  // intended behaviour for them, not a missing cache.
   //
-  // The dynamic-segment routes are reported rather than gated. Whether a route under
-  // `[slug]` reports a cache state at all depends on its params having been prerendered, and
-  // this build only lists a bounded slice of them, so a miss there is not by itself proof of
-  // a missing cache — unlike the two above, which have no such excuse.
+  // `/about/` is the one route that is both fully static and cached by design, so it is the
+  // deterministic proof that the cache is wired up.
   const targets = [
     { path: '/about/', allowStale: false, required: true },
-    { path: '/', allowStale: true, required: true },
-    ...samples.slice(0, 2).map((path) => ({ path, allowStale: true, required: false })),
   ];
 
   for (const { path, allowStale, required } of targets) {

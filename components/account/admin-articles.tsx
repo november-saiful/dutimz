@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { CalendarClock, Eye, EyeOff, Pencil, Search } from "lucide-react";
+import { Banknote, BookOpen, CalendarClock, Eye, EyeOff, Pencil, Search } from "lucide-react";
 
+import { AuthedMediaImage } from "@/components/article/authed-media-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,9 +43,14 @@ type Article = {
   created_at: string;
   category: { slug: string; title_bn: string } | null;
   author: { username: string; display_name: string } | null;
+  hero_media_key: string | null;
+  article_media: { media_id: string; position: number }[] | null;
 };
 
 type Member = { id: string; username: string; display_name: string };
+
+/** The one ledger row that records what the desk assigned to a story. */
+type Award = { id: string; amount_tk: number; created_at: string };
 
 const STATUS_LABELS: Record<string, string> = {
   published: "প্রকাশিত",
@@ -106,13 +112,23 @@ export function AdminArticles() {
   const [deciding, setDeciding] = React.useState<Article | null>(null);
   const [decideReason, setDecideReason] = React.useState("");
 
+  // The preview shows the story as a reader sees it, with the desk's money decision floating at its
+  // foot. The award is read once when the preview opens, and the CTA stays off until that read finishes.
+  const [previewing, setPreviewing] = React.useState<Article | null>(null);
+  const [award, setAward] = React.useState<Award | null>(null);
+  const [awardLoaded, setAwardLoaded] = React.useState(false);
+  const [awarding, setAwarding] = React.useState(false);
+  const [awardAmount, setAwardAmount] = React.useState("");
+  const [awardReason, setAwardReason] = React.useState("");
+  const [awardMessage, setAwardMessage] = React.useState("");
+
   const load = React.useCallback(async (nextStatus: string, nextQuery: string) => {
     try {
       const supabase = supabaseBrowser();
       let request = supabase
         .from("articles")
         .select(
-          "id,slug,title,excerpt,body,status,is_anonymous,published_at,created_at,category:categories(slug,title_bn),author:profiles!articles_author_id_fkey(username,display_name)",
+          "id,slug,title,excerpt,body,status,is_anonymous,published_at,created_at,hero_media_key,article_media(media_id,position),category:categories(slug,title_bn),author:profiles!articles_author_id_fkey(username,display_name)",
         )
         .order("created_at", { ascending: false })
         .limit(60);
@@ -282,6 +298,68 @@ export function AdminArticles() {
     }
   }
 
+  async function openPreview(article: Article) {
+    setPreviewing(article);
+    setAward(null);
+    setAwardLoaded(false);
+    setAwarding(false);
+    setAwardAmount("");
+    setAwardReason("");
+    setAwardMessage("");
+    try {
+      const { data, error: readError } = await supabaseBrowser()
+        .from("earnings_ledger")
+        .select("id,amount_tk,created_at")
+        .eq("article_id", article.id)
+        .in("entry_type", ["article_earning_available", "article_earning_held"])
+        .limit(1)
+        .maybeSingle();
+      if (readError) {
+        setAwardMessage(errorMessage("article award read", readError, "নির্ধারিত অর্থ দেখানো যাচ্ছে না।"));
+        return;
+      }
+      setAward((data as Award | null) ?? null);
+    } catch (err) {
+      setAwardMessage(errorMessage("article award read", err, "নির্ধারিত অর্থ দেখানো যাচ্ছে না।"));
+    } finally {
+      setAwardLoaded(true);
+    }
+  }
+
+  async function saveAward() {
+    if (!previewing) return;
+    setAwardMessage("");
+    const amount = Number(awardAmount);
+    if (!Number.isInteger(amount) || amount < 1 || amount > 1000000) {
+      setAwardMessage("টাকার পরিমাণ ১ থেকে ১০,০০,০০০ টাকার মধ্যে লিখুন।");
+      return;
+    }
+    if (awardReason.trim().length < 3) {
+      setAwardMessage("কারণ লিখুন (অন্তত ৩ অক্ষর)।");
+      return;
+    }
+    setBusy(`award-${previewing.id}`);
+    try {
+      const { data, error: awardError } = await supabaseBrowser().rpc("admin_award_article", {
+        p_article_id: previewing.id,
+        p_amount_tk: amount,
+        p_reason: awardReason.trim(),
+      });
+      if (awardError) {
+        setAwardMessage(errorMessage("article award", awardError, "অর্থ নির্ধারণ করা যায়নি। আবার চেষ্টা করুন।"));
+        return;
+      }
+      const row = data as unknown as Award | null;
+      setAward(row ?? { id: "", amount_tk: amount, created_at: new Date().toISOString() });
+      setAwarding(false);
+      setNotice(`প্রতিবেদনটির জন্য ৳${bn(amount)} নির্ধারণ করা হয়েছে।`);
+    } catch (err) {
+      setAwardMessage(errorMessage("article award", err, "অর্থ নির্ধারণ করা যায়নি। আবার চেষ্টা করুন।"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {error && (
@@ -339,7 +417,7 @@ export function AdminArticles() {
                 <TableHead>অবস্থা</TableHead>
                 <TableHead className="hidden md:table-cell">লেখক</TableHead>
                 <TableHead className="hidden lg:table-cell">প্রকাশ</TableHead>
-                <TableHead className="w-32">
+                <TableHead className="w-40">
                   <span className="sr-only">পদক্ষেপ</span>
                 </TableHead>
               </TableRow>
@@ -379,6 +457,15 @@ export function AdminArticles() {
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => void openPreview(article)}
+                          aria-label={`${article.title} পূর্বরূপ`}
+                          title="পূর্বরূপ ও অর্থ নির্ধারণ"
+                        >
+                          <BookOpen className="size-4" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="icon"
@@ -624,6 +711,115 @@ export function AdminArticles() {
               {busy?.startsWith("status-") ? "সংরক্ষণ হচ্ছে…" : "নিশ্চিত করুন"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* The story as a reader sees it. The one money decision lives at the foot of this dialog. */}
+      <Dialog open={previewing !== null} onOpenChange={(open) => !open && setPreviewing(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          {previewing && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{previewing.title}</DialogTitle>
+                <DialogDescription>
+                  {previewing.category?.title_bn ?? "শ্রেণি নেই"} · {STATUS_LABELS[previewing.status] ?? previewing.status} ·{" "}
+                  {previewing.is_anonymous
+                    ? "নাম প্রকাশে অনিচ্ছুক"
+                    : previewing.author
+                      ? previewing.author.display_name?.trim() || `@${previewing.author.username}`
+                      : "লেখক নেই"}
+                </DialogDescription>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground">{previewing.excerpt}</p>
+              {previewing.hero_media_key && (
+                <AuthedMediaImage
+                  mediaId={previewing.hero_media_key}
+                  alt={previewing.title}
+                  className="w-full rounded-lg border object-cover"
+                />
+              )}
+              <div className="flex flex-col gap-3">
+                {previewing.body
+                  .split(/\n{2,}/)
+                  .map((paragraph) => paragraph.trim())
+                  .filter(Boolean)
+                  .map((paragraph, index) => (
+                    <p key={index} className="text-sm leading-7">
+                      {paragraph}
+                    </p>
+                  ))}
+              </div>
+              {(previewing.article_media ?? [])
+                .slice()
+                .sort((a, b) => a.position - b.position)
+                .filter((item) => item.media_id !== previewing.hero_media_key)
+                .map((item) => (
+                  <AuthedMediaImage
+                    key={item.media_id}
+                    mediaId={item.media_id}
+                    alt={previewing.title}
+                    className="w-full rounded-lg border object-cover"
+                  />
+                ))}
+
+              {/* Floating call to action: sticks to the bottom of the dialog while it scrolls. */}
+              <div className="sticky bottom-0 flex flex-col items-end gap-2 pt-2">
+                {awardMessage && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {awardMessage}
+                  </p>
+                )}
+                {awarding && (
+                  <div className="flex w-full flex-col gap-3 rounded-lg border bg-background p-4 shadow-lg">
+                    <Field
+                      label="টাকার পরিমাণ"
+                      htmlFor="award-amount"
+                      hint="১ থেকে ১০,০০,০০০ টাকার মধ্যে। এটি সরাসরি লেখকের উপলব্ধ অর্থে যুক্ত হবে।"
+                    >
+                      <Input
+                        id="award-amount"
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        max={1000000}
+                        step={1}
+                        value={awardAmount}
+                        onChange={(event) => setAwardAmount(event.target.value)}
+                      />
+                    </Field>
+                    <Field label="কারণ" htmlFor="award-reason" hint="কারণ অডিট লগে সংরক্ষিত হয়।">
+                      <Textarea
+                        id="award-reason"
+                        value={awardReason}
+                        rows={2}
+                        minLength={3}
+                        maxLength={500}
+                        onChange={(event) => setAwardReason(event.target.value)}
+                      />
+                    </Field>
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" onClick={() => setAwarding(false)}>
+                        বাতিল
+                      </Button>
+                      <Button onClick={() => void saveAward()} disabled={busy !== null}>
+                        {busy?.startsWith("award-") ? "সংরক্ষণ হচ্ছে…" : "অর্থ নির্ধারণ করুন"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <Button
+                  className="rounded-full shadow-lg"
+                  onClick={() => setAwarding(true)}
+                  disabled={!awardLoaded || award !== null || awarding || busy !== null}
+                >
+                  <Banknote className="size-4" aria-hidden />
+                  {award
+                    ? `নির্ধারিত: ৳${bn(award.amount_tk)}`
+                    : "অর্থ নির্ধারণ করুন"}
+                </Button>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

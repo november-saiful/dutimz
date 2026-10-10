@@ -43,7 +43,7 @@ test('the anonymity rules keep their pgTAP coverage', () => {
     'A moderator cannot read the attribution either; it belongs to the desk administrator',
     'A signed-out visitor cannot read the attribution table',
     'The moderation audit still records the real reporter behind the anonymous story',
-    'Approving an anonymous story pays the reporter who filed it',
+    'Approving an anonymous story credits nothing: the desk sets any amount for it',
     'An admin edit of an anonymous story still records the real reporter',
     'Public search still finds an anonymous story and exposes no author with it',
   ];

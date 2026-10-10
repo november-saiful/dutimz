@@ -1,5 +1,5 @@
 begin;
-select plan(215);
+select plan(218);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -214,14 +214,21 @@ select throws_ok(
 -- Earnings, withdrawal, and moderation rules from the launch plan. These run
 -- against the fixtures above: article 'songbad' belongs to the junior reporter
 -- (10000000-...-0002), 'porikkha-mod' belongs to the moderator (...-0003).
+-- Publishing never credits a reporter by itself: the desk assigns the amount for each story.
 reset role;
-select set_config('request.jwt.claim.sub', '', true);
-select public.add_article_earning((select id from public.articles where slug = 'songbad'), '22000000-0000-4000-8000-000000000002');
-select public.add_article_earning((select id from public.articles where slug = 'songbad'), '22000000-0000-4000-8000-000000000002');
 select results_eq(
-  $$select count(*)::int, coalesce(sum(amount_tk), 0)::int from public.earnings_ledger where article_id = (select id from public.articles where slug = 'songbad') and entry_type in ('article_earning_held', 'article_earning_available')$$,
+  $$select count(*)::int from public.earnings_ledger where article_id = (select id from public.articles where slug = 'songbad')$$,
+  $$values (0)$$,
+  'Publishing a story credits nothing automatically'
+);
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select throws_ok($$select public.admin_award_article((select id from public.articles where slug = 'songbad'), 0, 'পরীক্ষামূলক পরিমাণ')$$, 'P0001', null, 'An award below ৳1 is refused');
+select public.admin_award_article((select id from public.articles where slug = 'songbad'), 90, 'পরীক্ষামূলক পরিমাণ');
+select throws_ok($$select public.admin_award_article((select id from public.articles where slug = 'songbad'), 90, 'পরীক্ষামূলক পরিমাণ')$$, 'P0001', null, 'A story can be awarded only once');
+select results_eq(
+  $$select count(*)::int, coalesce(sum(amount_tk), 0)::int from public.earnings_ledger where article_id = (select id from public.articles where slug = 'songbad') and entry_type = 'article_earning_available'$$,
   $$values (1, 90)$$,
-  'A published article earns its junior fee exactly once and is held while the profile is incomplete'
+  'The desk awards the chosen amount exactly once'
 );
 
 update public.profile_details set
@@ -233,9 +240,9 @@ select results_eq(
   'Every applicable field filled reaches 100% without a hall or a WhatsApp number'
 );
 select results_eq(
-  $$select count(*)::int, coalesce(sum(amount_tk), 0)::int from public.earnings_ledger where article_id = (select id from public.articles where slug = 'songbad') and entry_type = 'profile_release'$$,
-  $$values (1, 90)$$,
-  'Completing the profile releases the held fee once, as its own append-only ledger entry'
+  $$select count(*)::int from public.earnings_ledger where article_id = (select id from public.articles where slug = 'songbad') and entry_type = 'profile_release'$$,
+  $$values (0)$$,
+  'Completing the profile releases nothing: no held fee exists for a story the desk paid'
 );
 
 set local role authenticated;
@@ -465,8 +472,8 @@ select results_eq(
   $$select count(*)::int, coalesce(sum(amount_tk), 0)::int from public.earnings_ledger
      where article_id = (select id from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন')
        and user_id = '22000000-0000-4000-8000-000000000002'$$,
-  $$values (1, 90)$$,
-  'Approving an anonymous story pays the reporter who filed it'
+  $$values (0, 0)$$,
+  'Approving an anonymous story credits nothing: the desk sets any amount for it'
 );
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
@@ -642,8 +649,8 @@ select results_eq(
      where article_id = (select id from public.articles where title = 'অন্যের নামে প্রকাশিত প্রতিবেদন')
        and user_id = '22000000-0000-4000-8000-000000000002'
        and entry_type in ('article_earning_held', 'article_earning_available')$$,
-  $$values (1, 90)$$,
-  'A story published on another reporter behalf pays that reporter, not the desk'
+  $$values (0, 0)$$,
+  'Publishing a story on another reporter behalf credits nothing automatically'
 );
 select results_eq(
   $$select count(*)::int from public.admin_audit_log

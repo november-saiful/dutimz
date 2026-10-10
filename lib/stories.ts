@@ -1,4 +1,5 @@
 import { reportError } from "./errors";
+import { CATEGORIES } from "./site";
 import { isSupabaseConfigured, supabaseServer, type Story } from "./supabase";
 
 export type PreviewStory = {
@@ -139,6 +140,43 @@ export async function articleSlugExists(slug: string): Promise<boolean> {
   } catch (error) {
     reportError("article slug lookup", error);
     return false;
+  }
+}
+
+/** One question's answer as a reader sees it: choices with what was ticked, or a headcount or number. */
+export type ArticleQuestionnaireField =
+  | {
+      id: string;
+      label: string;
+      type: "single" | "multi";
+      choices: { label: string; selected: boolean }[];
+    }
+  | { id: string; label: string; type: "people" | "number"; count: number };
+
+export type ArticleQuestionnaire = { fields: ArticleQuestionnaireField[] };
+
+/**
+ * The answer sheet of one published story, from `get_public_article_questionnaire`. Free text and the
+ * people's names are never returned by that function, so nothing here can name a person.
+ */
+export async function getArticleQuestionnaire(
+  articleId: string,
+): Promise<ArticleQuestionnaire | null> {
+  if (isDemoMode()) return null;
+  try {
+    const supabase = supabaseServer();
+    const { data, error } = await supabase.rpc("get_public_article_questionnaire", {
+      p_article_id: articleId,
+    });
+    if (error) {
+      reportError("article questionnaire", error);
+      return null;
+    }
+    const summary = data as ArticleQuestionnaire | null;
+    return summary && summary.fields.length > 0 ? summary : null;
+  } catch (error) {
+    reportError("article questionnaire", error);
+    return null;
   }
 }
 
@@ -307,6 +345,40 @@ export async function getSitemapArticles(
   } catch (error) {
     reportError("sitemap article list", error);
     return [];
+  }
+}
+
+/**
+ * The masthead's section bar: every active desk in the database in the editor's order, with the
+ * front page first. Demo mode and a failed query fall back to the static list so the bar never
+ * renders empty.
+ */
+export async function getNavCategories(): Promise<
+  { slug: string; label: string }[]
+> {
+  const fallback = CATEGORIES.map((c) => ({ slug: c.slug, label: c.label }));
+  if (isDemoMode()) return fallback;
+  try {
+    const supabase = supabaseServer();
+    const { data, error } = await supabase
+      .from("categories")
+      .select("slug,title_bn")
+      .eq("active", true)
+      .order("sort_order");
+    if (error) {
+      reportError("section navigation", error);
+      return fallback;
+    }
+    return [
+      { slug: "all", label: "সব খবর" },
+      ...((data ?? []) as { slug: string; title_bn: string }[]).map((row) => ({
+        slug: row.slug,
+        label: row.title_bn,
+      })),
+    ];
+  } catch (error) {
+    reportError("section navigation", error);
+    return fallback;
   }
 }
 

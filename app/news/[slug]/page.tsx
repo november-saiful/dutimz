@@ -4,13 +4,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ArticleActions } from "@/components/article/article-actions";
+import { ArticleGallery } from "@/components/article/article-gallery";
+import { QuestionnaireSummary } from "@/components/article/questionnaire-summary";
 import { Comments } from "@/components/article/comments";
-import { LiveAlertToggle } from "@/components/article/live-alert-toggle";
 import { PendingArticle } from "@/components/article/pending-article";
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
 import { RecommendedItem, StoryArt } from "@/components/dashboard/story-card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -28,40 +28,20 @@ import {
 } from "@/lib/site";
 import {
   articleSlugExists,
+  getArticleQuestionnaire,
   getLatestStories,
-  getSitemapArticles,
   getStoryBySlug,
 } from "@/lib/stories";
 import {
   ANONYMOUS_BYLINE,
-  one,
   storyCategory,
   storyCredit,
 } from "@/lib/supabase";
 
-export const revalidate = 60;
-
-/**
- * How many of the newest stories are laid down at build time.
- *
- * Bounded because prerendering is a build-time cost, and unnecessary for freshness: see below.
- */
-const PRERENDERED_STORIES = 50;
-
-/**
- * Prerender the newest stories, which is what makes the `revalidate` above mean anything.
- *
- * For a dynamic segment the `revalidate` export on its own does nothing: without
- * `generateStaticParams` Next classifies the route `ƒ (Dynamic)` and renders it from the
- * database on every single request, which is the state this route shipped in while still
- * declaring a 60 second window. Only a bounded slice is listed because that is enough to cover
- * the pages that take nearly all the traffic, and `dynamicParams` keeps its default, so any
- * other published slug is still rendered on demand and then cached by the same window.
- */
-export async function generateStaticParams() {
-  const articles = await getSitemapArticles(PRERENDERED_STORIES);
-  return articles.map((article) => ({ slug: article.slug }));
-}
+// Rendered per request: an approved story must be readable the moment it is approved. A cached
+// page, including one first rendered while the story was still pending, keeps the old state until
+// a background regeneration runs, so readers saw approved stories as missing or pending for hours.
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({
   params,
@@ -152,6 +132,7 @@ export default async function ArticlePage({
     .filter((key): key is string => Boolean(key))
     .map((key) => mediaUrlFor(key));
 
+  const questionnaire = await getArticleQuestionnaire(article.id);
   const related = (await getLatestStories(10)).filter(
     (story) => story.id !== article.id,
   );
@@ -159,48 +140,46 @@ export default async function ArticlePage({
     (story) => storyCategory(story).slug === category.slug,
   );
   const recommended = (sameCategory.length ? sameCategory : related).slice(0, 5);
+  const correctionSubject = `সংশোধন: ${article.title}`;
 
   return (
     <DutimzShell
-      title={article.title}
       crumbs={[
-        { label: category.title_bn, href: `/category/${category.slug}` },
+        { label: category.title_bn, href: `/category/${category.slug}/` },
         { label: article.title },
       ]}
     >
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="flex min-w-0 flex-col gap-6">
-          <Card>
-            <CardHeader className="gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge>
-                  <Link href={`/category/${category.slug}`}>
-                    {category.title_bn}
-                  </Link>
-                </Badge>
-                <time
-                  dateTime={article.published_at}
-                  className="text-xs text-muted-foreground"
+          <article className="flex min-w-0 flex-col gap-6">
+            <header className="flex flex-col gap-3 border-b border-strong pb-5">
+              <div className="flex flex-wrap items-center gap-2 text-[10.5px] tracking-[0.05em] text-muted-foreground uppercase">
+                <Link
+                  href={`/category/${category.slug}/`}
+                  className="font-semibold text-foreground hover:text-highlight"
                 >
+                  {category.title_bn}
+                </Link>
+                <i className="not-italic opacity-60" aria-hidden>
+                  •
+                </i>
+                <time dateTime={article.published_at}>
                   {formatDateBn(article.published_at)}
                 </time>
               </div>
-              <CardTitle className="text-2xl leading-snug sm:text-3xl sm:leading-tight">
+              <h1 className="font-serif text-[clamp(26px,3.4vw,44px)] leading-[1.12] font-bold">
                 {article.title}
-              </CardTitle>
-              <CardDescription className="text-base">
+              </h1>
+              <p className="text-[15px] leading-relaxed text-muted-foreground">
                 {article.excerpt}
-              </CardDescription>
+              </p>
               <div className="flex items-center gap-3 pt-1">
                 <Avatar className="size-10">
                   <AvatarFallback>ঢা</AvatarFallback>
                 </Avatar>
                 <div className="text-sm">
                   {credit.href ? (
-                    <Link
-                      href={credit.href}
-                      className="font-medium hover:underline"
-                    >
+                    <Link href={credit.href} className="font-medium hover:text-highlight">
                       {credit.name}
                     </Link>
                   ) : (
@@ -211,36 +190,33 @@ export default async function ArticlePage({
                   </p>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-6">
-              {/* Live Alerts Toggle matching the mockup reader screen */}
-              <LiveAlertToggle />
+            </header>
 
-              {article.hero_media_key ? (
-                <figure className="overflow-hidden rounded-lg">
-                  <Image
-                    src={mediaUrlFor(article.hero_media_key)}
-                    alt=""
-                    width={1200}
-                    height={675}
-                    priority
-                    className="h-auto w-full object-cover"
-                  />
-                </figure>
-              ) : (
-                <StoryArt
-                  slug={category.slug}
-                  title={article.title}
-                  className="aspect-video w-full rounded-lg"
+            {article.hero_media_key ? (
+              <figure className="overflow-hidden border border-line">
+                <Image
+                  src={mediaUrlFor(article.hero_media_key)}
+                  alt=""
+                  width={1200}
+                  height={675}
+                  priority
+                  className="h-auto w-full object-cover"
                 />
-              )}
-              <div className="article-body text-[17px] leading-8">
-                {paragraphs.map((paragraph, index) => (
-                  <p key={index}>{paragraph}</p>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+              </figure>
+            ) : (
+              <StoryArt
+                slug={category.slug}
+                title={article.title}
+                className="aspect-[16/9] w-full border border-line"
+              />
+            )}
+
+            <div className="article-body text-[17px] leading-8 text-foreground/90">
+              {paragraphs.map((paragraph, index) => (
+                <p key={index}>{paragraph}</p>
+              ))}
+            </div>
+          </article>
 
           {gallery.length > 0 && (
             <Card>
@@ -250,41 +226,23 @@ export default async function ArticlePage({
                     <CardTitle>ছবির গ্যালারি</CardTitle>
                     <CardDescription>প্রতিবেদনের ছবি</CardDescription>
                   </div>
-                  <Badge variant="secondary">{bn(gallery.length)}টি</Badge>
+                  <span className="border border-strong px-2.5 py-0.5 text-xs font-semibold">
+                    {bn(gallery.length)}টি
+                  </span>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {gallery.map((item, index) => (
-                    <figure
-                      key={item.media_id}
-                      className="overflow-hidden rounded-lg"
-                    >
-                      <Image
-                        src={mediaUrlFor(item.media_id)}
-                        alt={`${article.title} — ছবি ${index + 1}`}
-                        width={800}
-                        height={600}
-                        loading="lazy"
-                        className="h-auto w-full object-cover"
-                      />
-                    </figure>
-                  ))}
-                </div>
+                <ArticleGallery
+                  images={gallery.map((item, index) => ({
+                    src: mediaUrlFor(item.media_id),
+                    alt: `${article.title} — ছবি ${index + 1}`,
+                  }))}
+                />
               </CardContent>
             </Card>
           )}
 
-          {/* Phones use the single floating CTA below instead of this row. */}
-          <Card className="hidden lg:block">
-            <CardContent className="pt-6">
-              <ArticleActions
-                articleId={article.id}
-                articleTitle={article.title}
-                correctionSubject={`সংশোধন: ${article.title}`}
-              />
-            </CardContent>
-          </Card>
+          {questionnaire && <QuestionnaireSummary questionnaire={questionnaire} />}
 
           <Card>
             <CardHeader>
@@ -299,12 +257,13 @@ export default async function ArticlePage({
 
         <aside className="flex min-w-0 flex-col gap-6">
           <div className="lg:sticky lg:top-32 lg:flex lg:flex-col lg:gap-6">
+            {/* Desktop: the one action bar. Phones use the floating call to action below. */}
             <Card className="hidden lg:block">
               <CardContent className="pt-6">
                 <ArticleActions
                   articleId={article.id}
                   articleTitle={article.title}
-                  correctionSubject={`সংশোধন: ${article.title}`}
+                  correctionSubject={correctionSubject}
                 />
               </CardContent>
             </Card>
@@ -318,10 +277,7 @@ export default async function ArticlePage({
                 </Avatar>
                 <div className="text-sm">
                   {credit.href ? (
-                    <Link
-                      href={credit.href}
-                      className="font-medium hover:underline"
-                    >
+                    <Link href={credit.href} className="font-medium hover:text-highlight">
                       {credit.name}
                     </Link>
                   ) : (
@@ -359,7 +315,7 @@ export default async function ArticlePage({
                   .slice(0, 6)
                   .map((c) => (
                     <Button key={c.slug} variant="outline" size="sm" asChild>
-                      <Link href={`/category/${c.slug}`}># {c.label}</Link>
+                      <Link href={`/category/${c.slug}/`}># {c.label}</Link>
                     </Button>
                   ))}
               </CardContent>
@@ -368,12 +324,12 @@ export default async function ArticlePage({
         </aside>
       </div>
 
-      {/* Phone: one floating call to action that unfolds every article action. */}
+      {/* Phones and tablets: one floating call to action that unfolds every article action. */}
       <ArticleActions
         variant="floating"
         articleId={article.id}
         articleTitle={article.title}
-        correctionSubject={`সংশোধন: ${article.title}`}
+        correctionSubject={correctionSubject}
       />
 
       <script
@@ -400,22 +356,6 @@ export default async function ArticlePage({
           }),
         }}
       />
-      <AuthorShim
-        profile={one(article.profiles)}
-        anonymous={article.is_anonymous}
-      />
     </DutimzShell>
   );
-}
-
-function AuthorShim({
-  profile,
-  anonymous,
-}: {
-  profile: { avatar_url?: string | null } | null;
-  anonymous?: boolean | null;
-}) {
-  void profile;
-  void anonymous;
-  return null;
 }
