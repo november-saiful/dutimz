@@ -3,16 +3,11 @@
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
-  BarChart3,
-  Bookmark,
   FileText,
   Home,
   Info,
-  Megaphone,
-  PenLine,
   Scale,
   Search,
-  UserRound,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -26,9 +21,6 @@ type NavEntry = { id: string; label: string; href: string; icon: LucideIcon };
 const PRIMARY: NavEntry[] = [
   { id: "all", label: "সব খবর", href: "/", icon: Home },
   { id: "search", label: "খুঁজুন", href: "/search", icon: Search },
-  { id: "statistics", label: "পরিসংখ্যান", href: "/statistics", icon: BarChart3 },
-  { id: "spotlight", label: "স্পটলাইট", href: "/spotlight", icon: Megaphone },
-  { id: "saved", label: "সংরক্ষিত", href: "/saved", icon: Bookmark },
 ];
 
 const CATEGORY_ENTRIES: NavEntry[] = CATEGORIES.filter(
@@ -40,18 +32,13 @@ const CATEGORY_ENTRIES: NavEntry[] = CATEGORIES.filter(
   icon: FileText,
 }));
 
-const READER: NavEntry[] = [
-  { id: "account", label: "আমার ড্যাশবোর্ড", href: "/account", icon: UserRound },
-  { id: "write", label: "প্রতিবেদন লিখুন", href: "/account/write", icon: PenLine },
-  { id: "corrections", label: "সংশোধন", href: "/corrections", icon: Scale },
-];
-
 const ABOUT: NavEntry[] = [
   { id: "about", label: "আমাদের পরিচয়", href: "/about", icon: Info },
   { id: "guidelines", label: "নীতিমালা", href: "/guidelines", icon: Users },
+  { id: "corrections", label: "সংশোধন", href: "/corrections", icon: Scale },
 ];
 
-const ALL_ENTRIES = [...PRIMARY, ...CATEGORY_ENTRIES, ...READER, ...ABOUT];
+const ALL_ENTRIES = [...PRIMARY, ...CATEGORY_ENTRIES, ...ABOUT];
 
 const HREF_BY_ID = new Map(ALL_ENTRIES.map((entry) => [entry.id, entry.href]));
 
@@ -60,10 +47,7 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/**
- * The selected row is the most specific route that matches the path, so
- * `/account/write` highlights "প্রতিবেদন লিখুন" rather than the dashboard home.
- */
+/** The selected row is the most specific route that matches the path. */
 function activeIdFor(pathname: string): string | undefined {
   return ALL_ENTRIES.filter((entry) => isActive(pathname, entry.href))
     .sort((a, b) => b.href.length - a.href.length)
@@ -99,7 +83,6 @@ export function DutimzSidebar() {
         >
           <TreeSection title="প্রধান">{PRIMARY.map(renderEntry)}</TreeSection>
           <TreeSection title="সংবাদ বিভাগ">{CATEGORY_ENTRIES.map(renderEntry)}</TreeSection>
-          <TreeSection title="পাঠক">{READER.map(renderEntry)}</TreeSection>
           <TreeSection title="আমাদের পরিচয়">{ABOUT.map(renderEntry)}</TreeSection>
         </TreeView>
       </SidebarContent>

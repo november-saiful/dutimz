@@ -3,11 +3,8 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { ArticleActions } from "@/components/article/article-actions";
 import { ArticleGallery } from "@/components/article/article-gallery";
 import { QuestionnaireSummary } from "@/components/article/questionnaire-summary";
-import { Comments } from "@/components/article/comments";
-import { PendingArticle } from "@/components/article/pending-article";
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
 import { RecommendedItem, StoryArt } from "@/components/dashboard/story-card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -27,7 +24,6 @@ import {
   mediaUrlFor,
 } from "@/lib/site";
 import {
-  articleSlugExists,
   getArticleQuestionnaire,
   getLatestStories,
   getStoryBySlug,
@@ -51,13 +47,6 @@ export async function generateMetadata({
   const { slug } = await params;
   const article = await getStoryBySlug(slug);
   if (!article) {
-    // An unpublished story is cased exactly as the page cases it: only if its slug exists at all.
-    if (await articleSlugExists(slug)) {
-      return {
-        title: "পর্যালোচনার অপেক্ষায়",
-        robots: { index: false, follow: false },
-      };
-    }
     return { title: "প্রতিবেদন পাওয়া যায়নি" };
   }
   const url = `/news/${encodeURIComponent(article.slug)}/`;
@@ -100,20 +89,8 @@ export default async function ArticlePage({
 }) {
   const { slug } = await params;
   const article = await getStoryBySlug(slug);
-  if (!article) {
-    // A slug no story has ever claimed is a real 404. One that a story has claimed but that is not
-    // published yet is served as a gated preview, so an author can open the link they copied from
-    // the write form; the client component decides whether this reader may see it.
-    if (!(await articleSlugExists(slug))) notFound();
-    return (
-      <DutimzShell
-        title="পর্যালোচনার অপেক্ষায়"
-        crumbs={[{ label: "প্রতিবেদন" }]}
-      >
-        <PendingArticle slug={slug} />
-      </DutimzShell>
-    );
-  }
+  // Only published stories exist on the paper edition; anything else is a genuine 404.
+  if (!article) notFound();
 
   const category = storyCategory(article);
   const credit = storyCredit(article);
@@ -140,7 +117,6 @@ export default async function ArticlePage({
     (story) => storyCategory(story).slug === category.slug,
   );
   const recommended = (sameCategory.length ? sameCategory : related).slice(0, 5);
-  const correctionSubject = `সংশোধন: ${article.title}`;
 
   return (
     <DutimzShell
@@ -243,30 +219,10 @@ export default async function ArticlePage({
           )}
 
           {questionnaire && <QuestionnaireSummary questionnaire={questionnaire} />}
-
-          <Card>
-            <CardHeader>
-              <CardTitle>মন্তব্য</CardTitle>
-              <CardDescription>পাঠকের আলোচনা</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Comments articleId={article.id} />
-            </CardContent>
-          </Card>
         </div>
 
         <aside className="flex min-w-0 flex-col gap-6">
           <div className="lg:sticky lg:top-32 lg:flex lg:flex-col lg:gap-6">
-            {/* Desktop: the one action bar. Phones use the floating call to action below. */}
-            <Card className="hidden lg:block">
-              <CardContent className="pt-6">
-                <ArticleActions
-                  articleId={article.id}
-                  articleTitle={article.title}
-                  correctionSubject={correctionSubject}
-                />
-              </CardContent>
-            </Card>
             <Card>
               <CardHeader>
                 <CardTitle>লেখক</CardTitle>
@@ -323,14 +279,6 @@ export default async function ArticlePage({
           </div>
         </aside>
       </div>
-
-      {/* Phones and tablets: one floating call to action that unfolds every article action. */}
-      <ArticleActions
-        variant="floating"
-        articleId={article.id}
-        articleTitle={article.title}
-        correctionSubject={correctionSubject}
-      />
 
       <script
         type="application/ld+json"

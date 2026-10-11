@@ -33,16 +33,11 @@ export function supabaseServer() {
 const SESSION_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
 
 /**
- * Browser client for signed-in actions (reactions, bookmarks, comments, uploads).
+ * Browser client for the public anonymous reads that run in the reader's browser (the archive
+ * search and the corrections list).
  *
- * One instance per page, created on first use and then reused. `createBrowserClient` builds a
- * brand new GoTrue client on every call, and this function is called from the effect of nearly
- * every interactive component, so a signed-in reader ended up with a dozen of them sharing one
- * storage key. They then raced each other over the same refresh token: the browser logs
- * "Multiple GoTrueClient instances detected", whichever client loses the race finds its token
- * already spent and gets a 400 from `/auth/v1/token?grant_type=refresh_token`, and the reader is
- * treated as signed out. That is how a signed-in reporter was told to "sign in with Google"
- * while uploading a photo, and why the session kept evaporating between actions.
+ * One instance per page, created on first use and then reused, so the many components that ask
+ * for it share a single client rather than building one apiece.
  */
 let browserClient: SupabaseClient | null = null;
 
@@ -56,53 +51,6 @@ export function supabaseBrowser() {
     },
   });
   return browserClient;
-}
-
-/**
- * Distinguishes "there is genuinely nobody signed in" from "the session could not be checked".
- *
- * Supabase reports an absent session as an `AuthSessionMissingError`, while a dropped network
- * call reports something else entirely. Treating the second as the first is how a signed-in
- * reader gets shown a sign-in button over a bad connection, so callers must be able to tell them
- * apart before they clear any UI state.
- */
-export function isMissingSession(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    (error as { name?: string }).name === "AuthSessionMissingError"
-  );
-}
-
-/** Treat a token as spent 30s early so it cannot expire mid-request. */
-const REFRESH_MARGIN_SECONDS = 30;
-
-/**
- * Returns an access token that is actually valid right now, refreshing the stored session when
- * it has expired — or null when nobody is signed in.
- *
- * `getSession()` hands back whatever the cookie store holds without refreshing it, so a session
- * that has outlived its one-hour access token still looks signed in. A request carrying that
- * dead token is refused by the server, which is how a signed-in reporter kept being told to
- * sign in with Google before an upload. Going through here turns "a session exists" into "the
- * token works", which is the only thing the caller can send anywhere.
- */
-export async function freshAccessToken(): Promise<string | null> {
-  const supabase = supabaseBrowser();
-  const { data } = await supabase.auth.getSession();
-  const session = data.session;
-  if (
-    session?.expires_at &&
-    session.expires_at - REFRESH_MARGIN_SECONDS > Date.now() / 1000
-  ) {
-    return session.access_token;
-  }
-  const { data: refreshed, error } = await supabase.auth.refreshSession();
-  if (error) {
-    reportError("session refresh", error);
-    return session?.access_token ?? null;
-  }
-  return refreshed.session?.access_token ?? session?.access_token ?? null;
 }
 
 export type DbCategory = { slug: string; title_bn: string };
@@ -148,5 +96,6 @@ export function storyCredit(story: Story): Credit {
     return { name: ANONYMOUS_BYLINE, href: "" };
   const name =
     profile.display_name?.trim() || `@${profile.username || "পাঠক"}`;
-  return { name, href: `/u/${encodeURIComponent(profile.username)}/` };
+  // There is no public profile page on the paper edition, so a byline never links anywhere.
+  return { name, href: "" };
 }

@@ -85,44 +85,6 @@ function Meta({ item }: { item: Dispatch }) {
   );
 }
 
-/** The front page's desk callouts. They point at the real places the site asks readers to go. */
-function DeskCallout({
-  kicker,
-  title,
-  points,
-  href,
-  cta,
-}: {
-  kicker: string;
-  title: string;
-  points: string[];
-  href: string;
-  cta: string;
-}) {
-  return (
-    <aside className="flex min-w-0 flex-col gap-3 border border-strong bg-background p-4 transition-colors duration-300 hover:border-highlight">
-      <p className="text-[10px] font-semibold tracking-[0.1em] text-highlight uppercase">
-        {kicker}
-      </p>
-      <h3 className="font-serif text-[19px] leading-snug font-bold">{title}</h3>
-      <ol className="grid gap-[7px]">
-        {points.map((point, index) => (
-          <li key={point} className="flex gap-[9px] text-[11px] leading-relaxed text-muted-foreground">
-            <span className="min-w-3 font-bold text-foreground">{index + 1}.</span>
-            {point}
-          </li>
-        ))}
-      </ol>
-      <Link
-        href={href}
-        className="mt-auto inline-flex w-fit items-center border border-strong px-4 py-2 text-[11.5px] font-semibold tracking-[0.03em] transition-colors duration-300 hover:border-primary hover:bg-primary hover:text-primary-foreground"
-      >
-        {cta}
-      </Link>
-    </aside>
-  );
-}
-
 /** The finale's art when no lead picture exists: a flat plum field with a lilac horizon. */
 function HorizonScene() {
   return (
@@ -140,11 +102,7 @@ function EmptyDesk() {
     <div className="col-span-full border border-dashed border-strong px-5 py-16 text-center">
       <h3 className="mb-2 font-serif text-2xl">এই ডেস্কে এখনো কিছু নেই</h3>
       <p className="text-xs text-muted-foreground">
-        নতুন প্রতিবেদন প্রকাশিত হলে এখানে দেখানো হবে। নিজের প্রতিবেদন পাঠাতে{" "}
-        <Link href="/account/write/" className="underline underline-offset-4">
-          প্রতিবেদন লিখুন
-        </Link>
-        ।
+        নতুন প্রতিবেদন প্রকাশিত হলে এখানে দেখানো হবে।
       </p>
     </div>
   );
@@ -368,30 +326,6 @@ export default async function HomePage() {
               </article>
             )}
 
-            <DeskCallout
-              kicker="প্রতিবেদক প্রয়োজন"
-              title="আপনার গল্পটিও বলুন"
-              points={[
-                "ঢাকা বিশ্ববিদ্যালয়ের যেকোনো শিক্ষার্থী বা পাঠক প্রতিবেদন পাঠাতে পারেন",
-                "প্রকাশের আগে সম্পাদকীয় ডেস্ক প্রতিবেদনটি যাচাই করে",
-                "প্রকাশিত প্রতিবেদনের জন্য নির্ধারিত সম্মানী পাওয়া যায়",
-                "প্রকাশের পরের যেকোনো সংশোধন সর্বজনীনভাবে দেখানো হয়",
-              ]}
-              href="/account/write/"
-              cta="প্রতিবেদন পাঠান"
-            />
-
-            <DeskCallout
-              kicker="স্পটলাইট"
-              title="ক্যাম্পাসের সমস্যা, প্রকাশ্যে"
-              points={[
-                "সদস্যরা ক্যাম্পাসের সমস্যা ও প্রস্তাব নিয়ে ইস্যু খুলতে পারেন",
-                "প্রতিটি ইস্যুতে সর্বোচ্চ দশটি ছবি যুক্ত করা যায়",
-                "কোন বিভাগ সমাধান করেছে, তা পরিসংখ্যানে প্রকাশ পায়",
-              ]}
-              href="/spotlight/"
-              cta="স্পটলাইটে যান"
-            />
           </section>
 
           {/* The finale: the lead picture (or the paper's own horizon) settles once, then the name rises letter by letter. */}

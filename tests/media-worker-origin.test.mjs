@@ -92,14 +92,10 @@ test('unlisted origins cannot use upload or preflight', async () => {
   }
 });
 
-test('the writer form documents the upload gate: reporter role and image types only', async () => {
-  // The media Worker itself enforces role + MIME server-side (proven above).
-  // The Next.js writer form surfaces the same contract: submit_article refuses
-  // non-reporters, and only image/* uploads are accepted. Gallery upload UI
-  // arrives in a follow-up; the RPC already validates media ownership.
-  const writer = await readFile(new URL('../components/account/writer-form.tsx', import.meta.url), 'utf8');
-  assert.match(writer, /rpc\(['"]submit_article['"]/);
-  assert.match(writer, /রিপোর্টার অনুমতি|reporter/i);
+test('the database records the upload gate: reporter role and image types only', async () => {
+  // The media Worker itself enforces role + MIME server-side (proven above). The
+  // database keeps the same contract in the schema: submit_article refuses
+  // non-reporters, and only image/* uploads are accepted.
   const migration = await readFile(new URL('../supabase/migrations/202609290002_admin_byline_and_publish_date.sql', import.meta.url), 'utf8');
   assert.match(migration, /প্রতিবেদন জমা দিতে রিপোর্টার অনুমতি প্রয়োজন/);
   assert.match(migration, /mime_type like 'image\/%'/);

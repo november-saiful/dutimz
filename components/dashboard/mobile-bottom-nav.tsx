@@ -4,30 +4,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 import {
-  BarChart3,
-  Bookmark,
   FileText,
   Home,
   Info,
-  Megaphone,
-  PenLine,
   Plus,
   Scale,
   Search,
-  Sparkles,
-  UserRound,
   type LucideIcon,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { CATEGORIES } from "@/lib/site";
 
 /**
  * The phone dock. Five slots, with the menu raised in the centre: it opens the
  * quick-actions popover that lists every page, so the bottom bar stays short
  * while new pages have one obvious place to be added.
- *
- * The AI slot is intentionally inert for now — it renders so the layout is final
- * but does nothing until its behaviour is specified.
  */
 
 type QuickAction = {
@@ -40,13 +32,15 @@ type QuickAction = {
 
 /** Add future pages here; the popover renders whatever this list contains. */
 const QUICK_ACTIONS: QuickAction[] = [
-  { href: "/spotlight", label: "স্পটলাইট", icon: Megaphone, chip: "bg-[#baf5df]" },
-  { href: "/saved", label: "সংরক্ষিত কনটেন্ট", icon: Bookmark, chip: "bg-[#f8c9e3]" },
-  { href: "/statistics", label: "পরিসংখ্যান", icon: BarChart3, chip: "bg-[#d8e8ff]" },
+  ...CATEGORIES.filter((category) => category.slug !== "all").map((category) => ({
+    href: `/category/${category.slug}`,
+    label: category.label,
+    icon: FileText,
+    chip: "bg-[#baf5df]",
+  })),
   { href: "/corrections", label: "সংশোধন ও তথ্য যাচাই", icon: Scale, chip: "bg-[#ffe69a]" },
-  { href: "/guidelines", label: "সম্পাদকীয় নীতিমালা", icon: FileText, chip: "bg-[#baf5df]" },
+  { href: "/guidelines", label: "সম্পাদকীয় নীতিমালা", icon: FileText, chip: "bg-[#d8e8ff]" },
   { href: "/about", label: "আমাদের পরিচয়", icon: Info, chip: "bg-[#f8c9e3]" },
-  { href: "/account/write", label: "প্রতিবেদন লিখুন", icon: PenLine, chip: "bg-[#d8e8ff]" },
 ];
 
 function isActive(pathname: string, href: string, match: "exact" | "prefix"): boolean {
@@ -82,8 +76,8 @@ export function MobileBottomNav() {
 
   const homeActive = isActive(pathname, "/", "exact");
   const searchActive = isActive(pathname, "/search", "prefix");
-  const accountActive =
-    isActive(pathname, "/account", "prefix") || isActive(pathname, "/u", "prefix");
+  const correctionsActive = isActive(pathname, "/corrections", "prefix");
+  const aboutActive = isActive(pathname, "/about", "prefix");
 
   const itemClass = (active: boolean) =>
     cn(
@@ -114,7 +108,7 @@ export function MobileBottomNav() {
             aria-hidden
             className="absolute -bottom-[7px] left-1/2 size-4 -translate-x-1/2 rotate-45 border-b border-r border-border bg-popover"
           />
-          <ul className="relative flex flex-col gap-1.5">
+          <ul className="relative flex max-h-[60vh] flex-col gap-1.5 overflow-y-auto">
             {QUICK_ACTIONS.map((action) => (
               <li key={action.href}>
                 <Link
@@ -184,20 +178,18 @@ export function MobileBottomNav() {
             </span>
           </div>
 
-          {/* Reserved for the assistant; inert until its behaviour is defined. */}
-          <button
-            type="button"
-            disabled
-            aria-label="এআই সহায়ক (শীঘ্রই আসছে)"
-            className={cn(itemClass(false), "cursor-not-allowed opacity-60")}
+          <Link
+            href="/corrections"
+            aria-current={correctionsActive ? "page" : undefined}
+            className={itemClass(correctionsActive)}
           >
-            <Sparkles className="size-6" strokeWidth={1.6} />
-            <span>এআই</span>
-          </button>
+            <Scale className="size-6" strokeWidth={1.6} />
+            <span>সংশোধন</span>
+          </Link>
 
-          <Link href="/account" aria-current={accountActive ? "page" : undefined} className={itemClass(accountActive)}>
-            <UserRound className="size-6" strokeWidth={1.6} />
-            <span>অ্যাকাউন্ট</span>
+          <Link href="/about" aria-current={aboutActive ? "page" : undefined} className={itemClass(aboutActive)}>
+            <Info className="size-6" strokeWidth={1.6} />
+            <span>পরিচয়</span>
           </Link>
         </nav>
       </div>

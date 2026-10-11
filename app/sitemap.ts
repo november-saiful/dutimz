@@ -9,15 +9,13 @@ import { getSitemapArticles, getSitemapCategorySlugs } from "@/lib/stories";
 export const dynamic = "force-dynamic";
 
 // Nothing reader-specific is advertised here: /account/, /auth/ and /api/ are disallowed in
-// app/robots.ts, and /saved/ and /profile/me/ are per-reader views with no canonical of their
-// own. Every path below is a page whose own alternates.canonical is exactly this shape.
+// app/robots.ts. Every path below is a page whose own alternates.canonical is exactly this shape.
 const STATIC_PAGES: {
   path: string;
   changeFrequency: "daily" | "weekly" | "monthly";
   priority: number;
 }[] = [
   { path: "/", changeFrequency: "daily", priority: 1 },
-  { path: "/statistics/", changeFrequency: "weekly", priority: 0.6 },
   { path: "/about/", changeFrequency: "monthly", priority: 0.5 },
   { path: "/guidelines/", changeFrequency: "monthly", priority: 0.5 },
   { path: "/corrections/", changeFrequency: "weekly", priority: 0.5 },

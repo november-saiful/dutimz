@@ -20,21 +20,83 @@ const ROUTES = [
   '/guidelines/',
   '/corrections/',
   '/search/',
-  '/statistics/',
-  '/saved/',
-  '/account/',
-  '/account/write/',
-  '/account/balance/',
-  '/account/moderation/',
-  '/account/admin/',
-  '/spotlight/',
-  // Dynamic shells in demo mode: the 404 page, an unknown section, and a
-  // missing profile. None of them may overflow either.
+  // Dynamic shells in demo mode: the 404 page and an unknown section. Neither
+  // of them may overflow either.
   '/news/no-such-story/',
   '/category/no-such-section/',
-  '/u/nosuchuser/',
   '/no-such-page/',
 ];
+
+test('header search is compact on phones, opens a usable popup, and uses Noto Sans Bengali', async () => {
+  const origin = process.env.UI_TEST_ORIGIN || 'http://127.0.0.1:3199';
+  const server = process.env.UI_TEST_ORIGIN ? null : spawn(process.execPath, ['node_modules/next/dist/bin/next', 'start', '-p', '3199'], {
+    env: { ...process.env, NEXT_PUBLIC_DEMO_MODE: 'true' },
+    stdio: 'ignore',
+  });
+  let browser;
+  try {
+    await waitForServer(`${origin}/about/`);
+    browser = await chromium.launch();
+    for (const width of [360, 390, 768, 1280]) {
+      const page = await browser.newPage({ viewport: { width, height: 740 } });
+      try {
+        await page.route('**/*', (handler) => {
+          const url = new URL(handler.request().url());
+          // Keep automatic link prefetches from compiling unrelated routes in dev runs.
+          if (url.origin !== origin || (process.env.UI_TEST_ORIGIN && url.searchParams.has('_rsc'))) return handler.abort();
+          return handler.continue();
+        });
+        await page.route('**/api/search/**', (handler) => handler.fulfill({ json: {
+          results: [{ id: 'search-test', slug: 'search-test', title: 'ক্যাম্পাসের সংবাদ', category: 'ক্যাম্পাস' }],
+        } }));
+        await page.goto(`${origin}/about/`, { waitUntil: 'load' });
+        await page.evaluate(() => document.fonts.ready);
+        const font = await page.locator('body').evaluate((element) => getComputedStyle(element).fontFamily);
+        assert.match(font, /Noto[ _]Sans[ _]Bengali/, 'the default body font must be Noto Sans Bengali');
+        const trigger = page.locator('header').getByRole('button', { name: 'খবর খুঁজুন', exact: true });
+        assert.equal(await trigger.count(), 1, 'only one responsive search trigger is rendered');
+        const label = trigger.locator('span').first();
+        assert.equal(await label.isVisible(), width >= 1024, 'phones show an icon; desktop keeps the search label');
+        const box = await trigger.boundingBox();
+        if (width < 1024) {
+          assert.equal(box.width, 44);
+          assert.equal(box.height, 44);
+        }
+        await trigger.click();
+        const dialog = page.getByRole('dialog', { name: 'খবর খুঁজুন' });
+        await dialog.waitFor({ state: 'visible' });
+        const input = dialog.getByRole('combobox');
+        await input.evaluate((element) => {
+          if (element !== document.activeElement) throw new Error('search input must receive focus');
+        });
+        assert.match(await input.evaluate((element) => getComputedStyle(element).fontFamily), /Noto[ _]Sans[ _]Bengali/);
+        await page.waitForTimeout(200);
+        const popup = await dialog.boundingBox();
+        assert.ok(popup.x >= 0 && popup.x + popup.width <= width, 'popup fits horizontally');
+        assert.ok(popup.y >= 0 && popup.y + popup.height <= 740, 'popup fits vertically');
+        await input.fill('ক্যাম্পাস');
+        await dialog.getByRole('option', { name: 'ক্যাম্পাসের সংবাদ' }).waitFor({ state: 'visible' });
+        await page.keyboard.press('Escape');
+        await dialog.waitFor({ state: 'hidden' });
+        await trigger.evaluate((element) => {
+          if (element !== document.activeElement) throw new Error('closing must return focus to search');
+        });
+        await trigger.click();
+        assert.equal(await input.inputValue(), '', 'closing clears the previous query');
+        await input.fill('ক্যাম্পাস');
+        await dialog.getByRole('option', { name: 'ক্যাম্পাসের সংবাদ' }).waitFor({ state: 'visible' });
+        await dialog.getByRole('option', { name: '“ক্যাম্পাস” — সব ফলাফল দেখুন' }).click();
+        await page.waitForURL('**/search/?q=*');
+        assert.equal(await page.getByRole('dialog').count(), 0, 'selecting a result closes the popup');
+      } finally {
+        await page.close();
+      }
+    }
+  } finally {
+    await browser?.close();
+    server?.kill('SIGTERM');
+  }
+});
 
 const measure = () => {
   const rootElement = document.documentElement;
@@ -117,66 +179,6 @@ test('every route stays inside the viewport at common widths', async () => {
             failures.push(`${route} at ${width}px: uncaught client error — ${pageErrors[0]}`);
             break;
           }
-          // The homepage deck is one layout — the desktop one — scaled to the box
-          // it is given, so a phone shows a smaller copy of the desktop deck rather
-          // than a rearrangement of it. When the card gets too small for its own
-          // smaller type, that type is dropped instead of printed unreadably.
-          if (route === '/') {
-            await page
-              .waitForFunction(
-                () =>
-                  document.querySelector(
-                    '[aria-roledescription="carousel"] #carousel-view-panel > div > div',
-                  )?.style.opacity === '1',
-                null,
-                { timeout: 5000 },
-              )
-              .catch(() => {});
-            const deck = await page.evaluate(() => {
-              const root = document.querySelector('[aria-roledescription="carousel"]');
-              const surface = root?.querySelector('#carousel-view-panel > div > div');
-              const active = surface?.querySelector('[data-offset="0"]');
-              if (!surface || !active) return null;
-              const card = active.getBoundingClientRect();
-              const chips = [...active.querySelectorAll('span')].filter((span) =>
-                String(span.className).includes('rounded-[4px]'),
-              ).length;
-              return {
-                scale: Number(/scale\(([\d.]+)\)/.exec(surface.style.transform)?.[1] ?? 0),
-                // The ring is drawn at most 1:1, so its box is capped at the design's
-                // own 1012px however wide the page gets.
-                box: Math.min(1, root.clientWidth / 1012),
-                width: card.width,
-                height: card.height,
-                quote: !!active.querySelector('p'),
-                badge: !!active.querySelector('span[class*="bg-primary/10"]'),
-                chips,
-              };
-            });
-            // Allow a pixel of rounding either way on a measured box.
-            const near = (a, b) => Math.abs(a - b) <= 1;
-            if (!deck) {
-              failures.push(`${route} at ${width}px: the deck did not render`);
-            } else {
-              if (!near(deck.scale, deck.box)) {
-                failures.push(
-                  `${route} at ${width}px: the deck is not scaled to its own box (scale ${deck.scale} for a ${deck.box} box)`,
-                );
-              }
-              if (!near(deck.width, 762 * deck.scale) || !near(deck.height, 513 * deck.scale)) {
-                failures.push(
-                  `${route} at ${width}px: the card in focus is not the desktop card scaled (${Math.round(deck.width)}×${Math.round(deck.height)} at scale ${deck.scale})`,
-                );
-              }
-              // Every card shows its section badge, short description and byline
-              // chips at every scale — a deck carrying only the headline read empty.
-              if (!deck.quote || !deck.badge || deck.chips === 0) {
-                failures.push(
-                  `${route} at ${width}px: the card is missing its badge, short description or chips at scale ${deck.scale}`,
-                );
-              }
-            }
-          }
           const result = await page.evaluate(measure);
           if (!result.overflow) continue;
           const detail = result.offenders.map((o) => `${o.name} (right ${o.right}, ${o.width} wide)`).join(', ') || 'no single element reported';
@@ -192,133 +194,4 @@ test('every route stays inside the viewport at common widths', async () => {
   }
 
   assert.deepEqual(failures, [], `pages failed to render or overflowed:\n  ${failures.join('\n  ')}`);
-});
-
-test('the account dropdown fits inside a phone viewport', async () => {
-  // The unified menu once carried a সংবাদ বিভাগ submenu that pushed it past a
-  // phone's fold, so the menu itself has to be measured, not just the page under
-  // it. This boots the same production build and opens the menu at the widths and
-  // heights a phone reports. On a genuinely short screen the menu must scroll
-  // internally rather than hang off the bottom.
-  const port = 3198;
-  const origin = `http://127.0.0.1:${port}`;
-  const server = spawn(
-    process.execPath,
-    ['node_modules/next/dist/bin/next', 'start', '-p', String(port)],
-    {
-      env: { ...process.env, NEXT_PUBLIC_DEMO_MODE: 'true' },
-      stdio: 'ignore',
-    },
-  );
-  const failures = [];
-  try {
-    await waitForServer(origin);
-    const browser = await chromium.launch();
-    try {
-      for (const viewport of [
-        { width: 390, height: 844, scrolls: false },
-        { width: 390, height: 640, scrolls: false },
-        { width: 360, height: 740, scrolls: false },
-        // Shorter than the menu: it must stay on-screen and scroll internally.
-        // The menu is now a short list, so the viewport has to be genuinely tiny.
-        { width: 390, height: 150, scrolls: true },
-      ]) {
-        const page = await browser.newPage({
-          viewport: { width: viewport.width, height: viewport.height },
-          deviceScaleFactor: 1,
-        });
-        await page.route('**/*', (handler) => (handler.request().url().startsWith(origin) ? handler.continue() : handler.abort()));
-        try {
-          await page.goto(`${origin}/`, { waitUntil: 'load' });
-          const trigger = page.locator('[aria-haspopup="menu"]');
-          await trigger.waitFor({ state: 'visible', timeout: 10000 });
-          await trigger.click();
-          await page.locator('[role="menu"]').waitFor({ state: 'visible', timeout: 5000 });
-          // The menu animates open over 150ms; measure it once it has settled.
-          await page.waitForTimeout(250);
-
-          const measured = await page.evaluate(() => {
-            const menu = document.querySelector('[role="menu"]');
-            if (!menu) return null;
-            const rect = menu.getBoundingClientRect();
-            // The first child is the measured-height scroller inside the content.
-            const scroller = menu.firstElementChild;
-            const root = document.documentElement;
-            return {
-              top: rect.top,
-              left: rect.left,
-              right: rect.right,
-              bottom: rect.bottom,
-              viewportWidth: window.innerWidth,
-              viewportHeight: window.innerHeight,
-              horizontalOverflow: root.scrollWidth - root.clientWidth,
-              scrollHeight: scroller?.scrollHeight ?? rect.height,
-              clientHeight: scroller?.clientHeight ?? rect.height,
-            };
-          });
-
-          const label = `${viewport.width}x${viewport.height}`;
-          if (!measured) {
-            failures.push(`${label}: the account menu never opened`);
-            continue;
-          }
-          const tolerance = 1;
-          if (measured.top < -tolerance || measured.left < -tolerance) {
-            failures.push(`${label}: the menu starts off-screen at ${Math.round(measured.top)},${Math.round(measured.left)}`);
-          }
-          if (measured.right > measured.viewportWidth + tolerance) {
-            failures.push(`${label}: the menu is ${Math.round(measured.right - measured.viewportWidth)}px past the right edge`);
-          }
-          if (measured.bottom > measured.viewportHeight + tolerance) {
-            failures.push(`${label}: the menu is ${Math.round(measured.bottom - measured.viewportHeight)}px past the bottom edge`);
-          }
-          if (measured.horizontalOverflow > 1) {
-            failures.push(`${label}: the page overflows horizontally by ${measured.horizontalOverflow}px while the menu is open`);
-          }
-
-          // A short viewport is handled by scrolling the menu, never by letting it
-          // hang off the screen; a roomy one must not scroll at all.
-          const scrolls = measured.scrollHeight > measured.clientHeight + tolerance;
-          if (viewport.scrolls && !scrolls) {
-            failures.push(
-              `${label}: the menu should scroll internally but fits entirely (${measured.scrollHeight}px of content in ${measured.clientHeight}px)`,
-            );
-          }
-          if (!viewport.scrolls && scrolls) {
-            failures.push(
-              `${label}: the menu scrolls internally though it has room to fit (${measured.scrollHeight}px of content in ${measured.clientHeight}px)`,
-            );
-          }
-
-          if (scrolls) {
-            // Every entry, including the last, has to be reachable by scrolling.
-            const reachable = await page.evaluate(() => {
-              const menu = document.querySelector('[role="menu"]');
-              const scroller = menu?.firstElementChild;
-              if (!scroller) return null;
-              scroller.scrollTop = scroller.scrollHeight;
-              const last = scroller.lastElementChild?.getBoundingClientRect();
-              return {
-                lastBottom: last?.bottom ?? Number.POSITIVE_INFINITY,
-                viewportHeight: window.innerHeight,
-              };
-            });
-            if (!reachable || reachable.lastBottom > reachable.viewportHeight + tolerance) {
-              failures.push(
-                `${label}: the last menu entry is unreachable after scrolling (bottom ${Math.round(reachable?.lastBottom ?? -1)} vs viewport ${reachable?.viewportHeight ?? 0})`,
-              );
-            }
-          }
-        } finally {
-          await page.close();
-        }
-      }
-    } finally {
-      await browser.close();
-    }
-  } finally {
-    server.kill('SIGTERM');
-  }
-
-  assert.deepEqual(failures, [], `the account menu did not fit the viewport:\n  ${failures.join('\n  ')}`);
 });

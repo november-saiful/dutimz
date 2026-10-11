@@ -118,31 +118,6 @@ export async function getStoryBySlug(
   }
 }
 
-/**
- * True when some article — published or not — has claimed this slug.
- *
- * `getStoryBySlug` is filtered to published rows, so it cannot tell "no such story" (a real 404)
- * apart from "a story that exists but is not live yet" (which the author and the desk may
- * preview). This asks only whether the slug is taken, and shares nothing about the article.
- */
-export async function articleSlugExists(slug: string): Promise<boolean> {
-  if (isDemoMode() || !slug) return false;
-  try {
-    const supabase = supabaseServer();
-    const { data, error } = await supabase.rpc("article_slug_exists", {
-      p_slug: slug,
-    });
-    if (error) {
-      reportError("article slug lookup", error);
-      return false;
-    }
-    return data === true;
-  } catch (error) {
-    reportError("article slug lookup", error);
-    return false;
-  }
-}
-
 /** One question's answer as a reader sees it: choices with what was ticked, or a headcount or number. */
 export type ArticleQuestionnaireField =
   | {
@@ -222,94 +197,6 @@ export async function getCategoryStories(slug: string): Promise<{
     reportError("category stories", error);
     return { title: fallbackTitle, description: "", stories: [] };
   }
-}
-
-export type DashboardStats = {
-  stories: number;
-  categories: number;
-  authors: number;
-  comments: number;
-  weekly: { week: string; opened: number; completed: number }[];
-  recentActivity: {
-    id: string;
-    name: string;
-    action: string;
-    time: string;
-    initials: string;
-  }[];
-};
-
-export async function getDashboardStats(
-  stories: Story[],
-): Promise<DashboardStats> {
-  if (isDemoMode() || !stories.length) {
-    return {
-      stories: 0,
-      categories: 0,
-      authors: 0,
-      comments: 0,
-      weekly: [],
-      recentActivity: [],
-    };
-  }
-  const authors = new Set(
-    stories.map((s) => s.author_id).filter(Boolean),
-  ).size;
-  const categories = new Set(
-    stories.map((s) => {
-      const c = Array.isArray(s.category) ? s.category[0] : s.category;
-      return c?.slug;
-    }),
-  ).size;
-  // Weekly throughput from publish dates (last 8 buckets, oldest first).
-  const buckets = new Array(8).fill(0) as number[];
-  const now = Date.now();
-  for (const story of stories) {
-    const age = now - new Date(story.published_at).getTime();
-    const week = Math.floor(age / (7 * 24 * 3_600_000));
-    if (week >= 0 && week < 8) buckets[7 - week] += 1;
-  }
-  const weekly = buckets.map((completed, i) => ({
-    week: `সপ্তাহ ${new Intl.NumberFormat("bn-BD").format(i + 1)}`,
-    opened: completed,
-    completed,
-  }));
-  let comments = 0;
-  try {
-    const supabase = supabaseServer();
-    const { count, error } = await supabase
-      .from("comments")
-      .select("id", { count: "exact", head: true })
-      .eq("status", "visible");
-    if (error) reportError("dashboard comment count", error);
-    comments = count ?? 0;
-  } catch (error) {
-    reportError("dashboard comment count", error);
-    comments = 0;
-  }
-  const recentActivity = stories.slice(0, 5).map((story) => {
-    const profile = Array.isArray(story.profiles)
-      ? story.profiles[0]
-      : story.profiles;
-    const name = story.is_anonymous
-      ? "নাম প্রকাশে অনিচ্ছুক"
-      : profile?.display_name || `@${profile?.username || "পাঠক"}`;
-    return {
-      id: story.id,
-      name,
-      action: `প্রকাশ করেছেন: ${story.title}`,
-      time: new Date(story.published_at).toLocaleDateString("bn-BD"),
-      initials: name.slice(0, 2),
-    };
-  });
-  return {
-    stories: stories.length,
-    categories,
-    authors,
-    comments,
-    weekly,
-    recentActivity,
-  };
 }
 
 export type SitemapArticle = {

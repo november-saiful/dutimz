@@ -10,12 +10,12 @@ import {
 } from "@/components/dashboard/dashboard-header";
 
 export function DutimzShell({
-  title,
+  title = "",
   crumbs,
   breaking,
   children,
 }: {
-  title: string;
+  title?: string;
   crumbs?: Crumb[];
   breaking?: { href: string; title: string }[];
   children: React.ReactNode;
