@@ -583,9 +583,10 @@ test('the site paints without a blocking font and keeps motion on CSS', async ()
   assert.match(layout, /--font-bengali/, 'Bengali falls through to the paired Bengali face');
   const css = await readProjectFile('app/globals.css');
   assert.match(css, /prefers-reduced-motion: reduce/, 'a global reduced-motion reset');
-  // Glass is a dose-capped accent: only the sticky bars may blur.
+  // Glass is a dose-capped accent: only the sticky bars may blur — the top bar,
+  // the article bar, and the phone dock's floating card.
   const blur = css.match(/^\s*backdrop-filter: blur/gm) ?? [];
-  assert.ok(blur.length <= 2, 'backdrop blur belongs to the sticky bars alone');
+  assert.ok(blur.length <= 3, 'backdrop blur belongs to the sticky bars alone');
   const page = await readProjectFile('app/page.tsx');
   assert.doesNotMatch(page, /requestAnimationFrame/, 'no frame loop re-renders the page');
   // recharts stays out of the initial bundle: the homepage imports no chart,
@@ -901,6 +902,68 @@ test('the phone menu shows the same desks behind the burger', async () => {
   assert.match(header, /aria-label="মেনু"/);
   const shell = await readProjectFile('components/dashboard/dutimz-shell.tsx');
   assert.doesNotMatch(shell, /MobileBottomNav/, 'the retired phone dock stays gone');
+});
+
+test('the phone dock carries the five primary destinations, and only on a phone', async () => {
+  // A phone gets a floating dock over the foot of the page: the five places a
+  // reader moves between, drawn from the reference deck's morphing tab bar. It is
+  // a different surface from the retired rail dock — the burger still holds every
+  // desk — and only the five primary destinations live on it.
+  const dock = await readProjectFile('components/dashboard/mobile-dock.tsx');
+  assert.match(dock, /^"use client";/m, 'the dock is the island that reads the address');
+  assert.match(dock, /usePathname/, 'the current tab follows the address');
+  assert.match(dock, /aria-current=\{isCurrent \? "page" : undefined\}/, 'the current tab says so');
+  assert.match(dock, /aria-label="প্রধান নেভিগেশন"/);
+  const shell = await readProjectFile('components/dashboard/dutimz-shell.tsx');
+  assert.match(shell, /<MobileDock \/>/, 'every page draws the dock');
+
+  // The five entries, each on the address the rest of the site already publishes.
+  for (const [key, href] of [
+    ['home', '"/"'],
+    ['flipps', '"/flipps/"'],
+    ['search', '"/search/"'],
+    ['spotlight', '"/spotlight/"'],
+    ['account', '"/account/"'],
+  ]) {
+    assert.match(
+      dock,
+      new RegExp(`key: "${key}",\\s*\\n\\s*href: ${href.replaceAll('/', '\\/')},`),
+      `the dock must carry ${key} to ${href}`,
+    );
+  }
+
+  // The morph is the stylesheet's job, on the reference's own curve: the open tab
+  // is exactly as wide as its word, and a collapsed label still reports that width
+  // so the dock can measure it instead of guessing.
+  const css = await readProjectFile('app/globals.css');
+  const phone = css.slice(
+    css.indexOf('.dock {'),
+    css.indexOf('/* ============ RESPONSIVE'),
+  );
+  assert.ok(phone.length > 0, 'the dock must have its own stylesheet section');
+  assert.match(
+    dock,
+    /selectNodeContents/,
+    'the open tab is sized from the label the dock measured, not from a guess',
+  );
+  assert.match(phone, /width: var\(--dock-label, 0px\)/, 'the open tab takes the measured width');
+  assert.match(
+    css,
+    /--dock-ease: cubic-bezier\(0\.22, 1, 0\.36, 1\)/,
+    "the reference's morph curve is a token, not a guess repeated per rule",
+  );
+  assert.match(phone, /var\(--dock-ease\)/, 'the tab, its pill and its label all move on it');
+  // Phone-only: it reveals itself at the breakpoint where the top bar hands its
+  // desks to the burger, and it reserves the room it floats over.
+  assert.match(phone, /@media \(max-width: 860px\)/, 'the dock is a phone surface');
+  assert.match(phone, /visibility: visible/, 'it reveals itself at the burger breakpoint');
+  assert.match(phone, /padding-bottom: var\(--dock\)/, 'the page reserves the dock its room');
+  const reels = await readProjectFile('components/flipps/flipps-reels.tsx');
+  assert.match(
+    reels,
+    /100svh-var\(--topbar\)-var\(--dock\)-1\.5rem\)/,
+    'the reel deck ends above the dock instead of under it',
+  );
 });
 
 test('spotlight authors remove their own posts; the desk hides or removes any', async () => {

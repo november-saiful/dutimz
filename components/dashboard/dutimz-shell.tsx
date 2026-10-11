@@ -1,15 +1,16 @@
 import * as React from "react";
 
 import { DashboardHeader, type Crumb } from "@/components/dashboard/dashboard-header";
+import { MobileDock } from "@/components/dashboard/mobile-dock";
 import { SiteFooter } from "@/components/dashboard/site-footer";
 import { getNavCategories } from "@/lib/stories";
 
 /**
  * The site shell in the reference design's shape: the sticky top bar, the
- * page's own content, and the footer with the real desks and pages. `bare`
- * hands the whole viewport to the page (the front page and the article view
- * draw their own containers and sticky bars); every other page gets one framed
- * column with a breadcrumb head.
+ * page's own content, the footer with the real desks and pages, and the phone
+ * dock over all of it. `bare` hands the whole viewport to the page (the front
+ * page and the article view draw their own containers and sticky bars); every
+ * other page gets one framed column with a breadcrumb head.
  */
 export async function DutimzShell({
   title,
@@ -64,6 +65,12 @@ export async function DutimzShell({
         </main>
       )}
       <SiteFooter sections={sections} />
+      {/*
+        The dock is drawn at every width and reveals itself on a phone, where the
+        top bar has handed the desks to the burger; it covers the five primary
+        destinations to the burger's full desk list.
+      */}
+      <MobileDock />
     </>
   );
 }

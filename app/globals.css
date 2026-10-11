@@ -132,6 +132,12 @@
     --purple2: #b06ef2;
     --topbar: 64px;
     --maxw: 1240px;
+    /* The room the phone dock needs at the foot of the page: its card, its offset
+       and the phone's own home-indicator inset. The stylesheet reserves it below
+       the dock's breakpoint, as page padding and as the reel deck's subtraction. */
+    --dock: 0px;
+    /* The reference dock's morph curve, shared by the tab, its pill and its label. */
+    --dock-ease: cubic-bezier(0.22, 1, 0.36, 1);
     /* Both halves of the stack are set by next/font on <html>. */
     --font-ui: var(--font-inter), var(--font-bengali), system-ui, sans-serif;
     color-scheme: light;
@@ -1183,6 +1189,144 @@ footer.site-footer {
   font-size: 12px;
   color: var(--muted);
   max-width: var(--maxw);
+}
+
+/* ============ PHONE DOCK ============ */
+/*
+  The five destinations a phone reader moves between, as the reference deck's
+  floating card. The behaviour lives with the component
+  (components/dashboard/mobile-dock.tsx); this is its surface and its morph.
+
+  Hidden with `visibility` rather than `display: none` above the breakpoint: an
+  open tab is sized from the label the dock measures, and a `display: none`
+  subtree has no widths to report. Hidden this way the dock is out of the layout,
+  out of the accessibility tree and unfocusable, exactly as if it were not there.
+
+  `z-index: 40` keeps it under every overlay (50) and under the top bar (60), so a
+  sheet or a dialog opens over the dock instead of behind it.
+*/
+.dock {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  padding: 8px 12px calc(10px + env(safe-area-inset-bottom));
+  /* The wrapper is a full-width strip, so only the card itself is a target. */
+  pointer-events: none;
+  visibility: hidden;
+}
+.dock-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  max-width: 430px;
+  padding: 6px;
+  border: 1px solid rgba(21, 23, 28, 0.07);
+  border-radius: 28px;
+  background: rgba(245, 246, 250, 0.9);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow:
+    0 14px 34px rgba(25, 35, 70, 0.16),
+    0 2px 6px rgba(25, 35, 70, 0.07);
+  pointer-events: auto;
+}
+.dock-tab {
+  position: relative;
+  display: flex;
+  /* Content-sized tabs that fill the card: as the open tab's label grows, the
+     free space redistributes and the row settles without ever overflowing. */
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: center;
+  height: 46px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: var(--muted);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    color 0.24s ease,
+    transform 0.34s var(--dock-ease);
+}
+.dock-tab:active {
+  /* The reference's press: the tab dips under the finger. */
+  transform: scale(0.94);
+}
+.dock-tab.current {
+  color: var(--blue);
+}
+/* The accent pill: the open tab's own background, so it grows with the label
+   rather than having to be moved to it. */
+.dock-tint {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: rgba(77, 125, 192, 0.12);
+  opacity: 0;
+  transition: opacity 0.24s ease;
+}
+.dock-tab.current .dock-tint {
+  opacity: 1;
+}
+/* Both sit above the pill, which is positioned. */
+.dock-icon,
+.dock-label {
+  position: relative;
+  z-index: 1;
+}
+.dock-icon {
+  flex: none;
+}
+/*
+  The label is the link's accessible name at every width — only its box is
+  collapsed, so the word unfurls from behind the icon instead of switching on.
+  `overflow: hidden` is what crops it mid-morph, and what lets the dock read a
+  collapsed label's full width back through `scrollWidth`.
+*/
+.dock-label {
+  overflow: hidden;
+  width: 0;
+  margin-left: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.1px;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-6px);
+  transition:
+    width 0.42s var(--dock-ease),
+    margin-left 0.42s var(--dock-ease),
+    opacity 0.24s ease,
+    transform 0.42s var(--dock-ease);
+}
+.dock-tab.current .dock-label {
+  /* The width the component measured for this very label. */
+  width: var(--dock-label, 0px);
+  margin-left: 6px;
+  opacity: 1;
+  transform: none;
+}
+
+@media (max-width: 860px) {
+  :root {
+    /* The card is 60px tall and floats 10px above the bottom edge; the rest is
+       the phone's own home-indicator inset, plus a little room for the shadow. */
+    --dock: calc(88px + env(safe-area-inset-bottom));
+  }
+  body {
+    /* The card floats over the page: without this the footer's last line sits
+       behind it. The padding is the shell's own colour, so it reads as space. */
+    padding-bottom: var(--dock);
+  }
+  .dock {
+    visibility: visible;
+  }
 }
 
 /* ============ RESPONSIVE ============ */

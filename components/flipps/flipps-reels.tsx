@@ -27,7 +27,8 @@ const SCRIM =
   "linear-gradient(to top, rgba(0,0,0,.94) 0%, rgba(0,0,0,.78) 18%, rgba(0,0,0,.46) 42%, rgba(0,0,0,.12) 64%, rgba(0,0,0,.42) 100%)";
 
 /**
- * One reel is one screen tall, minus the sticky bar the shell has already drawn (`--topbar`) and
+ * One reel is one screen tall, minus the sticky bar the shell has already drawn (`--topbar`), the
+ * phone dock floating over the foot of the page (`--dock`, zero above the dock's breakpoint) and
  * the wrapper's own `py-3`.
  *
  * This is the height of the whole column, not of the track: the counter and its progress bar sit
@@ -37,7 +38,8 @@ const SCRIM =
  * `svh` and not `dvh`: a snap container whose height changes as the browser's own bars slide in
  * and out re-lays-out every reel mid-flick, and the reader lands between two cards.
  */
-const REEL_COLUMN_HEIGHT = "h-[calc(100svh-var(--topbar)-1.5rem)]";
+const REEL_COLUMN_HEIGHT =
+  "h-[calc(100svh-var(--topbar)-var(--dock)-1.5rem)]";
 
 /**
  * The dateline every surface of a reel shares: the writer, how long ago, and — on the surfaces
