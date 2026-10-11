@@ -20,6 +20,9 @@ const ROUTES = [
   '/guidelines/',
   '/corrections/',
   '/search/',
+  // The reel deck is a snap container: one screen tall, with the cards themselves
+  // free to be as wide as the column.
+  '/flipps/',
   // Dynamic shells in demo mode: the 404 page and an unknown section. Neither
   // of them may overflow either.
   '/news/no-such-story/',

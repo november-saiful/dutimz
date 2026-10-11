@@ -25,6 +25,7 @@ const READING_ROUTES = [
   'app/news/[slug]/page.tsx',
   'app/category/[slug]/page.tsx',
   'app/search/page.tsx',
+  'app/flipps/page.tsx',
   'app/corrections/page.tsx',
   'app/about/page.tsx',
   'app/guidelines/page.tsx',
@@ -182,7 +183,7 @@ test('the config endpoint keeps the public shape and never leaks secrets', async
 test('the rail carries sections and editorial pages, never the account surfaces', async () => {
   const sidebar = await readProjectFile('components/dashboard/dutimz-sidebar.tsx');
   assert.match(sidebar, /collapsible="offcanvas"/);
-  for (const label of ['সব খবর', 'খুঁজুন', 'আমাদের পরিচয়', 'নীতিমালা', 'সংশোধন']) {
+  for (const label of ['সব খবর', 'ফ্লিপস', 'খুঁজুন', 'আমাদের পরিচয়', 'নীতিমালা', 'সংশোধন']) {
     assert.ok(sidebar.includes(label), `the rail must link ${label}`);
   }
   for (const retired of ['পরিসংখ্যান', 'সংরক্ষিত', 'আমার ড্যাশবোর্ড', 'প্রতিবেদন লিখুন', 'স্পটলাইট']) {
@@ -251,6 +252,17 @@ test('the article page reads the story and nothing about the reader', async () =
   assert.match(article, /ArticleGallery/);
   assert.doesNotMatch(article, /Comments|ArticleActions|PendingArticle/, 'reader interaction is gone');
   assert.doesNotMatch(article, /supabaseBrowser/, 'the article page holds no browser session');
+});
+
+test('the flipps deck reads the archive and asks the reader for nothing', async () => {
+  const page = await readProjectFile('app/flipps/page.tsx');
+  assert.match(page, /getLatestStories/, 'the deck reads the published archive');
+  assert.match(page, /FlippsReels/);
+  const reels = await readProjectFile('components/flipps/flipps-reels.tsx');
+  assert.match(reels, /snap-y snap-mandatory/, 'a reel is reached by snapping, not by a page load');
+  assert.match(reels, /onKeyDown/, 'the deck is steppable from the keyboard');
+  assert.doesNotMatch(reels, /supabase/i, 'the deck holds no database client');
+  assert.doesNotMatch(reels, /comment/i, 'reader interaction stays retired');
 });
 
 test('the phone dock carries the newspaper sections, not the account', async () => {

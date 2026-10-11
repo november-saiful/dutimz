@@ -3,6 +3,7 @@
 import * as React from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Clapperboard,
   FileText,
   Home,
   Info,
@@ -20,6 +21,7 @@ type NavEntry = { id: string; label: string; href: string; icon: LucideIcon };
 
 const PRIMARY: NavEntry[] = [
   { id: "all", label: "সব খবর", href: "/", icon: Home },
+  { id: "flipps", label: "ফ্লিপস", href: "/flipps", icon: Clapperboard },
   { id: "search", label: "খুঁজুন", href: "/search", icon: Search },
 ];
 

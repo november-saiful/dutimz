@@ -16,11 +16,14 @@ export function StoryArt({
   imageUrl,
   title,
   className = "",
+  priority = false,
 }: {
   slug: string;
   imageUrl?: string | null;
   title: string;
   className?: string;
+  /** Set on the one picture that is above the fold; everything else stays lazy. */
+  priority?: boolean;
 }) {
   if (imageUrl) {
     return (
@@ -31,7 +34,8 @@ export function StoryArt({
           fill
           sizes="(max-width: 768px) 100vw, 400px"
           className="object-cover"
-          loading="lazy"
+          priority={priority}
+          loading={priority ? undefined : "lazy"}
         />
       </span>
     );

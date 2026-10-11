@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
 import {
+  Clapperboard,
   FileText,
   Home,
   Info,
@@ -32,6 +33,7 @@ type QuickAction = {
 
 /** Add future pages here; the popover renders whatever this list contains. */
 const QUICK_ACTIONS: QuickAction[] = [
+  { href: "/flipps", label: "ফ্লিপস — রিলে সংবাদ", icon: Clapperboard, chip: "bg-[#f3d8ff]" },
   ...CATEGORIES.filter((category) => category.slug !== "all").map((category) => ({
     href: `/category/${category.slug}`,
     label: category.label,
