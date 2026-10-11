@@ -30,6 +30,7 @@ import {
   getArticleQuestionnaire,
   getLatestStories,
   getStoryBySlug,
+  shareImageFor,
 } from "@/lib/stories";
 import {
   ANONYMOUS_BYLINE,
@@ -63,14 +64,9 @@ export async function generateMetadata({
   // The crawler's picture is the story's own hero, or its first gallery image, or the site banner
   // when the reporter attached no art. It has to be absolute and set per article: Next replaces a
   // page's `openGraph` rather than merging it, so without this every share fell back to the text
-  // logo in the layout default.
-  const heroKey =
-    article.hero_media_key ??
-    (article.article_media ?? [])
-      .slice()
-      .sort((a, b) => a.position - b.position)[0]?.media_id ??
-    null;
-  const image = heroKey ? mediaUrlFor(heroKey) : "/og-banner.png";
+  // logo in the layout default. The rule itself lives in lib/stories.ts, where the reel deck that
+  // shares the same story takes it from too.
+  const image = shareImageFor(article);
   return {
     title: article.title,
     description: article.excerpt,

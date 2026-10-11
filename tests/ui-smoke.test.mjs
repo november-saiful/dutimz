@@ -95,6 +95,8 @@ test('every portal route exists in the App Router', async () => {
     'app/news/[slug]/page.tsx',
     'app/category/[slug]/page.tsx',
     'app/search/page.tsx',
+    'app/flipps/page.tsx',
+    'app/flipps/[slug]/page.tsx',
     'app/statistics/page.tsx',
     'app/corrections/page.tsx',
     'app/about/page.tsx',
@@ -504,10 +506,46 @@ test('a shared story carries its own picture, not the site logo', async () => {
   assert.match(article, /openGraph:[\s\S]*images:/, 'the page must set its own og:image');
   assert.match(article, /twitter:[\s\S]*summary_large_image/);
   assert.match(article, /width: 1200, height: 630/, 'the card needs the large-image dimensions');
-  assert.match(article, /og-banner\.png/, 'a story without art falls back to the banner');
-  assert.match(article, /mediaUrlFor\(heroKey\)/, "the crawler picture is the story's own media");
+  assert.match(article, /shareImageFor\(article\)/, "the crawler picture is the story's own media");
+  // The rule moved into the archive module so the article and the reel deck cannot state it two
+  // ways: the hero, else the first gallery picture, else the banner.
+  const stories = await readProjectFile('lib/stories.ts');
+  assert.match(stories, /export function shareImageFor/);
+  assert.match(stories, /hero_media_key \?\?/);
+  assert.match(stories, /article_media/);
+  assert.match(stories, /og-banner\.png/, 'a story without art falls back to the banner');
   const layout = await readProjectFile('app/layout.tsx');
   assert.match(layout, /twitter:[\s\S]*images:/, 'every other page still gets a default card image');
+});
+
+test('the reel deck reads the archive and asks the reader for nothing', async () => {
+  const page = await readProjectFile('app/flipps/page.tsx');
+  assert.match(page, /getLatestStories/, 'the deck reads the published archive');
+  assert.match(page, /FlippsReels/);
+  assert.match(page, /DutimzShell bare/, 'a deck of full-screen cards draws its own container');
+  const reels = await readProjectFile('components/flipps/flipps-reels.tsx');
+  assert.match(reels, /snap-y snap-mandatory/, 'a reel is reached by snapping, not by a page load');
+  assert.match(reels, /onKeyDown/, 'the deck is steppable from the keyboard');
+  assert.match(
+    reels,
+    /ShareStory href=\{item\.reelHref\}/,
+    'a shared reel points at its own address, not the article it summarises',
+  );
+  assert.doesNotMatch(reels, /supabase/i, 'the deck holds no database client');
+  assert.doesNotMatch(reels, /comment/i, 'the deck carries no comment surface');
+});
+
+test('a shared reel opens the deck on the story it was posted for', async () => {
+  const share = await readProjectFile('app/flipps/[slug]/page.tsx');
+  assert.match(share, /notFound\(\)/, 'an unclaimed slug is a genuine 404');
+  assert.match(share, /shareImageFor/, "the preview carries the story's own picture");
+  assert.match(share, /openGraph/);
+  assert.match(
+    share,
+    /\[reel, \.\.\.rest\.filter/,
+    'the shared reel leads the deck, so nothing has to be scrolled into place after hydration',
+  );
+  assert.ok(share.includes('slice(0, REEL_COUNT)'), 'a shared link costs no more than the deck');
 });
 
 test('a story link can be copied and previewed before it is published', async () => {

@@ -1,5 +1,5 @@
 import { reportError } from "./errors";
-import { CATEGORIES } from "./site";
+import { CATEGORIES, mediaUrlFor } from "./site";
 import { isSupabaseConfigured, supabaseServer, type Story } from "./supabase";
 
 export type PreviewStory = {
@@ -70,6 +70,26 @@ export function isDemoMode(): boolean {
 
 const STORY_SELECT =
   "id,slug,title,excerpt,author_id,is_anonymous,published_at,hero_media_key,category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url)";
+
+/**
+ * The picture a share carries: the story's hero, else its first gallery image, else the site
+ * banner.
+ *
+ * One rule in one place, because Next replaces a page's `openGraph` rather than merging it — a
+ * reading surface that forgot to name its own picture would hand Facebook the layout's text logo
+ * and let it fall back to the favicon. The article page and the reel deck both take it from here.
+ */
+export function shareImageFor(
+  story: Pick<Story, "hero_media_key" | "article_media">,
+): string {
+  const key =
+    story.hero_media_key ??
+    (story.article_media ?? [])
+      .slice()
+      .sort((a, b) => a.position - b.position)[0]?.media_id ??
+    null;
+  return key ? mediaUrlFor(key) : "/og-banner.png";
+}
 
 export async function getLatestStories(limit = 25): Promise<Story[]> {
   if (isDemoMode()) return [];

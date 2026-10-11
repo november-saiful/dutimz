@@ -32,6 +32,7 @@ export function SiteFooter({
         </div>
         <div className="f-col">
           <h5>বিশেষ</h5>
+          <Link href="/flipps/">ফ্লিপস</Link>
           <Link href="/spotlight/">স্পটলাইট</Link>
           <Link href="/statistics/">পরিসংখ্যান</Link>
           <Link href="/corrections/">সংশোধন ও তথ্য যাচাই</Link>

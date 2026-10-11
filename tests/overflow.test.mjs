@@ -20,6 +20,11 @@ const ROUTES = [
   '/guidelines/',
   '/corrections/',
   '/search/',
+  // The reel deck is a snap container: one screen tall, with the cards themselves free to be
+  // as wide as the column. A shared reel lands on the same deck, and an unclaimed slug is a
+  // 404 rather than a reel.
+  '/flipps/',
+  '/flipps/no-such-story/',
   '/statistics/',
   '/saved/',
   '/account/',
