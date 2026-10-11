@@ -43,10 +43,12 @@ const CommandDialog = ({
   label = "কমান্ড প্যালেট",
   description = "খবর, বিভাগ ও পাতা খুঁজুন",
   commandProps,
+  onCloseAutoFocus,
   ...props
 }: React.ComponentProps<typeof Dialog> & {
   label?: string;
   description?: string;
+  onCloseAutoFocus?: React.ComponentProps<typeof DialogContent>["onCloseAutoFocus"];
   /**
    * Selection state for the list inside. The palette drives it because its
    * results arrive asynchronously: when a response replaces the rows, cmdk's
@@ -56,7 +58,10 @@ const CommandDialog = ({
   commandProps?: React.ComponentPropsWithoutRef<typeof CommandPrimitive>;
 }) => (
   <Dialog {...props}>
-    <DialogContent className="max-h-[80dvh] w-[calc(100%-2rem)] max-w-xl gap-0 overflow-hidden p-0 sm:rounded-lg">
+    <DialogContent
+      onCloseAutoFocus={onCloseAutoFocus}
+      className="max-h-[80dvh] w-[calc(100%-2rem)] max-w-xl gap-0 overflow-hidden p-0 sm:rounded-lg"
+    >
       {/* Radix requires a title and description for screen readers; the palette
           is a search surface, so its visible input carries the meaning. */}
       <DialogTitle className="sr-only">{label}</DialogTitle>

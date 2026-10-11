@@ -50,8 +50,9 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
 
-  --font-serif: var(--font-bengali), Georgia, serif;
+  --font-serif: var(--font-bengali), system-ui, sans-serif;
   --font-sans: var(--font-bengali), system-ui, sans-serif;
+  --font-mono: var(--font-bengali), system-ui, sans-serif;
 
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
@@ -174,12 +175,12 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: var(--font-bengali);
+    font-family: var(--font-bengali), system-ui, sans-serif;
   }
   h1,
   h2,
   h3 {
-    font-family: var(--font-bengali);
+    font-family: var(--font-bengali), system-ui, sans-serif;
     text-wrap: balance;
   }
 }

@@ -4,21 +4,16 @@ import { useRouter } from "next/navigation";
 import * as React from "react";
 import {
   IconArrowRight,
-  IconBookmark,
-  IconChartBar,
   IconFileText,
   IconHome,
   IconInfoCircle,
   IconLoader2,
   IconNews,
-  IconPencil,
   IconScale,
   IconSearch,
-  IconUser,
   IconUsers,
 } from "@tabler/icons-react";
 
-import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
   CommandGroup,
@@ -49,10 +44,6 @@ type PageLink = {
 
 const PAGES: PageLink[] = [
   { href: "/", label: "সব খবর", icon: IconHome },
-  { href: "/statistics/", label: "পরিসংখ্যান", icon: IconChartBar },
-  { href: "/saved/", label: "সংরক্ষিত প্রতিবেদন", icon: IconBookmark },
-  { href: "/account/", label: "আমার ড্যাশবোর্ড", icon: IconUser },
-  { href: "/account/write/", label: "প্রতিবেদন লিখুন", icon: IconPencil },
   { href: "/corrections/", label: "সংশোধন ও তথ্য যাচাই", icon: IconScale },
   { href: "/about/", label: "আমাদের পরিচয়", icon: IconInfoCircle },
   { href: "/guidelines/", label: "সম্পাদকীয় নীতিমালা", icon: IconUsers },
@@ -63,6 +54,7 @@ const DEBOUNCE_MS = 180;
 export function CommandPalette() {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
+  const triggerRef = React.useRef<HTMLButtonElement>(null);
   const [query, setQuery] = React.useState("");
   const [hits, setHits] = React.useState<SearchHit[]>([]);
   const [demo, setDemo] = React.useState(false);
@@ -180,29 +172,25 @@ export function CommandPalette() {
   return (
     <>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
         aria-label="খবর খুঁজুন"
         aria-haspopup="dialog"
-        className="hidden h-9 w-44 items-center gap-2 rounded-md border border-input bg-background px-3 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground lg:flex xl:w-56"
+        aria-expanded={open}
+        className="flex size-11 shrink-0 items-center justify-center rounded-md text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring lg:h-9 lg:w-44 lg:justify-start lg:gap-2 lg:border lg:border-input lg:bg-background lg:px-3 xl:w-56"
       >
-        <IconSearch className="size-4 shrink-0" />
-        <span className="truncate">খবর খুঁজুন…</span>
+        <IconSearch className="size-4 shrink-0" aria-hidden />
+        <span className="hidden truncate lg:inline">খবর খুঁজুন…</span>
         <CommandShortcut className="hidden xl:inline">⌘K</CommandShortcut>
       </button>
-      <Button
-        variant="ghost"
-        size="icon"
-        aria-label="খবর খুঁজুন"
-        aria-haspopup="dialog"
-        className="lg:hidden"
-        onClick={() => setOpen(true)}
-      >
-        <IconSearch className="size-4" />
-      </Button>
 
       <CommandDialog
         open={open}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          triggerRef.current?.focus();
+        }}
         onOpenChange={(next) => {
           setOpen(next);
           if (!next) {
