@@ -7,23 +7,32 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
-  The design system below is a faithful port of the reference design
-  (Cryptonews — Blockchain News & Media): light shell, soft card surfaces,
-  pill navigation, blue links, purple accents. The @theme map re-points the
-  Tailwind tokens at that palette so every existing surface inherits it.
+  The design system below is the reference design's shape (Cryptonews —
+  Blockchain News & Media): light shell, soft card surfaces, pill navigation —
+  with every accent re-tinted to the DUTIMZ brand.
+
+  The brand has exactly two colours, taken from `public/dutimz-text-logo.svg`:
+  the deep purple #5f2367 and the muted #a370a0. The deep one carries anything
+  the reader is meant to act on or read as a link (primary buttons, links, the
+  focus ring, the current dock tab, the progress bar, the pills' hover); the
+  muted one carries the softer accents (highlights, the podium flag, the liked
+  chip, the orb). The neutrals are the reference's own greys, shifted the few
+  degrees toward purple that make them read as this brand's paper rather than a
+  generic blue-grey. The @theme map re-points the Tailwind tokens at that palette
+  so every existing surface inherits it.
 */
 @theme {
-  --color-border: #e0e3ee;
-  --color-input: #e0e3ee;
-  --color-ring: #4d7dc0;
-  --color-background: #f5f6fa;
-  --color-foreground: #15171c;
+  --color-border: #e3dfe7;
+  --color-input: #e3dfe7;
+  --color-ring: #5f2367;
+  --color-background: #f7f5f8;
+  --color-foreground: #1a1220;
 
-  --color-primary: #4d7dc0;
+  --color-primary: #5f2367;
   --color-primary-foreground: #ffffff;
 
-  --color-secondary: #e9ebf3;
-  --color-secondary-foreground: #15171c;
+  --color-secondary: #ece9f0;
+  --color-secondary-foreground: #1a1220;
 
   --color-destructive: #d33b4e;
   --color-destructive-foreground: #ffffff;
@@ -31,25 +40,25 @@
   --color-success: #2f9e5f;
   --color-success-foreground: #ffffff;
 
-  --color-muted: #e9ebf3;
-  --color-muted-foreground: #8f94a3;
+  --color-muted: #ece9f0;
+  --color-muted-foreground: #948c9e;
 
-  --color-accent: #dfe3ee;
-  --color-accent-foreground: #15171c;
+  --color-accent: #e6e1ea;
+  --color-accent-foreground: #1a1220;
 
   --color-popover: #ffffff;
-  --color-popover-foreground: #15171c;
+  --color-popover-foreground: #1a1220;
 
-  --color-card: #e9ebf3;
-  --color-card-foreground: #15171c;
+  --color-card: #ece9f0;
+  --color-card-foreground: #1a1220;
 
   /* Named pieces of the reference palette, for the ported component classes. */
-  --color-body: #3f4453;
-  --color-blue: #4d7dc0;
-  --color-purple: #8b7cf0;
-  --color-purple-2: #b06ef2;
-  --color-highlight: #b06ef2;
-  --color-strong: #c8cede;
+  --color-body: #453c4a;
+  --color-blue: #5f2367;
+  --color-purple: #7a3d7f;
+  --color-purple-2: #a370a0;
+  --color-highlight: #a370a0;
+  --color-strong: #cfc6d4;
 
   --radius-lg: 16px;
   --radius-md: 12px;
@@ -96,7 +105,7 @@
 
 @utility story-art-fallback {
   /* Fallback story art when no hero image: brand gradient + seal. */
-  background: linear-gradient(145deg, #e2dbf3, #bca7f5 54%, #8f7be8);
+  background: linear-gradient(145deg, #efe7f0, #cfa8ce 54%, #a370a0);
 }
 
 @utility article-body {
@@ -121,15 +130,15 @@
 @layer base {
   :root {
     /* The reference design's own variables, kept verbatim for the ported CSS. */
-    --shell: #f5f6fa;
-    --card: #e9ebf3;
-    --line: #e0e3ee;
-    --ink: #15171c;
-    --body: #3f4453;
-    --muted: #8f94a3;
-    --blue: #4d7dc0;
-    --purple: #8b7cf0;
-    --purple2: #b06ef2;
+    --shell: #f7f5f8;
+    --card: #ece9f0;
+    --line: #e3dfe7;
+    --ink: #1a1220;
+    --body: #453c4a;
+    --muted: #948c9e;
+    --blue: #5f2367;
+    --purple: #7a3d7f;
+    --purple2: #a370a0;
     --topbar: 64px;
     --maxw: 1240px;
     /* The room the phone dock needs at the foot of the page: its card, its offset
@@ -138,18 +147,22 @@
     --dock: 0px;
     /* The reference dock's morph curve, shared by the tab, its pill and its label. */
     --dock-ease: cubic-bezier(0.22, 1, 0.36, 1);
-    /* Both halves of the stack are set by next/font on <html>. */
-    --font-ui: var(--font-inter), var(--font-bengali), system-ui, sans-serif;
+    /* The site's one face, set by next/font on <html>: Noto Serif Bengali leads every stack — for
+       Bengali and for the Latin copy, numbers and wordmark it also draws. */
+    --font-ui: var(--font-bengali), system-ui, sans-serif;
     color-scheme: light;
     /* Brand accent used across the ported component classes. */
-    --accent-live: #b06ef2;
-    --highlight: #b06ef2;
-    --strong: #c8cede;
-    --chart-1: 226 33% 53%;
-    --chart-2: 276 60% 63%;
-    --chart-3: 320 40% 60%;
-    --chart-4: 260 40% 62%;
-    --chart-5: 335 45% 55%;
+    --accent-live: #a370a0;
+    --highlight: #a370a0;
+    --strong: #cfc6d4;
+    /* The series ramp: the brand's own hue, walked from the deep purple out to
+       the muted one and on through the pinks and wines it sits between, so no
+       chart leaves the palette the rest of the site is drawn from. */
+    --chart-1: 292 47% 27%;
+    --chart-2: 292 24% 54%;
+    --chart-3: 310 26% 44%;
+    --chart-4: 280 32% 38%;
+    --chart-5: 322 22% 36%;
   }
 }
 
@@ -178,7 +191,7 @@
     color: inherit;
   }
   ::selection {
-    background: #c9bdf7;
+    background: #d8c8dd;
   }
 }
 
@@ -198,7 +211,7 @@
   position: sticky;
   top: 0;
   z-index: 60;
-  background: rgba(245, 246, 250, 0.92);
+  background: rgba(247, 245, 248, 0.92);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
@@ -211,12 +224,16 @@
   margin: 0 auto;
   padding: 0 28px;
 }
+/*
+  The lockup is one file (`public/dutimz-text-logo.svg`), so the bar and the
+  footer both show the designed wordmark — the mark beside a typographic
+  "DUTIMZ" was two pieces that could drift apart. Height is set here rather than
+  on the element: the SVG carries its own 1277.92 × 371.61 viewBox, so `width:
+  auto` keeps the drawn proportion at whatever height the surface has room for.
+*/
 .logo {
   display: flex;
   align-items: center;
-  gap: 9px;
-  font-weight: 700;
-  font-size: 15px;
   text-decoration: none;
   cursor: pointer;
   border: 0;
@@ -224,7 +241,7 @@
   flex: none;
 }
 .logo img {
-  height: 22px;
+  height: 24px;
   width: auto;
 }
 .nav {
@@ -256,11 +273,11 @@
   text-decoration: none;
 }
 .pill:hover {
-  background: #dfe3ee;
+  background: #e6e1ea;
 }
 .pill.active {
-  background: #dfe3ee;
-  box-shadow: inset 0 0 0 1px #c8cede;
+  background: #e6e1ea;
+  box-shadow: inset 0 0 0 1px #cfc6d4;
 }
 .top-actions {
   margin-left: auto;
@@ -309,7 +326,7 @@
   min-width: 0;
 }
 .search input::placeholder {
-  color: #9aa0af;
+  color: #9b93a6;
 }
 .search button {
   width: 34px;
@@ -326,6 +343,34 @@
   width: 17px;
   height: 17px;
   stroke: var(--ink);
+  fill: none;
+  stroke-width: 2;
+}
+/*
+  The phone's search: a button that raises the field, instead of a field the bar
+  has to shrink to fit beside the mark, the account menu and the burger. It is
+  hidden where the bar has the room to show the field itself.
+*/
+.search-toggle {
+  display: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border: 0;
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.search-toggle:hover {
+  background: #e6e1ea;
+}
+.search-toggle svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
   fill: none;
   stroke-width: 2;
 }
@@ -361,7 +406,7 @@
   width: 32px;
   height: 20px;
   flex: none;
-  background: linear-gradient(120deg, #b7a6f2, #dfa8de);
+  background: linear-gradient(120deg, #a370a0, #c99ac0);
 }
 .meta {
   display: flex;
@@ -379,7 +424,7 @@
 }
 .meta i {
   font-style: normal;
-  color: #c0c4d2;
+  color: #c2bcc8;
   font-size: 9px;
 }
 .meta time {
@@ -536,7 +581,7 @@
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 8px 22px rgba(70, 80, 140, 0.14);
+  box-shadow: 0 8px 22px rgba(95, 35, 103, 0.14);
   position: relative;
   z-index: 2;
   text-decoration: none;
@@ -550,7 +595,7 @@
   border: 1px solid var(--line);
   display: grid;
   place-items: center;
-  box-shadow: 0 4px 10px rgba(70, 80, 140, 0.16);
+  box-shadow: 0 4px 10px rgba(95, 35, 103, 0.16);
 }
 .btn-read .circ svg {
   width: 14px;
@@ -560,7 +605,7 @@
   stroke-width: 2;
 }
 .btn-read:hover {
-  box-shadow: 0 10px 26px rgba(70, 80, 140, 0.22);
+  box-shadow: 0 10px 26px rgba(95, 35, 103, 0.22);
 }
 /* orb */
 .orb {
@@ -579,23 +624,23 @@
   background: radial-gradient(
     circle at 38% 32%,
     #ffffff 0%,
-    #e9e1fc 24%,
-    #bca7f5 48%,
-    #977fe9 70%,
-    #8f7be8 100%
+    #f2e8f3 24%,
+    #cfa8ce 48%,
+    #a370a0 70%,
+    #8a4c8d 100%
   );
 }
 .orb .ring {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 1px solid rgba(236, 120, 190, 0.55);
+  border: 1px solid rgba(163, 112, 160, 0.55);
 }
 .orb .ring2 {
   position: absolute;
   inset: 4%;
   border-radius: 50%;
-  border: 1px solid rgba(120, 140, 250, 0.35);
+  border: 1px solid rgba(95, 35, 103, 0.28);
 }
 .orb .shadow {
   position: absolute;
@@ -604,7 +649,7 @@
   bottom: -13%;
   height: 20%;
   filter: blur(12px);
-  background: radial-gradient(50% 50% at 50% 50%, rgba(150, 140, 230, 0.4), transparent 72%);
+  background: radial-gradient(50% 50% at 50% 50%, rgba(140, 90, 140, 0.35), transparent 72%);
 }
 /* previews */
 .previews {
@@ -684,8 +729,8 @@
   background: linear-gradient(
     185deg,
     rgba(20, 20, 40, 0) 28%,
-    rgba(88, 66, 178, 0.55) 72%,
-    rgba(96, 72, 190, 0.8)
+    rgba(122, 61, 127, 0.55) 72%,
+    rgba(95, 35, 103, 0.8)
   );
 }
 .feature .ft {
@@ -776,7 +821,7 @@
   stroke-width: 2;
 }
 .car-btn.dark {
-  background: #23252b;
+  background: #5f2367;
   color: #fff;
 }
 
@@ -785,7 +830,7 @@
   position: sticky;
   top: var(--topbar);
   z-index: 50;
-  background: rgba(245, 246, 250, 0.96);
+  background: rgba(247, 245, 248, 0.96);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-top: 1px solid var(--line);
@@ -855,7 +900,7 @@
 }
 .chip.liked svg {
   stroke: var(--purple2);
-  fill: rgba(176, 110, 242, 0.25);
+  fill: rgba(163, 112, 160, 0.25);
 }
 .progress {
   position: absolute;
@@ -929,7 +974,7 @@
   background: none;
   border: 0;
   cursor: pointer;
-  color: #4d7dc0;
+  color: #5f2367;
   display: grid;
   place-items: center;
 }
@@ -1089,7 +1134,7 @@
 }
 .tagpills a:hover,
 .tagpills button:hover {
-  background: #dfe3ee;
+  background: #e6e1ea;
 }
 
 /* ============ FOOTER ============ */
@@ -1145,7 +1190,7 @@ footer.site-footer {
   flex: none;
   border: 0;
   border-radius: 50%;
-  background: #23252b;
+  background: #5f2367;
   color: #fff;
   display: grid;
   place-items: center;
@@ -1169,8 +1214,8 @@ footer.site-footer {
   background: #fff;
   display: grid;
   place-items: center;
-  color: #4d7dc0;
-  box-shadow: 0 6px 16px rgba(70, 80, 140, 0.12);
+  color: #5f2367;
+  box-shadow: 0 6px 16px rgba(95, 35, 103, 0.12);
   margin: 0;
 }
 .f-social svg {
@@ -1226,14 +1271,14 @@ footer.site-footer {
   width: 100%;
   max-width: 430px;
   padding: 6px;
-  border: 1px solid rgba(21, 23, 28, 0.07);
+  border: 1px solid rgba(60, 20, 60, 0.08);
   border-radius: 28px;
-  background: rgba(245, 246, 250, 0.9);
+  background: rgba(247, 245, 248, 0.9);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow:
-    0 14px 34px rgba(25, 35, 70, 0.16),
-    0 2px 6px rgba(25, 35, 70, 0.07);
+    0 14px 34px rgba(60, 20, 60, 0.16),
+    0 2px 6px rgba(60, 20, 60, 0.07);
   pointer-events: auto;
 }
 .dock-tab {
@@ -1267,7 +1312,7 @@ footer.site-footer {
   position: absolute;
   inset: 0;
   border-radius: 999px;
-  background: rgba(77, 125, 192, 0.12);
+  background: rgba(95, 35, 103, 0.12);
   opacity: 0;
   transition: opacity 0.24s ease;
 }
@@ -1361,7 +1406,7 @@ footer.site-footer {
     align-items: stretch;
     padding: 12px;
     display: none;
-    box-shadow: 0 24px 60px rgba(40, 50, 100, 0.28);
+    box-shadow: 0 24px 60px rgba(60, 20, 60, 0.26);
     z-index: 70;
   }
   .nav.open {
@@ -1376,10 +1421,13 @@ footer.site-footer {
   .lang {
     display: none;
   }
+  /* The bar hands its field to the button: the popup carries the same form, so a
+     phone never wears two search affordances at once. */
   .search {
-    flex: 1;
-    width: auto;
-    max-width: 380px;
+    display: none;
+  }
+  .search-toggle {
+    display: grid;
   }
   .previews {
     grid-template-columns: 1fr;

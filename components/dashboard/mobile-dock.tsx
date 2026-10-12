@@ -22,7 +22,8 @@ import { cn } from "@/lib/utils";
  * web. The reference is React Native + Reanimated; the vocabulary is the same and
  * the engine is CSS — the active tab opens to reveal its label (the label's width
  * animates from zero and the tab grows with it), the accent pill behind it fades
- * in, the icon crossfades from muted to brand blue, and a tap squeezes the tab.
+ * in, the icon crossfades from muted to the brand's deep purple, and a tap
+ * squeezes the tab.
  * Keeping it on CSS leaves the dock one small `usePathname` island with no
  * animation library in the first load, and the site's global
  * `prefers-reduced-motion` reset neutralises every part of it for free.

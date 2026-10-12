@@ -188,7 +188,7 @@ test('the top bar is the reference design\'s bar: mark, section pills, search, a
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
   assert.match(header, /className="topbar"/);
   assert.match(header, /className="logo"/);
-  assert.match(header, /brand-icon\.svg/, 'the mark leads the bar');
+  assert.match(header, /dutimz-text-logo\.svg/, 'the brand lockup leads the bar');
   assert.match(header, /pill\$\{active \? " active" : ""\}/, 'the desks are pills with a real active state');
   assert.match(header, /id="site-nav"/);
   assert.match(header, /aria-controls="site-nav"/, 'the burger is a disclosure over the pills');
@@ -362,6 +362,25 @@ test('the top bar search sends the reader to the archive page', async () => {
   assert.match(header, /\/search\/\?q=/, 'the field submits the query to the archive page');
   assert.match(header, /aria-label="খুঁজুন"/);
   assert.doesNotMatch(header, /CommandPalette/);
+
+  // A phone's bar has no room for the field beside the mark, the account menu and
+  // the burger, so it carries a button that raises the same form in the site's own
+  // top sheet. The wide bar keeps the field it has room for, and neither width
+  // wears both.
+  assert.match(header, /className="search-toggle"/, 'the phone carries a search button');
+  assert.match(header, /<SheetTrigger asChild>/, 'and it is the popup trigger');
+  assert.match(header, /<SheetContent\s+side="top"/, 'the popup drops in from the top');
+  assert.match(header, /searchInput\.current\?\.focus\(\)/, 'the popup hands its field the caret');
+  assert.match(header, /setSearchOpen\(false\)/, 'and a search dismisses it');
+  const css = await readProjectFile('app/globals.css');
+  assert.match(css, /\.search-toggle \{\s*display: none;/, 'the button is desktop-invisible');
+  const phoneCss = css.slice(
+    css.indexOf('/* ============ RESPONSIVE'),
+    css.indexOf('@media (max-width: 600px)'),
+  );
+  assert.match(phoneCss, /\.search \{\s*display: none;/, 'the inline field leaves the phone bar');
+  assert.match(phoneCss, /\.search-toggle \{\s*display: grid;/, 'exactly where the button arrives');
+
   const route = await readProjectFile('app/api/search/route.ts');
   assert.match(route, /search_public_articles/);
   assert.match(route, /isDemoMode/);
@@ -369,15 +388,64 @@ test('the top bar search sends the reader to the archive page', async () => {
   assert.doesNotMatch(route, /service_role|SERVICE_ROLE|secret/i);
 });
 
-test('the mark and the wordmark lead the top bar at every width', async () => {
-  // The design puts the brand on the left of the bar — mark plus wordmark —
-  // and the footer repeats it beside the copyright.
+test('the designed lockup leads the top bar and the footer', async () => {
+  // The brand is now one drawn file rather than a tile beside a typographic
+  // "DUTIMZ": the bar and the footer both render `public/dutimz-text-logo.svg`,
+  // so the mark and the wordmark cannot drift apart. The square tile stays the
+  // tab icon, where a wordmark could not be read.
+  assert.ok(await exists('public/dutimz-text-logo.svg'));
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
-  assert.match(header, /brand-icon\.svg/);
-  assert.match(header, /<b>DUTIMZ<\/b>/);
-  assert.doesNotMatch(header, /dutimz-text-logo\.svg/, 'the old centred lockup is gone');
+  assert.match(header, /dutimz-text-logo\.svg/, 'the bar carries the lockup');
+  assert.doesNotMatch(header, /<b>DUTIMZ<\/b>/, 'and not a mark with a typed wordmark');
   const footer = await readProjectFile('components/dashboard/site-footer.tsx');
-  assert.match(footer, /brand-icon\.svg/, 'the footer carries the mark beside the copyright');
+  assert.match(footer, /dutimz-text-logo\.svg/, 'the footer repeats the same lockup');
+  const css = await readProjectFile('app/globals.css');
+  assert.match(css, /\.logo img \{\s*height: 24px;\s*width: auto;/, 'the lockup keeps its own proportion');
+});
+
+test('the phone search popup opens above the top bar it drops from', async () => {
+  // The popup used to slide in at the sheet's own z-50 while the sticky top bar
+  // sat at z-60, so the panel opened *behind* the bar: a phone reader tapped the
+  // button and the field never appeared. Both the panel and its scrim now sit
+  // above every bar the header owns, and the sheet primitive carries the scrim's
+  // class through rather than hardcoding it.
+  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
+  assert.match(header, /overlayClassName="z-\[80\]"/, 'the popup lifts its own scrim');
+  assert.match(header, /className="z-\[80\] gap-3/, 'and the panel with it');
+  const sheet = await readProjectFile('components/ui/sheet.tsx');
+  assert.match(sheet, /overlayClassName\?: string/, 'SheetContent accepts a scrim class');
+  assert.match(sheet, /<SheetOverlay className=\{overlayClassName\} \/>/);
+  const css = await readProjectFile('app/globals.css');
+  assert.match(css, /\.topbar \{[\s\S]*?z-index: 60;/, 'the bar the popup must clear is at 60');
+  assert.match(css, /\.nav \{[\s\S]*?z-index: 70;/, 'and the phone drawer at 70');
+});
+
+test('every accent is the brand purple, not the reference design\'s blue', async () => {
+  // The palette is the brand's two colours — #5f2367 and #a370a0, both taken from
+  // the logo — with the reference's greys nudged toward purple: links, primary
+  // buttons, the focus ring, the current dock tab and the chart ramp all read as
+  // DUTIMZ rather than as the Cryptonews template.
+  const css = await readProjectFile('app/globals.css');
+  assert.match(css, /--color-primary: #5f2367;/, 'primary is the brand purple');
+  assert.match(css, /--color-ring: #5f2367;/, 'so is the focus ring');
+  assert.match(css, /--blue: #5f2367;/, 'links and the current dock tab follow it');
+  assert.match(css, /--purple2: #a370a0;/, 'the muted brand colour carries the soft accents');
+  assert.doesNotMatch(css, /#4d7dc0|#8b7cf0|#b06ef2/i, 'none of the template blues survive');
+  assert.match(css, /--chart-1: 292 47% 27%;/, 'and the chart ramp is drawn in the brand hue');
+  const layout = await readProjectFile('app/layout.tsx');
+  assert.match(layout, /content="#f7f5f8"/, 'the browser chrome takes the shell colour too');
+
+  // Two components had grown their own accent: a selected topic in Tailwind's
+  // emerald and the live-alert switch in the same green. Both are brand states,
+  // not success states, so both now read from the palette. The emerald that
+  // remains is the toast's success tone and the admin banner's amber warning,
+  // which mean something rather than decorating.
+  const topics = await readProjectFile('components/search/topic-selector.tsx');
+  assert.match(topics, /isSelected\s*\n?\s*\? "border-primary bg-primary\/10/, 'a chosen topic is brand-coloured');
+  assert.doesNotMatch(topics, /emerald/, 'and no longer emerald');
+  const alerts = await readProjectFile('components/article/live-alert-toggle.tsx');
+  assert.match(alerts, /enabled \? "bg-primary" : "bg-muted"/, 'the live-alert switch is brand-coloured too');
+  assert.doesNotMatch(alerts, /emerald/);
 });
 
 test('saved content moved out of the header into the account menu', async () => {
@@ -579,9 +647,19 @@ test('the site paints without a blocking font and keeps motion on CSS', async ()
   const layout = await readProjectFile('app/layout.tsx');
   assert.match(layout, /next\/font\/google/, 'the type is self-hosted');
   assert.doesNotMatch(layout, /fonts\.googleapis\.com/, 'no render-blocking stylesheet remains');
-  assert.match(layout, /--font-inter/, 'Latin text renders in the design\'s Inter');
-  assert.match(layout, /--font-bengali/, 'Bengali falls through to the paired Bengali face');
+  // One face, everywhere: Noto Serif Bengali, whose Latin subset also sets the
+  // English copy, the numbers and the wordmark. The second Latin face that used to
+  // lead the stack is gone rather than left to download unreached.
+  assert.match(layout, /Noto_Serif_Bengali/, 'the site is set in Noto Serif Bengali');
+  assert.match(layout, /--font-bengali/, 'its variable reaches the stylesheet');
+  assert.doesNotMatch(
+    layout,
+    /import \{[^}]*\bInter\b[^}]*\} from "next\/font\/google"/,
+    'and no second face is imported',
+  );
   const css = await readProjectFile('app/globals.css');
+  assert.match(css, /--font-ui: var\(--font-bengali\)/, 'and it leads the default stack');
+  assert.doesNotMatch(css, /--font-inter/, 'the retired face is gone from the stack too');
   assert.match(css, /prefers-reduced-motion: reduce/, 'a global reduced-motion reset');
   // Glass is a dose-capped accent: only the sticky bars may blur — the top bar,
   // the article bar, and the phone dock's floating card.
@@ -1215,6 +1293,9 @@ test('the member dashboard separates identity, news and spotlights', async () =>
 
 test('the site mark ships with the bar and the footer', async () => {
   assert.ok(await exists('public/brand-icon.svg'), 'public/brand-icon.svg must exist');
+  assert.ok(await exists('public/dutimz-text-logo.svg'), 'the lockup the bar draws from must exist');
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
-  assert.match(header, /\/brand-icon\.svg/, 'the bar must use the site mark');
+  assert.match(header, /\/dutimz-text-logo\.svg/, 'the bar must use the designed lockup');
+  const layout = await readProjectFile('app/layout.tsx');
+  assert.match(layout, /apple-touch-icon" href="\/brand-icon\.svg"/, 'the square tile is still the app icon');
 });

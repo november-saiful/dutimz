@@ -9,7 +9,7 @@ export function LiveAlertToggle() {
   return (
     <div className="flex items-center justify-between rounded-[20px] border border-border/80 bg-card/60 p-4 shadow-sm backdrop-blur-sm">
       <div className="flex items-center gap-3">
-        <span className="flex size-9 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+        <span className="flex size-9 items-center justify-center rounded-full bg-primary/10 text-primary">
           {enabled ? <Bell className="size-4" /> : <BellOff className="size-4 text-muted-foreground" />}
         </span>
         <div>
@@ -29,7 +29,7 @@ export function LiveAlertToggle() {
         aria-label="লাইভ আপডেট নোটিফিকেশন টগল"
         onClick={() => setEnabled((prev) => !prev)}
         className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-          enabled ? "bg-emerald-500" : "bg-muted"
+          enabled ? "bg-primary" : "bg-muted"
         }`}
       >
         <span

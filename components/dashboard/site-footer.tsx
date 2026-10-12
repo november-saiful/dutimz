@@ -87,9 +87,9 @@ export function SiteFooter({
       </div>
       <div className="f-bottom">
         <Link href="/" className="logo" aria-label="DUTIMZ মূলপাতা">
+          {/* The same lockup file the bar uses, so the two never drift apart. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand-icon.svg" alt="" width={22} height={22} />
-          <b>DUTIMZ</b>
+          <img src="/dutimz-text-logo.svg" alt="" width={1278} height={372} />
         </Link>
         <span>© {new Date().getFullYear()} DUTIMZ. সর্বস্বত্ব সংরক্ষিত।</span>
       </div>

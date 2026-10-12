@@ -41,7 +41,7 @@ export function TopicSelector({ onSelectTopic, selectedTopic }: TopicSelectorPro
               className={cn(
                 "relative flex items-center justify-between p-3 rounded-[18px] border text-left transition-all",
                 isSelected
-                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-950 dark:text-emerald-200"
+                  ? "border-primary bg-primary/10 text-foreground"
                   : "border-border/80 bg-card hover:border-foreground/30 hover:bg-muted/50",
               )}
             >
@@ -54,7 +54,7 @@ export function TopicSelector({ onSelectTopic, selectedTopic }: TopicSelectorPro
                 className={cn(
                   "flex size-6 shrink-0 items-center justify-center rounded-full border transition-colors",
                   isSelected
-                    ? "border-emerald-500 bg-emerald-500 text-white"
+                    ? "border-primary bg-primary text-primary-foreground"
                     : "border-border bg-muted/50 text-transparent",
                 )}
               >

@@ -4,6 +4,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import { UserDropdown } from "@/components/ui/user-dropdown";
 import {
   ACCOUNT_HIDDEN_ACTIONS,
@@ -59,6 +68,10 @@ export function DashboardHeader({
   const pathname = usePathname() ?? "/";
   const [menuOpen, setMenuOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  // The phone's search field lives in a popup this button raises; both fields
+  // write the same `query`, so switching widths never strands a half-typed term.
+  const [searchOpen, setSearchOpen] = React.useState(false);
+  const searchInput = React.useRef<HTMLInputElement>(null);
   // undefined while the session is being resolved, null when signed out. Both
   // render the account menu in its signed-out shape, so the header never shifts
   // on load and a visitor always has the menu (and can sign in from it).
@@ -166,10 +179,12 @@ export function DashboardHeader({
     if (target && target !== pathname) router.replace(target);
   }, [menuUser, pathname, router]);
 
-  // The phone menu is a disclosure over the section pills; it closes on any
-  // navigation, including the reader's own back button.
+  // The phone menu is a disclosure over the section pills and the phone search is
+  // a popup over the bar; both close on any navigation, including the reader's
+  // own back button.
   React.useEffect(() => {
     setMenuOpen(false);
+    setSearchOpen(false);
   }, [pathname]);
 
   // Google is the only provider and there is no sign-in page, so both the menu's
@@ -233,6 +248,9 @@ export function DashboardHeader({
   function submitSearch(event: React.FormEvent) {
     event.preventDefault();
     const trimmed = query.trim();
+    // The popup closes on its own when the route changes; closing here too means
+    // a search that lands on the page the reader is already on still dismisses it.
+    setSearchOpen(false);
     router.push(trimmed ? `/search/?q=${encodeURIComponent(trimmed)}` : "/search/");
   }
 
@@ -240,9 +258,14 @@ export function DashboardHeader({
     <header className="topbar">
       <div className="topbar-in">
         <Link href="/" className="logo" aria-label="DUTIMZ মূলপাতা">
+          {/*
+            One file carries the lockup: the mark and the wordmark are drawn
+            together in `public/dutimz-text-logo.svg`, so the bar shows the brand
+            as it was designed instead of a tile and a typed word that only
+            happened to sit next to each other.
+          */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand-icon.svg" alt="" width={22} height={22} />
-          <b>DUTIMZ</b>
+          <img src="/dutimz-text-logo.svg" alt="" width={1278} height={372} />
         </Link>
 
         <nav
@@ -288,6 +311,60 @@ export function DashboardHeader({
               <path d="M6 9l6 6 6-6" />
             </svg>
           </button>
+
+          {/*
+            The phone's search. A bar this narrow cannot hold a field beside the
+            mark, the account menu and the burger, so the field is raised on
+            demand: the button opens the site's own sheet from the top with the
+            same form the wide bar shows inline.
+          */}
+          <Sheet open={searchOpen} onOpenChange={setSearchOpen}>
+            <SheetTrigger asChild>
+              <button type="button" className="search-toggle" aria-label="খুঁজুন">
+                <svg viewBox="0 0 24 24" aria-hidden>
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="M16.5 16.5L21 21" />
+                </svg>
+              </button>
+            </SheetTrigger>
+            <SheetContent
+              side="top"
+              // Above the sticky top bar (60) and the phone's nav drawer (70): the
+              // popup drops over the bar it belongs to, and its scrim covers the
+              // bar with everything else.
+              overlayClassName="z-[80]"
+              className="z-[80] gap-3 rounded-b-2xl p-4 pt-5 sm:p-6"
+              // Radix would focus the first focusable node; the field is the
+              // point of the popup, so it takes the caret (and the keyboard).
+              onOpenAutoFocus={(event) => {
+                event.preventDefault();
+                searchInput.current?.focus();
+              }}
+            >
+              <SheetHeader className="text-left">
+                <SheetTitle className="text-sm font-bold">
+                  সংবাদ খুঁজুন
+                </SheetTitle>
+              </SheetHeader>
+              <form role="search" className="flex items-center gap-2" onSubmit={submitSearch}>
+                <Input
+                  ref={searchInput}
+                  type="text"
+                  name="q"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="প্রতিবেদন, বিষয়, বিভাগ..."
+                  aria-label="খুঁজুন"
+                  autoComplete="off"
+                  enterKeyHint="search"
+                  className="h-11 rounded-xl border-input"
+                />
+                <Button type="submit" size="lg" className="h-11 rounded-xl px-5">
+                  খুঁজুন
+                </Button>
+              </form>
+            </SheetContent>
+          </Sheet>
 
           <form className="search" role="search" onSubmit={submitSearch}>
             <input
