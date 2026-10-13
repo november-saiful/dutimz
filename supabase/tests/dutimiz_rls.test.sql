@@ -1652,6 +1652,12 @@ select results_eq(
   $$values (true, false)$$,
   'Removing a Spotlight inline reference retains its gallery attachment'
 );
+-- The limit is judged only once the requester may ask at all: run it as the author,
+-- whose uploads the eleven pictures are. (As anyone else the authorship gate refuses
+-- first with 42501 and the P0001 limit is never reached.)
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
 select throws_ok(
   $$select public.submit_spotlight_edit(
       (select id from public.spotlight_posts where title = 'যাচাইযোগ্য নতুন ইস্যু'),
@@ -1672,6 +1678,7 @@ select throws_ok(
   'P0001', null,
   'An edit cannot exceed ten distinct gallery and inline pictures together'
 );
+reset role;
 select results_eq(
   $$select spot.description like '%/spotlight/media/%' = false
       from public.spotlight_posts spot where spot.title = 'যাচাইযোগ্য নতুন ইস্যু'$$,

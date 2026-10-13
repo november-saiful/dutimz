@@ -300,14 +300,16 @@ begin
        where attached.media_id is not null) > 10 then
     raise exception 'একটি প্রতিবেদনে সর্বোচ্চ ১০টি ছবি যুক্ত করা যায়';
   end if;
+  -- Discarded inline-only rows go first: clearing the inline flag before deleting them would
+  -- momentarily leave those rows attached neither way and violate the attachment-kind check.
+  -- Only gallery rows have their flag cleared below, so no surviving row can end up (false, false).
+  delete from public.article_media am
+   where am.article_id = request.article_id and not am.is_gallery;
   update public.article_media am set is_inline = false
    where am.article_id = request.article_id and am.is_inline;
   update public.article_media am set is_inline = true
    where am.article_id = request.article_id
      and am.is_gallery and am.media_id = any (proposed_inline);
-  -- Remove obsolete inline-only rows while keeping gallery positions untouched.
-  delete from public.article_media am
-   where am.article_id = request.article_id and not am.is_gallery;
   -- Preserve gallery positions; reinsert inline-only pictures in their new body order.
   for media_key in
     select item.key from unnest(proposed_inline) with ordinality as item(key, ord)
@@ -471,13 +473,15 @@ begin
         from unnest(gallery_media || proposed_inline) as attached(media_id)) > 10 then
     raise exception 'একটি পোস্টে সর্বোচ্চ ১০টি ছবি যুক্ত করা যায়';
   end if;
+  -- Same ordering as the article path: discarded inline-only rows go first, so clearing
+  -- the inline flag can never leave a row attached neither way.
+  delete from public.spotlight_post_media pm
+   where pm.post_id = request.post_id and not pm.is_gallery;
   update public.spotlight_post_media pm set is_inline = false
    where pm.post_id = request.post_id and pm.is_inline;
   update public.spotlight_post_media pm set is_inline = true
    where pm.post_id = request.post_id
      and pm.is_gallery and pm.media_id = any (proposed_inline);
-  delete from public.spotlight_post_media pm
-   where pm.post_id = request.post_id and not pm.is_gallery;
   for media_key in
     select item.key from unnest(proposed_inline) with ordinality as item(key, ord)
      where not exists (select 1 from public.spotlight_post_media pm

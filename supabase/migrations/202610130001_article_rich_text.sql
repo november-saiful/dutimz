@@ -312,14 +312,15 @@ begin
   end if;
   -- Reconcile inline placements against a body edit. Gallery rows are independent attachments,
   -- including the rare image that is in both places, so never delete or reposition those rows.
+  -- Discarded inline-only rows go first: clearing the inline flag before deleting them would
+  -- momentarily leave those rows attached neither way and violate the attachment-kind check.
+  delete from public.article_media am
+   where am.article_id = p_article_id and not am.is_gallery;
   update public.article_media am set is_inline = false
    where am.article_id = p_article_id and am.is_inline;
   update public.article_media am set is_inline = true
    where am.article_id = p_article_id
      and am.is_gallery and am.media_id = any (proposed_inline);
-  -- Remove obsolete inline-only rows before appending new ones; existing gallery positions stay put.
-  delete from public.article_media am
-   where am.article_id = p_article_id and not am.is_gallery;
   -- Append new inline-only ids sequentially after the existing maximum. Since rows are inserted one
   -- at a time, the unique (article_id, position) constraint is never handed a colliding batch.
   for media_key in
