@@ -180,9 +180,9 @@ export function FlippsReels({ items }: { items: FlippsItem[] }) {
         aria-label="সংবাদের ফ্লিপস"
         className={cn("flex min-w-0 flex-col gap-2.5", REEL_COLUMN_HEIGHT)}
       >
-        {/* On phones the page wrapper is full-bleed, so the counter keeps its own inset to stay
-            aligned with the reel text (`p-4`) instead of touching the viewport edge. */}
-        <div className="flex shrink-0 items-center gap-3 max-[860px]:px-4">
+        {/* Immersive phones show no counts: this whole row (title, counter, progress) is desktop
+            only, and the reel track takes the full column. */}
+        <div className="flex shrink-0 items-center gap-3 max-[860px]:hidden">
           {/* The deck is a `bare` page: it draws its own heading, because the shell has none. */}
           <p className="text-base font-bold">ফ্লিপস</p>
           <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">
@@ -276,12 +276,14 @@ export function FlippsReels({ items }: { items: FlippsItem[] }) {
                 </div>
                 <div aria-hidden className="absolute inset-0" style={{ backgroundImage: SCRIM }} />
 
-                <div className="absolute inset-0 flex flex-col justify-between p-4 text-white">
+                {/* The image runs to the viewport bottom under the floating dock; the text stays
+                    above it, lifted by exactly the room the dock reserves (`--dock`). */}
+                <div className="absolute inset-0 flex flex-col justify-between p-4 text-white max-[860px]:pb-[calc(1rem+var(--dock))]">
                   <div className="flex items-center justify-between gap-2">
                     <span className="rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[10px] font-bold tracking-[0.06em]">
                       {item.section}
                     </span>
-                    <span className="text-[10.5px] font-semibold tabular-nums text-white/60">
+                    <span className="text-[10.5px] font-semibold tabular-nums text-white/60 max-[860px]:hidden">
                       {bn(index + 1)} / {bn(items.length)}
                     </span>
                   </div>
