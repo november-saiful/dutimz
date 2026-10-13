@@ -1086,14 +1086,6 @@ select results_eq(
   $$values (true, true)$$,
   'A Spotlight gallery image referenced inline keeps both attachment facts'
 );
-select results_eq(
-  $$select is_gallery, is_inline from public.article_media am
-      join public.articles a on a.id = am.article_id
-     where a.title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'
-       and am.media_id = '92000000-0000-4000-8000-000000000003'::uuid$$,
-  $$values (true, false)$$,
-  'A hero image remains an attachment for existing gallery readers'
-);
 select throws_ok(
   $$select public.submit_spotlight_post('অন্যের ছবি ব্যবহার', 'অন্যের আপলোড পোস্টে যুক্ত করার চেষ্টা', array['93000000-0000-4000-8000-000000000002'])$$,
   'P0001', null,
@@ -1354,7 +1346,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
 select lives_ok(
-  $select public.submit_article('porikkha', 'লেখার মধ্যে ছবি বসানো প্রতিবেদন', null,
+  $$select public.submit_article('porikkha', 'লেখার মধ্যে ছবি বসানো প্রতিবেদন', null,
       'প্রথম অনুচ্ছেদ। ' || repeat('পরীক্ষামূলক বাক্য। ', 8)
         || E'\n\n![লেখার মধ্যে ছবি](/media/92000000-0000-4000-8000-000000000001)\n\n'
         || 'শেষ অনুচ্ছেদ। ' || repeat('পরীক্ষামূলক বাক্য। ', 8)
@@ -1362,13 +1354,13 @@ select lives_ok(
       '92000000-0000-4000-8000-000000000003', null,
       array['92000000-0000-4000-8000-000000000002','92000000-0000-4000-8000-000000000003'],
       '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb,
-      (select id from public.article_questionnaire_versions where active))$,
+      (select id from public.article_questionnaire_versions where active))$$,
   'A reporter submits a story whose body places a picture between two paragraphs'
 );
 reset role;
 select results_eq(
-  $select hero_media_key from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন' $,
-  $values ('92000000-0000-4000-8000-000000000003')$,
+  $$select hero_media_key from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন' $$,
+  $$values ('92000000-0000-4000-8000-000000000003')$$,
   'A hero that is not in the gallery is still stored as the story cover'
 );
 select throws_ok(
@@ -1382,16 +1374,16 @@ select throws_ok(
 );
 
 select results_eq(
-  $select count(*)::int from public.article_media am
+  $$select count(*)::int from public.article_media am
      join public.articles a on a.id = am.article_id
     where a.title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'
-      and am.media_id = '92000000-0000-4000-8000-000000000001'$,
-  $values (1)$,
+      and am.media_id = '92000000-0000-4000-8000-000000000001'$$,
+  $$values (1)$$,
   'A picture placed in the body becomes an attachment row, which is what the media host reads'
 );
 select results_eq(
-  $select is_public from public.get_media_asset('92000000-0000-4000-8000-000000000001')$,
-  $values (false)$,
+  $$select is_public from public.get_media_asset('92000000-0000-4000-8000-000000000001')$$,
+  $$values (false)$$,
   'A picture in a story that is not published yet is not public'
 );
 
@@ -1399,23 +1391,34 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
 select lives_ok(
-  $select public.moderate_article((select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'), 'approve', 'লেখার মধ্যে ছবিসহ প্রতিবেদন অনুমোদন')$,
+  $$select public.moderate_article((select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'), 'approve', 'লেখার মধ্যে ছবিসহ প্রতিবেদন অনুমোদন')$$,
   'The desk approves the story that carries an inline picture'
 );
 reset role;
 select results_eq(
-  $select is_public from public.get_media_asset('92000000-0000-4000-8000-000000000001')$,
-  $values (true)$,
+  $$select is_public from public.get_media_asset('92000000-0000-4000-8000-000000000001')$$,
+  $$values (true)$$,
   'The same picture is readable by a signed-out reader once its story is published'
 );
 select results_eq(
-  $select is_gallery, is_inline from public.article_media am
+  $$select is_gallery, is_inline from public.article_media am
      join public.articles a on a.id = am.article_id
     where a.title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'
-      and am.media_id = '92000000-0000-4000-8000-000000000002'$,
-  $values (true, true)$,
+      and am.media_id = '92000000-0000-4000-8000-000000000002'$$,
+  $$values (true, true)$$,
   'A gallery image also referenced inline keeps both attachment facts'
 );
+-- The hero was passed alongside the gallery (not the body), so it stays a
+-- gallery-only attachment even though the same submitter placed other pictures inline.
+select results_eq(
+  $$select is_gallery, is_inline from public.article_media am
+      join public.articles a on a.id = am.article_id
+     where a.title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'
+       and am.media_id = '92000000-0000-4000-8000-000000000003'::uuid$$,
+  $$values (true, false)$$,
+  'A hero image remains an attachment for existing gallery readers'
+);
+
 select ok(
   public.derive_excerpt(E'## শিরোনাম\n\n**গুরুত্বপূর্ণ** প্রতিবেদনের প্রথম বাক্য। '
     || '![ছবি](/media/92000000-0000-4000-8000-000000000001)')
@@ -1428,16 +1431,16 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
 select lives_ok(
-  $select public.submit_article_edit(
+  $$select public.submit_article_edit(
       (select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'),
       'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত', null,
       'সংশোধিত অনুচ্ছেদ। ' || repeat('সংশোধিত বাক্য। ', 10),
-      'প্রথম অনুচ্ছেদের তথ্য সংশোধন')$,
+      'প্রথম অনুচ্ছেদের তথ্য সংশোধন')$$,
   'An author can request an edit to their own published story'
 );
 reset role;
 select throws_ok(
-  $select public.submit_article_edit(
+  $$select public.submit_article_edit(
       (select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'),
       'সংশোধনের সঙ্গে এগারো ছবি', null,
       'অনুচ্ছেদ। ' || repeat('পরীক্ষামূলক বাক্য। ', 8)
@@ -1451,14 +1454,14 @@ select throws_ok(
         || E'\\n\\n![০৯](/media/92000000-0000-4000-8000-000000000009)'
         || E'\\n\\n![১০](/media/92000000-0000-4000-8000-000000000010)'
         || E'\\n\\n![১১](/media/92000000-0000-4000-8000-000000000011)',
-      'ছবি সীমা পরীক্ষা')$,
+      'ছবি সীমা পরীক্ষা')$$,
   'P0001', null,
   'An article edit cannot push its gallery-plus-inline distinct image count above ten'
 );
 select results_eq(
-  $select position('প্রথম অনুচ্ছেদ।' in body) > 0
-      from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'$,
-  $values (true)$,
+  $$select position('প্রথম অনুচ্ছেদ।' in body) > 0
+      from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'$$,
+  $$values (true)$$,
   'A request that is still waiting changes nothing a reader can see'
 );
 
@@ -1466,17 +1469,17 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
 select throws_ok(
-  $select public.submit_article_edit(
+  $$select public.submit_article_edit(
       (select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'),
-      'অন্যের প্রতিবেদন সম্পাদনার অনুরোধ', null, repeat('অন্যের লেখা। ', 10), 'পরীক্ষা')$,
+      'অন্যের প্রতিবেদন সম্পাদনার অনুরোধ', null, repeat('অন্যের লেখা। ', 10), 'পরীক্ষা')$$,
   '42501', null,
   'A member cannot request an edit to a story they did not file'
 );
 select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
 select throws_ok(
-  $select public.submit_article_edit(
+  $$select public.submit_article_edit(
       (select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'),
-      'দ্বিতীয় অনুরোধ', null, repeat('পরীক্ষামূলক বাক্য। ', 10), 'পরীক্ষা')$,
+      'দ্বিতীয় অনুরোধ', null, repeat('পরীক্ষামূলক বাক্য। ', 10), 'পরীক্ষা')$$,
   'P0001', null,
   'A second request cannot queue behind one that is still waiting'
 );
@@ -1485,62 +1488,62 @@ select throws_ok(
 -- this files a story of the moderator's own and proposes a change to it.
 select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
 select lives_ok(
-  $select public.submit_article('porikkha', 'মডারেটরের নিজের সম্পাদনার প্রতিবেদন',
+  $$select public.submit_article('porikkha', 'মডারেটরের নিজের সম্পাদনার প্রতিবেদন',
       'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('পরীক্ষামূলক বাক্য। ', 10), null, null, null,
       '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb,
-      (select id from public.article_questionnaire_versions where active))$,
+      (select id from public.article_questionnaire_versions where active))$$,
   'The desk publishes a story of its own to carry the self-approval check'
 );
 select lives_ok(
-  $select public.submit_article_edit(
+  $$select public.submit_article_edit(
       (select id from public.articles where title = 'মডারেটরের নিজের সম্পাদনার প্রতিবেদন'),
       'মডারেটরের নিজের সম্পাদনার প্রতিবেদন', null,
-      repeat('সংশোধিত বাক্য। ', 12), 'নিজের প্রতিবেদনের সংশোধন')$,
+      repeat('সংশোধিত বাক্য। ', 12), 'নিজের প্রতিবেদনের সংশোধন')$$,
   'The moderator requests a correction to their own published story'
 );
 select throws_ok(
-  $select public.moderate_article_edit(
+  $$select public.moderate_article_edit(
       (select id from public.article_edit_requests where reason = 'নিজের প্রতিবেদনের সংশোধন'),
-      'approve', 'নিজের অনুরোধ নিজে অনুমোদন')$,
+      'approve', 'নিজের অনুরোধ নিজে অনুমোদন')$$,
   '42501', null,
   'Even a moderator cannot approve their own edit request'
 );
 
 -- Approval, by somebody else.
 select lives_ok(
-  $select public.moderate_article_edit(
+  $$select public.moderate_article_edit(
       (select id from public.article_edit_requests where reason = 'প্রথম অনুচ্ছেদের তথ্য সংশোধন'),
-      'approve', 'তথ্য যাচাই করে সংশোধন অনুমোদন')$,
+      'approve', 'তথ্য যাচাই করে সংশোধন অনুমোদন')$$,
   'A moderator approves a correction proposed by another author'
 );
 reset role;
 select results_eq(
-  $select position('সংশোধিত অনুচ্ছেদ।' in body) > 0
-      from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'$,
-  $values (true)$,
+  $$select position('সংশোধিত অনুচ্ছেদ।' in body) > 0
+      from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'$$,
+  $$values (true)$$,
   'Approving applies the proposed text to the live story'
 );
 select results_eq(
-  $select is_public from public.get_media_asset('92000000-0000-4000-8000-000000000001')$,
-  $values (false)$,
+  $$select is_public from public.get_media_asset('92000000-0000-4000-8000-000000000001')$$,
+  $$values (false)$$,
   'Removing an inline-only picture from the approved body makes it private again'
 );
 select results_eq(
-  $select is_public from public.get_media_asset('92000000-0000-4000-8000-000000000002')$,
-  $values (true)$,
+  $$select is_public from public.get_media_asset('92000000-0000-4000-8000-000000000002')$$,
+  $$values (true)$$,
   'Removing an inline reference does not unpublish an independent gallery picture'
 );
 select results_eq(
-  $select status, reviewed_by from public.article_edit_requests
-     where reason = 'প্রথম অনুচ্ছেদের তথ্য সংশোধন'$,
-  $values ('approved', '33000000-0000-4000-8000-000000000003'::uuid)$,
+  $$select status, reviewed_by from public.article_edit_requests
+     where reason = 'প্রথম অনুচ্ছেদের তথ্য সংশোধন'$$,
+  $$values ('approved', '33000000-0000-4000-8000-000000000003'::uuid)$$,
   'The settled request records who approved it'
 );
 select results_eq(
-  $select count(*)::int from public.article_revisions r
+  $$select count(*)::int from public.article_revisions r
      join public.articles a on a.id = r.article_id
-    where a.title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'$,
-  $values (3)$,
+    where a.title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'$$,
+  $$values (3)$$,
   'Approving writes the before/after revision pair on top of the original submission'
 );
 
@@ -1549,30 +1552,30 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
 select lives_ok(
-  $select public.submit_article_edit(
+  $$select public.submit_article_edit(
       (select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'),
       'লেখার মধ্যে ছবি বসানো প্রতিবেদন — বাতিলযোগ্য', null,
-      repeat('বাতিলযোগ্য সংশোধন। ', 12), 'প্রত্যাখ্যাত হওয়ার কথা')$,
+      repeat('বাতিলযোগ্য সংশোধন। ', 12), 'প্রত্যাখ্যাত হওয়ার কথা')$$,
   'The author can ask again once the earlier request has been settled'
 );
 select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
 select lives_ok(
-  $select public.moderate_article_edit(
+  $$select public.moderate_article_edit(
       (select id from public.article_edit_requests where reason = 'প্রত্যাখ্যাত হওয়ার কথা'),
-      'reject', 'সূত্র ছাড়া সংশোধন গ্রহণ করা যায় না')$,
+      'reject', 'সূত্র ছাড়া সংশোধন গ্রহণ করা যায় না')$$,
   'A moderator can refuse a requested correction'
 );
 reset role;
 select results_eq(
-  $select position('বাতিলযোগ্য সংশোধন।' in body) = 0
-      from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'$,
-  $values (true)$,
+  $$select position('বাতিলযোগ্য সংশোধন।' in body) = 0
+      from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'$$,
+  $$values (true)$$,
   'A refused correction never reaches the live story'
 );
 select results_eq(
-  $select status, review_reason from public.article_edit_requests
-     where reason = 'প্রত্যাখ্যাত হওয়ার কথা'$,
-  $values ('rejected', 'সূত্র ছাড়া সংশোধন গ্রহণ করা যায় না')$,
+  $$select status, review_reason from public.article_edit_requests
+     where reason = 'প্রত্যাখ্যাত হওয়ার কথা'$$,
+  $$values ('rejected', 'সূত্র ছাড়া সংশোধন গ্রহণ করা যায় না')$$,
   'A refused correction keeps the reason the author has to be told'
 );
 
@@ -1582,17 +1585,17 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
 select lives_ok(
-  $select public.update_own_article(
+  $$select public.update_own_article(
       (select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'),
       'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত', null,
-      repeat('পুরোনো পথের সংশোধন। ', 12), 'পুরোনো সম্পাদনা পথ পরীক্ষা')$,
+      repeat('পুরোনো পথের সংশোধন। ', 12), 'পুরোনো সম্পাদনা পথ পরীক্ষা')$$,
   'The old self-edit path still answers its callers'
 );
 reset role;
 select results_eq(
-  $select position('পুরোনো পথের সংশোধন।' in body) = 0
-      from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'$,
-  $values (true)$,
+  $$select position('পুরোনো পথের সংশোধন।' in body) = 0
+      from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'$$,
+  $$values (true)$$,
   'The old self-edit path can no longer publish a correction by itself'
 );
 
@@ -1601,7 +1604,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '11000000-0000-4000-8000-000000000001', true);
 select is_empty(
-  $select id from public.article_edit_requests$,
+  $$select id from public.article_edit_requests$$,
   'A member cannot read another author edit request'
 );
 select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
@@ -1613,32 +1616,32 @@ select ok(
 -- The same two doors for a Spotlight post.
 select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
 select lives_ok(
-  $select public.submit_spotlight_edit(
+  $$select public.submit_spotlight_edit(
       (select id from public.spotlight_posts where title = 'যাচাইযোগ্য নতুন ইস্যু'),
       'যাচাইযোগ্য নতুন ইস্যু',
       'সংশোধিত বিবরণ। ' || repeat('পরীক্ষামূলক বাক্য। ', 8),
-      'বিবরণে তথ্য যোগ')$,
+      'বিবরণে তথ্য যোগ')$$,
   'An author can request an edit to their own Spotlight post'
 );
 select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
 select throws_ok(
-  $select public.submit_spotlight_edit(
+  $$select public.submit_spotlight_edit(
       (select id from public.spotlight_posts where title = 'যাচাইযোগ্য নতুন ইস্যু'),
-      'অন্যের পোস্ট সম্পাদনার অনুরোধ', repeat('অন্যের পোস্ট। ', 8), 'পরীক্ষা')$,
+      'অন্যের পোস্ট সম্পাদনার অনুরোধ', repeat('অন্যের পোস্ট। ', 8), 'পরীক্ষা')$$,
   '42501', null,
   'Only the author can request an edit to a Spotlight post'
 );
 select lives_ok(
-  $select public.moderate_spotlight_edit(
+  $$select public.moderate_spotlight_edit(
       (select id from public.spotlight_edit_requests where reason = 'বিবরণে তথ্য যোগ'),
-      'approve', 'স্পটলাইট সংশোধন অনুমোদন')$,
+      'approve', 'স্পটলাইট সংশোধন অনুমোদন')$$,
   'A moderator approves the Spotlight correction'
 );
 reset role;
 select results_eq(
-  $select position('সংশোধিত বিবরণ।' in description) > 0
-      from public.spotlight_posts where title = 'যাচাইযোগ্য নতুন ইস্যু'$,
-  $values (true)$,
+  $$select position('সংশোধিত বিবরণ।' in description) > 0
+      from public.spotlight_posts where title = 'যাচাইযোগ্য নতুন ইস্যু'$$,
+  $$values (true)$$,
   'The approved Spotlight correction reaches the live post'
 );
 select results_eq(
@@ -1650,7 +1653,7 @@ select results_eq(
   'Removing a Spotlight inline reference retains its gallery attachment'
 );
 select throws_ok(
-  $select public.submit_spotlight_edit(
+  $$select public.submit_spotlight_edit(
       (select id from public.spotlight_posts where title = 'যাচাইযোগ্য নতুন ইস্যু'),
       'স্পটলাইটে এগারো ছবি',
       'বিবরণ। ' || repeat('আরও বাক্য। ', 5)
@@ -1665,14 +1668,14 @@ select throws_ok(
         || E'\\n\\n![নয়টি](/spotlight/media/93000000-0000-4000-8000-000000000003)'
         || E'\\n\\n![দশটি](/spotlight/media/93000000-0000-4000-8000-000000000002)'
         || E'\\n\\n![এগারোটি](/spotlight/media/93000000-0000-4000-8000-000000000001)',
-      'ছবি সীমা পরীক্ষা')$,
+      'ছবি সীমা পরীক্ষা')$$,
   'P0001', null,
   'An edit cannot exceed ten distinct gallery and inline pictures together'
 );
 select results_eq(
-  $select spot.description like '%/spotlight/media/%' = false
-      from public.spotlight_posts spot where spot.title = 'যাচাইযোগ্য নতুন ইস্যু'$,
-  $values (true)$,
+  $$select spot.description like '%/spotlight/media/%' = false
+      from public.spotlight_posts spot where spot.title = 'যাচাইযোগ্য নতুন ইস্যু'$$,
+  $$values (true)$$,
   'A description with no picture in it attaches nothing extra'
 );
 
