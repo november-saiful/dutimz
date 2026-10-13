@@ -27,9 +27,10 @@ const SCRIM =
   "linear-gradient(to top, rgba(0,0,0,.94) 0%, rgba(0,0,0,.78) 18%, rgba(0,0,0,.46) 42%, rgba(0,0,0,.12) 64%, rgba(0,0,0,.42) 100%)";
 
 /**
- * One reel is one screen tall, minus the sticky bar the shell has already drawn (`--topbar`), the
- * phone dock floating over the foot of the page (`--dock`, zero above the dock's breakpoint) and
- * the wrapper's own `py-3`.
+ * One reel is one screen tall, minus the sticky bar the shell has already drawn (`--topbar`) and
+ * the phone dock floating over the foot of the page (`--dock`, zero above the dock's breakpoint).
+ * At and above the dock breakpoint the deck pages keep their centered wrapper, whose `py-3` comes
+ * out of the same budget; on phones the wrapper is full-bleed, so there is no padding to subtract.
  *
  * This is the height of the whole column, not of the track: the counter and its progress bar sit
  * above the track and take their own height out of the same budget, so the arithmetic stays in
@@ -39,7 +40,7 @@ const SCRIM =
  * and out re-lays-out every reel mid-flick, and the reader lands between two cards.
  */
 const REEL_COLUMN_HEIGHT =
-  "h-[calc(100svh-var(--topbar)-var(--dock)-1.5rem)]";
+  "h-[calc(100svh-var(--topbar)-var(--dock))] min-[861px]:h-[calc(100svh-var(--topbar)-var(--dock)-1.5rem)]";
 
 /**
  * The dateline every surface of a reel shares: the writer, how long ago, and — on the surfaces
@@ -179,7 +180,9 @@ export function FlippsReels({ items }: { items: FlippsItem[] }) {
         aria-label="সংবাদের ফ্লিপস"
         className={cn("flex min-w-0 flex-col gap-2.5", REEL_COLUMN_HEIGHT)}
       >
-        <div className="flex shrink-0 items-center gap-3">
+        {/* On phones the page wrapper is full-bleed, so the counter keeps its own inset to stay
+            aligned with the reel text (`p-4`) instead of touching the viewport edge. */}
+        <div className="flex shrink-0 items-center gap-3 max-[860px]:px-4">
           {/* The deck is a `bare` page: it draws its own heading, because the shell has none. */}
           <p className="text-base font-bold">ফ্লিপস</p>
           <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">
@@ -252,7 +255,9 @@ export function FlippsReels({ items }: { items: FlippsItem[] }) {
               }}
               className="group relative h-full w-full shrink-0 snap-start snap-always cursor-pointer"
             >
-              <div className="relative size-full overflow-hidden rounded-xl border border-border bg-foreground">
+              {/* Desktop keeps the bordered card frame; on phones the reel is the surface itself —
+                  no radius, no border, edge to edge. */}
+              <div className="relative size-full overflow-hidden rounded-xl border border-border bg-foreground max-[860px]:rounded-none max-[860px]:border-0">
                 <div
                   className={cn(
                     "absolute inset-0 transition-[transform,filter] duration-700 ease-out motion-reduce:transition-none",

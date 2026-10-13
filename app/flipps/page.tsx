@@ -38,10 +38,11 @@ export default async function FlippsPage() {
     : (await getLatestStories(REEL_COUNT)).map(flippsFromStory);
 
   return (
-    // `bare`: a deck of full-screen cards draws its own container, so the shell contributes the
-    // sticky bar and the footer and nothing between them.
-    <DutimzShell bare>
-      <div className="mx-auto w-full min-w-0 max-w-[var(--maxw)] px-4 py-3 sm:px-7">
+    // `bare` + `mobileDeck`: a deck of full-screen cards draws its own container. On phones the
+    // shell drops the footer and this wrapper stays full-bleed; at and above the dock breakpoint
+    // it is the same centered column as before.
+    <DutimzShell bare mobileDeck>
+      <div className="w-full min-w-0 min-[861px]:mx-auto min-[861px]:max-w-[var(--maxw)] min-[861px]:px-7 min-[861px]:py-3">
         {items.length === 0 ? <NoReels /> : <FlippsReels items={items} />}
       </div>
     </DutimzShell>

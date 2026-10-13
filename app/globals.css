@@ -1372,6 +1372,14 @@ footer.site-footer {
   .dock {
     visibility: visible;
   }
+  /*
+    The flipps deck pages opt in through `mobileDeck`: on phones the footer drops
+    out, so the reel feed fills the space between the top bar and the dock. Wide
+    screens — and every page that did not opt in — keep the footer as today.
+  */
+  .deck-chrome-footer {
+    display: none;
+  }
 }
 
 /* ============ RESPONSIVE ============ */

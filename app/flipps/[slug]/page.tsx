@@ -110,8 +110,9 @@ export default async function SharedFlippsPage({
   const items = await deckFor(slug, shared.item);
 
   return (
-    <DutimzShell bare>
-      <div className="mx-auto w-full min-w-0 max-w-[var(--maxw)] px-4 py-3 sm:px-7">
+    // Like the deck: immersive below the dock breakpoint, the centered column at and above it.
+    <DutimzShell bare mobileDeck>
+      <div className="w-full min-w-0 min-[861px]:mx-auto min-[861px]:max-w-[var(--maxw)] min-[861px]:px-7 min-[861px]:py-3">
         <FlippsReels items={items} />
       </div>
     </DutimzShell>

@@ -16,12 +16,19 @@ export async function DutimzShell({
   title,
   crumbs,
   bare = false,
+  mobileDeck = false,
   children,
 }: {
   title?: string;
   crumbs?: Crumb[];
   /** The page draws its own containers: no frame, no breadcrumb head. */
   bare?: boolean;
+  /**
+   * A `bare` deck page (the flipps feeds) that goes immersive on phones: below
+   * the dock breakpoint the footer drops out and the page's own content fills
+   * the space between the top bar and the dock. Wide screens keep `bare` as-is.
+   */
+  mobileDeck?: boolean;
   children: React.ReactNode;
 }) {
   // One read serves the top bar and the footer, so the desks can never drift
@@ -64,7 +71,16 @@ export async function DutimzShell({
           {children}
         </main>
       )}
-      <SiteFooter sections={sections} />
+      {bare && mobileDeck ? (
+        // The stylesheet hides this wrapper below the dock breakpoint, so only
+        // the two deck pages lose the footer on phones; every other page — and
+        // the decks on wide screens — keep it exactly as today.
+        <div className="deck-chrome-footer">
+          <SiteFooter sections={sections} />
+        </div>
+      ) : (
+        <SiteFooter sections={sections} />
+      )}
       {/*
         The dock is drawn at every width and reveals itself on a phone, where the
         top bar has handed the desks to the burger; it covers the five primary
