@@ -27,7 +27,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextContent } from "@/components/ui/rich-text-content";
 import { errorMessage } from "@/lib/errors";
+import { inlineMediaIds } from "@/lib/richtext";
 import { supabaseBrowser } from "@/lib/supabase";
 import { bn, formatDateBn } from "@/lib/site";
 
@@ -121,6 +123,12 @@ export function AdminArticles() {
   const [awardAmount, setAwardAmount] = React.useState("");
   const [awardReason, setAwardReason] = React.useState("");
   const [awardMessage, setAwardMessage] = React.useState("");
+
+  // The pictures the story's own body already draws. The preview's attachment strip skips them so
+  // the desk sees the page the reader will get, not the body plus a duplicate of every inline image.
+  const previewInlineMedia = previewing
+    ? inlineMediaIds(previewing.body, "article")
+    : [];
 
   const load = React.useCallback(async (nextStatus: string, nextQuery: string) => {
     try {
@@ -738,21 +746,21 @@ export function AdminArticles() {
                   className="w-full rounded-lg border object-cover"
                 />
               )}
-              <div className="flex flex-col gap-3">
-                {previewing.body
-                  .split(/\n{2,}/)
-                  .map((paragraph) => paragraph.trim())
-                  .filter(Boolean)
-                  .map((paragraph, index) => (
-                    <p key={index} className="text-sm leading-7">
-                      {paragraph}
-                    </p>
-                  ))}
+              <div className="article-body text-sm leading-7">
+                {/* A preview of something not necessarily published: fetch pictures with the token. */}
+                <RichTextContent
+                  markdown={previewing.body}
+                  Image={AuthedMediaImage}
+                />
               </div>
               {(previewing.article_media ?? [])
                 .slice()
                 .sort((a, b) => a.position - b.position)
-                .filter((item) => item.media_id !== previewing.hero_media_key)
+                .filter(
+                  (item) =>
+                    item.media_id !== previewing.hero_media_key &&
+                    !previewInlineMedia.includes(item.media_id),
+                )
                 .map((item) => (
                   <AuthedMediaImage
                     key={item.media_id}

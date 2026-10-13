@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowLeft, ArrowRight, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Plus, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Field, FormMessage } from "@/components/ui/field";
@@ -26,11 +26,19 @@ export function GalleryUploader({
   items,
   onChange,
   scope = "article",
+  onInsert,
 }: {
   items: GalleryItem[];
   onChange: (items: GalleryItem[]) => void;
   /** "article" writes the news bucket; "spotlight" writes the forum bucket. */
   scope?: "article" | "spotlight";
+  /**
+   * Offered to a composer that has a text editor to insert into. This is the "referencing" half of
+   * attaching a picture: the file is already uploaded, so placing it between two paragraphs costs
+   * no second upload and no re-encode. The Spotlight marking dialog passes no handler and therefore
+   * gains no button — a proof photo is attached to the decision, not written into a body.
+   */
+  onInsert?: (item: GalleryItem) => void;
 }) {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -125,7 +133,7 @@ export function GalleryUploader({
     <Field
       label="ছবি (ঐচ্ছিক) — প্রথম ছবিটিই প্রচ্ছদ হবে"
       htmlFor="write-gallery"
-      hint={`সর্বোচ্চ ${MAX_FILES}টি, প্রতিটি সর্বোচ্চ ২০ MB (JPEG, PNG, WebP, GIF, AVIF)। HEIC/HEIF সমর্থিত নয়।`}
+      hint={`সর্বোচ্চ ${MAX_FILES}টি, প্রতিটি সর্বোচ্চ ২০ MB (JPEG, PNG, WebP, GIF, AVIF)। HEIC/HEIF সমর্থিত নয়।${onInsert ? " লেখার মধ্যে বসাতে ছবির উপরের + চাপুন।" : ""}`}
       wide
     >
       <input
@@ -155,6 +163,19 @@ export function GalleryUploader({
                 <span className="absolute left-1 top-1 rounded bg-primary px-1.5 py-0.5 text-[10px] text-primary-foreground">
                   প্রচ্ছদ
                 </span>
+              )}
+              {onInsert && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="secondary"
+                  className="absolute right-1 top-1 size-7"
+                  onClick={() => onInsert(item)}
+                  aria-label={`“${item.name}” লেখার মধ্যে বসান`}
+                  title="লেখার মধ্যে বসান"
+                >
+                  <Plus className="size-3" />
+                </Button>
               )}
               <div className="absolute bottom-1 right-1 flex gap-1">
                 <Button

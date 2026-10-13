@@ -1003,6 +1003,126 @@
   margin: 28px 0 14px;
   letter-spacing: -0.3px;
 }
+/*
+  Authored text.
+
+  `.article-body` is carried by every surface that draws a story body or a Spotlight description —
+  the published article, the pending submission a reviewer reads, the desk's preview and the
+  composer's own preview — so a table or a quote cannot look like one thing to the writer and
+  another to the reader.
+
+  The rules below set geometry only, and let type inherit. These are unlayered, and unlayered CSS
+  outranks Tailwind's `@layer utilities` whatever the specificity, so a `font-size` here would
+  silently beat the `text-[17px]` a preview surface puts on the same box. Inheriting instead lets
+  each surface keep its own measure, and the one place that needs a fixed size — the article
+  column — restates it below at a specificity that wins where it should.
+*/
+.article-body h2,
+.article-body h3 {
+  color: inherit;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  margin: 30px 0 14px;
+  line-height: 1.35;
+}
+.article-body h2 {
+  font-size: 1.45em;
+}
+.article-body h3 {
+  font-size: 1.2em;
+}
+.article-body ul,
+.article-body ol {
+  /* The browser's own markers were reset away by Tailwind's preflight. */
+  list-style-position: outside;
+  padding-left: 24px;
+  margin: 0 0 16px;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+}
+.article-body ul {
+  list-style-type: disc;
+}
+.article-body ol {
+  list-style-type: decimal;
+}
+.article-body li {
+  margin-bottom: 6px;
+}
+.article-body li::marker {
+  color: var(--accent-live);
+}
+.article-body blockquote {
+  border-left: 3px solid var(--accent-live);
+  padding: 2px 0 2px 16px;
+  margin: 22px 0;
+  font-size: inherit;
+  line-height: inherit;
+  color: inherit;
+  font-style: italic;
+}
+.article-body blockquote p:last-child {
+  margin-bottom: 0;
+}
+.article-body hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 30px 0;
+}
+.article-body code {
+  background: var(--card);
+  border-radius: 6px;
+  padding: 1px 6px;
+  font-size: 0.88em;
+}
+.article-body pre {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 0 0 16px;
+  overflow-x: auto;
+}
+.article-body pre code {
+  background: none;
+  padding: 0;
+}
+.article-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: inherit;
+  line-height: inherit;
+  text-align: start;
+}
+.article-body th,
+.article-body td {
+  border: 1px solid var(--line);
+  padding: 8px 12px;
+  /* Bengali reads left to right; `start` keeps that true inside a justified column. */
+  text-align: start;
+  vertical-align: top;
+  min-width: 90px;
+}
+.article-body th {
+  background: var(--card);
+  color: inherit;
+  font-weight: 700;
+}
+.article-body a {
+  color: var(--accent-live);
+}
+/* The article column's own measure, restated for the elements `.article-main p` does not cover. */
+.article-main .article-body ul,
+.article-main .article-body ol,
+.article-main .article-body blockquote,
+.article-main .article-body table {
+  font-size: 14.5px;
+  line-height: 1.75;
+  color: var(--body);
+}
+.article-main .article-body blockquote {
+  color: var(--ink);
+}
 .comments {
   margin-top: 36px;
 }

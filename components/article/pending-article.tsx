@@ -12,7 +12,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RichTextContent } from "@/components/ui/rich-text-content";
 import { reportError } from "@/lib/errors";
+import { inlineMediaIds } from "@/lib/richtext";
 import { formatDateBn } from "@/lib/site";
 import { isSupabaseConfigured, supabaseBrowser } from "@/lib/supabase";
 
@@ -113,14 +115,17 @@ export function PendingArticle({ slug }: { slug: string }) {
     );
   }
 
-  const paragraphs = article.body
-    .split(/\n{2,}/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
+  // A picture placed in the text is drawn by the body itself; the strip below must not repeat it,
+  // or the writer would be shown a page the reader will never see.
+  const inlineMedia = inlineMediaIds(article.body, "article");
   const gallery = (article.media ?? [])
     .slice()
     .sort((a, b) => a.position - b.position)
-    .filter((item) => item.media_id !== article.hero_media_key);
+    .filter(
+      (item) =>
+        item.media_id !== article.hero_media_key &&
+        !inlineMedia.includes(item.media_id),
+    );
   const statusLabel = STATUS_LABELS[article.status] ?? article.status;
   const dateValue = article.published_at ?? article.created_at;
 
@@ -160,9 +165,8 @@ export function PendingArticle({ slug }: { slug: string }) {
             />
           )}
           <div className="article-body text-[17px] leading-8">
-            {paragraphs.map((paragraph, index) => (
-              <p key={index}>{paragraph}</p>
-            ))}
+            {/* Not published yet, so its pictures need the reader's own token. */}
+            <RichTextContent markdown={article.body} Image={AuthedMediaImage} />
           </div>
         </CardContent>
       </Card>

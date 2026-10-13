@@ -2,10 +2,12 @@
 
 import * as React from "react";
 
+import { AuthedMediaImage } from "@/components/article/authed-media-image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
+import { RichTextContent } from "@/components/ui/rich-text-content";
 import { errorMessage } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
 import { formatDateBn } from "@/lib/site";
@@ -229,8 +231,17 @@ export function ModerationQueue() {
                 <summary className="cursor-pointer text-sm text-primary">
                   পূর্ণ প্রতিবেদন পড়ুন
                 </summary>
-                <div className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap wrap-break-word text-sm">
-                  {article.body}
+                {/*
+                  The reviewer reads the submission as the reader will. It used to be shown as
+                  pre-wrapped plain text, which with a formatted body would have put the markup
+                  itself in front of the desk.
+                */}
+                <div className="article-body mt-2 max-h-64 overflow-auto wrap-break-word text-sm">
+                  {/* A submission's pictures are private until it is approved. */}
+                  <RichTextContent
+                    markdown={article.body}
+                    Image={AuthedMediaImage}
+                  />
                 </div>
               </details>
               <div className="mt-3 grid gap-2">

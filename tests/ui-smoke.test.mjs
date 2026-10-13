@@ -1299,3 +1299,141 @@ test('the site mark ships with the bar and the footer', async () => {
   const layout = await readProjectFile('app/layout.tsx');
   assert.match(layout, /apple-touch-icon" href="\/brand-icon\.svg"/, 'the square tile is still the app icon');
 });
+
+test('one renderer draws every piece of authored text', async () => {
+  // A body is Markdown now, and the same component has to draw it on the published page, in the
+  // pending submission a reviewer reads, in the desk's preview and in the composer's own preview.
+  // Otherwise a writer is shown one thing and a reader gets another.
+  assert.ok(await exists('components/ui/rich-text-content.tsx'), 'the shared renderer must exist');
+  const renderer = await readProjectFile('components/ui/rich-text-content.tsx');
+  assert.match(renderer, /from "react-markdown"/, 'the renderer parses Markdown');
+  assert.match(renderer, /remark-gfm/, 'GFM tables and lists are part of the format');
+  assert.match(renderer, /remark-breaks/, 'a single newline still breaks a line, as it always did');
+  assert.match(renderer, /mediaIdAt/, 'only a reference to our own uploaded media resolves');
+  assert.doesNotMatch(renderer, /dangerouslySetInnerHTML/, 'authored text is never injected as HTML');
+  assert.doesNotMatch(renderer, /rehypePlugins/, 'no HTML pass-through plugin is configured');
+
+  for (const surface of [
+    'app/news/[slug]/page.tsx',
+    'app/spotlight/[id]/page.tsx',
+    'components/forum/spotlight-forum.tsx',
+    'components/article/pending-article.tsx',
+    'components/account/moderation-queue.tsx',
+    'components/account/admin-articles.tsx',
+    'components/account/pending-edits.tsx',
+  ]) {
+    const source = await readProjectFile(surface);
+    assert.match(source, /RichTextContent/, `${surface} must draw authored text with the shared renderer`);
+    assert.doesNotMatch(source, /split\(\/\n\{2,\}\/\)/, `${surface} must not hand-split a Markdown body`);
+  }
+});
+
+test('an inline picture is not repeated in the gallery and is fetched with a token in previews', async () => {
+  // The body already places the picture; printing it again in ছবির গ্যালারি is the same photo twice.
+  for (const surface of ['app/news/[slug]/page.tsx', 'app/spotlight/[id]/page.tsx']) {
+    assert.match(
+      await readProjectFile(surface),
+      /inlineMediaIds/,
+      `${surface} must exclude a picture the text already places`,
+    );
+  }
+  // A preview shows text that is not public yet, so its pictures need the reader's own token: the
+  // media host refuses an unpublished story's image to a plain <img>.
+  for (const surface of [
+    'components/article/pending-article.tsx',
+    'components/account/admin-articles.tsx',
+    'components/account/moderation-queue.tsx',
+  ]) {
+    assert.match(
+      await readProjectFile(surface),
+      /Image=\{AuthedMediaImage\}/,
+      `${surface} must fetch private pictures with the reader's token`,
+    );
+  }
+});
+
+test('the composer keeps pasted formatting and can place a picture between paragraphs', async () => {
+  const editor = await readProjectFile('components/ui/rich-text-editor.tsx');
+  // Turndown is loaded on the first formatted paste, never at module scope: the same component is
+  // pre-rendered on the server, where its browser build has no DOM to parse with.
+  assert.match(editor, /import\("turndown"\)/, 'pasted HTML is converted to Markdown');
+  assert.match(editor, /import\("turndown-plugin-gfm"\)/, 'a pasted table arrives as a table');
+  assert.match(editor, /getData\("text\/html"\)/, 'the rich flavour of the clipboard is what is read');
+  assert.match(editor, /insertAtCaret/, 'a picture can be placed at the caret');
+  assert.doesNotMatch(editor, /dangerouslySetInnerHTML/, 'the composer never injects HTML');
+
+  const uploader = await readProjectFile('components/account/gallery-uploader.tsx');
+  assert.match(uploader, /onInsert/, 'an uploaded picture can be inserted into the text');
+  for (const surface of [
+    'components/account/writer-form.tsx',
+    'components/forum/spotlight-forum.tsx',
+  ]) {
+    const source = await readProjectFile(surface);
+    assert.match(source, /RichTextEditor/, `${surface} must author Markdown, not plain text`);
+    assert.match(source, /onInsert/, `${surface} must wire the insert-into-text action`);
+  }
+});
+
+test('a correction to live writing waits for the moderation desk', async () => {
+  const page = await readProjectFile('app/account/moderation/page.tsx');
+  assert.match(page, /ModerationQueue/, 'pending submissions stay where they were');
+  assert.match(page, /PendingEdits/, 'awaiting editions are a section of their own');
+
+  const pending = await readProjectFile('components/account/pending-edits.tsx');
+  for (const fn of ['moderate_article_edit', 'moderate_spotlight_edit']) {
+    assert.ok(pending.includes(fn), `${fn} must be reachable from the desk`);
+  }
+  assert.match(pending, /"approve"/, 'approval sends the word the RPC expects');
+  assert.match(pending, /"reject"/, 'refusal sends the word the RPC expects');
+  assert.match(pending, /article_edit_requests/, 'the story queue is read from the requests table');
+  assert.match(pending, /spotlight_edit_requests/, 'the Spotlight queue is read from the requests table');
+
+  const dialog = await readProjectFile('components/account/content-edit-dialog.tsx');
+  for (const fn of ['submit_article_edit', 'submit_spotlight_edit']) {
+    assert.ok(dialog.includes(fn), `${fn} must be how an author asks`);
+  }
+  const dashboard = await readProjectFile('components/account/account-dashboard.tsx');
+  assert.match(dashboard, /ContentEditDialog/, "the member's own story must offer a correction");
+  assert.match(dashboard, /article_edit_requests/, 'a waiting correction must be visible on the row');
+});
+
+test('the rich text migrations are atomic and share one reference extractor', async () => {
+  const files = [
+    'supabase/migrations/202610130001_article_rich_text.sql',
+    'supabase/migrations/202610130002_spotlight_rich_text.sql',
+    'supabase/migrations/202610130003_pending_content_edits.sql',
+  ];
+  let definitions = 0;
+  for (const file of files) {
+    const sql = (await readProjectFile(file)).trim();
+    assert.ok(sql.startsWith('--'), `${file} must explain why it exists`);
+    assert.ok(sql.includes('begin;'), `${file} must open a transaction`);
+    assert.ok(sql.endsWith('commit;'), `${file} must be atomic`);
+    // Definitions only: each migration also re-states the function's `revoke`, and re-revoking an
+    // ACL is how this repo keeps every touched function's access written down in one place.
+    definitions += (sql.match(/create or replace function public\.body_media_ids/g) ?? []).length;
+  }
+  // Two definitions would mean one silently replacing the other.
+  assert.equal(definitions, 1, 'the reference extractor is defined exactly once');
+  const first = await readProjectFile(files[0]);
+  assert.match(first, /body_media_ids\(p_body text, p_base text\)/, 'the shared signature is fixed');
+  assert.match(first, /revoke all on function public\.body_media_ids/, 'no client resolves references itself');
+  // The one rule that had to learn about Markdown: the summary a reader sees must carry no markup.
+  assert.match(first, /create or replace function public\.derive_excerpt/, 'the summary still derives from the body');
+  assert.match(first, /regexp_replace\(stripped,/, 'the body is stripped of markup before the summary is cut');
+  // A picture placed in the body is only servable because it becomes an attachment row.
+  assert.match(first, /insert into public\.article_media/, 'the body references become attachment rows');
+  assert.match(first, /is_gallery boolean not null default true/, 'pre-existing attachment rows remain galleries');
+  assert.match(first, /is_inline boolean not null default false/, 'inline placement is tracked separately');
+  assert.match(first, /delete from public\.article_media am\s+where am\.article_id = p_article_id and not am\.is_gallery/, 'reconciliation removes inline-only rows and retains galleries');
+  assert.match(first, /where am\.article_id = p_article_id and am\.is_inline/, 'reconciliation clears the old inline state before applying the new body');
+  const second = await readProjectFile(files[1]);
+  assert.match(second, /is_gallery boolean not null default true/, 'Spotlight tracks gallery attachments separately');
+  assert.match(second, /pm\.media_id::text = any \(coalesce\(public\.body_media_ids/, 'gallery images referenced by the body retain the inline flag without a second row');
+  const third = await readProjectFile(files[2]);
+  assert.match(third, /update_own_article/, 'the old self-edit path is re-pointed, not left able to publish');
+  assert.match(third, /submit_article_edit/, 'an author asks through a request');
+  assert.match(third, /moderate_article_edit/, 'the desk judges through an audited RPC');
+  assert.match(third, /delete from public\.article_media am\s+where am\.article_id = request\.article_id and not am\.is_gallery/, 'approval removes only inline-only attachments and retains galleries');
+  assert.match(third, /where am\.article_id = request\.article_id and am\.is_inline/, 'approval resets prior inline state before reconciling the proposal');
+});

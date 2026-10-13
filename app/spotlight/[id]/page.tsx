@@ -13,7 +13,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { RichTextContent } from "@/components/ui/rich-text-content";
 import { reportError } from "@/lib/errors";
+import { inlineMediaIds } from "@/lib/richtext";
 import { formatDateBn, relativeTimeBn, spotlightMediaUrlFor } from "@/lib/site";
 import { isSupabaseConfigured, one, supabaseServer } from "@/lib/supabase";
 
@@ -25,6 +27,29 @@ export const revalidate = 60;
  */
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/**
+ * A post's description as share-card prose.
+ *
+ * The description is Markdown now, so the markup has to come off before it reaches an
+ * `og:description` — otherwise a shared link advertises `##` and image paths instead of the
+ * sentence the author wrote. A story's excerpt does not need this: it is derived by the database,
+ * which strips the same markup. Spotlight has no excerpt column, so its one summary is built here.
+ */
+function plainDescription(markdown: string): string {
+  // Every rule is anchored to one line and uses [ \t] rather than \s: `\s` matches a newline too,
+  // so a greedy \s* would happily swallow the blank line between two paragraphs and pull the whole
+  // description into one run before the table rules even ran.
+  return markdown
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^[ \t]{0,3}(?:#{1,6}|>)[ \t]?/gm, "")
+    .replace(/^[ \t]*\|.*\|[ \t]*$/gm, " ")
+    .replace(/^[ \t]*[-:| ]+[ \t]*$/gm, " ")
+    .replace(/[*_`~]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 type MediaRow = { position: number; media_id: string };
 
@@ -169,7 +194,7 @@ export async function generateMetadata({
   const issue = await loadIssue(id);
   if (!issue) return { title: "ইস্যু পাওয়া যায়নি" };
   const url = `/spotlight/${encodeURIComponent(issue.id)}/`;
-  const description = issue.description.replace(/\s+/g, " ").trim().slice(0, 160);
+  const description = plainDescription(issue.description).slice(0, 160);
   return {
     title: issue.title,
     description,
@@ -197,9 +222,13 @@ export default async function SpotlightIssuePage({
   const name =
     author?.display_name?.trim() ||
     (author?.username ? `@${author.username}` : "সদস্য");
+  // Pictures placed in the description are drawn by the text itself, so the grid below drops them
+  // rather than showing each one twice.
+  const inlinePhotos = inlineMediaIds(issue.description, "spotlight");
   const photos = (issue.spotlight_post_media ?? [])
     .slice()
-    .sort((a, b) => a.position - b.position);
+    .sort((a, b) => a.position - b.position)
+    .filter((photo) => !inlinePhotos.includes(photo.media_id));
   const proof = (issue.spotlight_resolution_media ?? [])
     .slice()
     .sort((a, b) => a.position - b.position);
@@ -259,9 +288,9 @@ export default async function SpotlightIssuePage({
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
-          <p className="max-w-[68ch] whitespace-pre-line text-[17px] leading-8">
-            {issue.description}
-          </p>
+          <div className="article-body max-w-[68ch] text-[17px] leading-8">
+            <RichTextContent markdown={issue.description} scope="spotlight" />
+          </div>
           {photos.length > 0 && (
             <div className="grid gap-3 sm:grid-cols-2">
               {photos.map((photo) => (
@@ -300,6 +329,11 @@ export default async function SpotlightIssuePage({
             )}
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
+            {/*
+              The resolution note stays plain text, unlike the description above: it is typed into a
+              plain textarea in the marking dialog, so a lone `-` or `#` in it must not quietly become
+              a list or a heading. Only the post's own description is authored Markdown.
+            */}
             {issue.issue_note && (
               <p className="max-w-[68ch] whitespace-pre-line text-sm leading-7">
                 {issue.issue_note}

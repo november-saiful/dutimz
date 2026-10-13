@@ -42,8 +42,13 @@
     "next": "^15.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
     "recharts": "^2.15.0",
-    "tailwind-merge": "^2.5.4"
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1",
+    "tailwind-merge": "^2.5.4",
+    "turndown": "^7.2.4",
+    "turndown-plugin-gfm": "^1.0.2"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260911.1",
@@ -52,6 +57,7 @@
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "@types/turndown": "^5.0.6",
     "playwright": "^1.63.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^4.3.3",

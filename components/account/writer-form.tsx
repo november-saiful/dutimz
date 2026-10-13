@@ -15,8 +15,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { RadioGroup } from "@/components/ui/radio-group";
 import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
+import {
+  RichTextEditor,
+  type RichTextEditorHandle,
+} from "@/components/ui/rich-text-editor";
 import {
   QuestionnaireFields,
   type QuestionnaireVersion,
@@ -29,6 +32,7 @@ import { ReporterApplication } from "@/components/account/reporter-application";
 import { SignInButton } from "@/components/auth/sign-in-button";
 import { rememberReturnPath, signInWithGoogle } from "@/lib/auth-client";
 import { errorMessage, reportError } from "@/lib/errors";
+import { mediaMarkdownFor } from "@/lib/richtext";
 import { supabaseBrowser } from "@/lib/supabase";
 import { CATEGORIES, SITE_URL } from "@/lib/site";
 
@@ -65,6 +69,11 @@ export function WriterForm() {
   const [gallery, setGallery] = React.useState<GalleryItem[]>([]);
   // "on" keeps the RPC contract: the group still submits `is_anonymous=on`.
   const [anonymous, setAnonymous] = React.useState("off");
+  // The body is Markdown now, and the editor is controlled, so the text lives in state as well.
+  // It is named for the draft rather than for the column because the submit path still reads the
+  // value out of FormData under `name="body"`, exactly as the textarea's did.
+  const [bodyDraft, setBodyDraft] = React.useState("");
+  const editorRef = React.useRef<RichTextEditorHandle>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -131,6 +140,16 @@ export function WriterForm() {
       reportError("copy article link", err);
       toast({ tone: "error", title: "লিংক কপি করা যায়নি।" });
     }
+  }
+
+  /**
+   * The editor's picture button. The file input lives in the uploader below the text, so this takes
+   * the writer to it instead of opening a dialog with nothing to upload into.
+   */
+  function focusGallery() {
+    const input = document.getElementById("write-gallery");
+    input?.scrollIntoView({ block: "center", behavior: "smooth" });
+    (input as HTMLInputElement | null)?.focus();
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -211,6 +230,7 @@ export function WriterForm() {
           ? ((result.data as { slug: string }).slug)
           : "";
       form.reset();
+      setBodyDraft("");
       setAnswers({});
       setAnonymous("off");
       for (const item of gallery) URL.revokeObjectURL(item.objectUrl);
@@ -352,14 +372,18 @@ export function WriterForm() {
                 wide
                 hint="কমপক্ষে ১০০ অক্ষর। ব্যক্তিগত আক্রমণ, গুজব বা অনুমতিহীন ব্যক্তিগত তথ্য প্রকাশ করবেন না।"
               >
-                <Textarea
+                <RichTextEditor
+                  ref={editorRef}
                   id="write-body"
                   name="body"
+                  value={bodyDraft}
+                  onChange={setBodyDraft}
                   rows={12}
                   minLength={100}
                   maxLength={30000}
                   required
                   placeholder="যাচাই করা তথ্য ও প্রাসঙ্গিক সূত্রসহ প্রতিবেদন লিখুন…"
+                  onRequestImage={focusGallery}
                 />
               </Field>
             </FieldGrid>
@@ -379,7 +403,15 @@ export function WriterForm() {
             </FieldSection>
           )}
 
-          <GalleryUploader items={gallery} onChange={setGallery} />
+          <GalleryUploader
+            items={gallery}
+            onChange={setGallery}
+            onInsert={(item) =>
+              editorRef.current?.insertAtCaret(
+                mediaMarkdownFor(item.id, item.name, "article"),
+              )
+            }
+          />
 
           <FieldSection title="প্রকাশের পরিচয়">
             <RadioGroup

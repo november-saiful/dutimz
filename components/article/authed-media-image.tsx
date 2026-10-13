@@ -3,8 +3,9 @@
 import * as React from "react";
 
 import { reportError } from "@/lib/errors";
-import { MEDIA_URL } from "@/lib/site";
+import { mediaUrlFor, spotlightMediaUrlFor } from "@/lib/site";
 import { freshAccessToken } from "@/lib/supabase";
+import type { MediaScope } from "@/lib/richtext";
 import { cn } from "@/lib/utils";
 
 /**
@@ -20,10 +21,13 @@ export function AuthedMediaImage({
   mediaId,
   alt,
   className,
+  scope = "article",
 }: {
   mediaId: string;
   alt: string;
   className?: string;
+  /** Spotlight pictures live in their own bucket and are served from their own path. */
+  scope?: MediaScope;
 }) {
   const [url, setUrl] = React.useState<string | null>(null);
 
@@ -35,7 +39,9 @@ export function AuthedMediaImage({
         const token = await freshAccessToken();
         if (!token || cancelled) return;
         const response = await fetch(
-          `${MEDIA_URL}/media/${encodeURIComponent(mediaId)}`,
+          scope === "spotlight"
+            ? spotlightMediaUrlFor(mediaId)
+            : mediaUrlFor(mediaId),
           { headers: { Authorization: `Bearer ${token}` } },
         );
         if (!response.ok || cancelled) return;
@@ -51,7 +57,7 @@ export function AuthedMediaImage({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [mediaId]);
+  }, [mediaId, scope]);
 
   if (!url) {
     return (

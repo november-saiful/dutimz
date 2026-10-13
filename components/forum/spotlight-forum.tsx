@@ -29,11 +29,17 @@ import {
   FormMessage,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { RichTextContent } from "@/components/ui/rich-text-content";
+import {
+  RichTextEditor,
+  type RichTextEditorHandle,
+} from "@/components/ui/rich-text-editor";
 import { Select } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/toast";
 import { errorMessage, reportError } from "@/lib/errors";
+import { inlineMediaIds, mediaMarkdownFor } from "@/lib/richtext";
 import { spotlightMediaUrlFor, relativeTimeBn } from "@/lib/site";
 import { isSupabaseConfigured, one, supabaseBrowser } from "@/lib/supabase";
 
@@ -129,6 +135,9 @@ export function SpotlightForum() {
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [gallery, setGallery] = React.useState<GalleryItem[]>([]);
+  // The description carries Markdown now and its editor is controlled; the ref is what lets an
+  // uploaded picture be placed in the middle of the text instead of only attached to the post.
+  const editorRef = React.useRef<RichTextEditorHandle>(null);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
   const [done, setDone] = React.useState("");
@@ -355,6 +364,13 @@ export function SpotlightForum() {
     }
   }
 
+  /** The editor's picture button: take the writer to the uploader it can insert from. */
+  function focusGallery() {
+    const input = document.getElementById("write-gallery");
+    input?.scrollIntoView({ block: "center", behavior: "smooth" });
+    (input as HTMLInputElement | null)?.focus();
+  }
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -445,19 +461,33 @@ export function SpotlightForum() {
                     />
                   </Field>
                   <Field label="বিবরণ" htmlFor="spotlight-description" wide>
-                    <Textarea
+                    <RichTextEditor
+                      ref={editorRef}
                       id="spotlight-description"
                       value={description}
+                      onChange={setDescription}
                       rows={6}
-                      maxLength={5000}
+                      /* Migration 2 raises the column's ceiling from 5000 so a formatted account,
+                         with a table in it, is not refused by the database it is written to. */
+                      maxLength={20000}
                       required
-                      onChange={(e) => setDescription(e.target.value)}
+                      scope="spotlight"
                       placeholder="বিস্তারিত লিখুন…"
+                      onRequestImage={focusGallery}
                     />
                   </Field>
                 </FieldGrid>
               </FieldSection>
-              <GalleryUploader items={gallery} onChange={setGallery} scope="spotlight" />
+              <GalleryUploader
+                items={gallery}
+                onChange={setGallery}
+                scope="spotlight"
+                onInsert={(item) =>
+                  editorRef.current?.insertAtCaret(
+                    mediaMarkdownFor(item.id, item.name, "spotlight"),
+                  )
+                }
+              />
               {error && <FormMessage>{error}</FormMessage>}
               {done && <FormMessage tone="success">{done}</FormMessage>}
               <Button type="submit" disabled={busy} className="self-start">
@@ -486,9 +516,15 @@ export function SpotlightForum() {
         )}
         {posts.map((post) => {
           const author = one(post.author);
+          // A picture written into the description is already on screen inside the text, so the
+          // attachment grid below it shows only the pictures that were not placed there.
+          const inline = new Set(
+            inlineMediaIds(post.description, "spotlight"),
+          );
           const photos = (post.spotlight_post_media ?? [])
             .slice()
-            .sort((a, b) => a.position - b.position);
+            .sort((a, b) => a.position - b.position)
+            .filter((item) => !inline.has(item.media_id));
           const proof = (post.spotlight_resolution_media ?? [])
             .slice()
             .sort((a, b) => a.position - b.position);
@@ -569,9 +605,11 @@ export function SpotlightForum() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
-                <p className="whitespace-pre-line text-sm leading-7">
-                  {post.description}
-                </p>
+                <RichTextContent
+                  markdown={post.description}
+                  scope="spotlight"
+                  className="article-body text-sm leading-7"
+                />
                 {photos.length > 0 && (
                   <div className="grid gap-3 sm:grid-cols-2">
                     {photos.map((photo) => (

@@ -6,6 +6,7 @@ import { Bookmark, PenLine, Settings2, ShieldCheck, Wallet } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { ContentEditDialog, type EditTarget } from "@/components/account/content-edit-dialog";
 import { SignInButton } from "@/components/auth/sign-in-button";
 import { ProfileEditDialog } from "@/components/profile/profile-edit-dialog";
 import { PublicProfileSettings } from "@/components/profile/public-profile-settings";
@@ -111,6 +112,20 @@ export function AccountDashboard() {
   const [spotlights, setSpotlights] = React.useState<MySpotlight[] | null>(null);
   const [spotlightError, setSpotlightError] = React.useState("");
   const [spotlightFilter, setSpotlightFilter] = React.useState("all");
+  // An edit here is a request, never a write, so this holds the row being corrected and which
+  // kind it is — one dialog serves a story and a Spotlight post.
+  const [editing, setEditing] = React.useState<{
+    kind: "article" | "spotlight";
+    target: EditTarget;
+  } | null>(null);
+  // The row whose full text is being fetched, so only that row's button reads as busy.
+  const [editBusyId, setEditBusyId] = React.useState<string | null>(null);
+  const [pendingArticleEdits, setPendingArticleEdits] = React.useState<
+    Set<string>
+  >(() => new Set());
+  const [pendingSpotlightEdits, setPendingSpotlightEdits] = React.useState<
+    Set<string>
+  >(() => new Set());
 
   React.useEffect(() => {
     let cancelled = false;
@@ -261,11 +276,143 @@ export function AccountDashboard() {
     [],
   );
 
+  // The author's own pending edit requests, so a row can say a correction is already waiting
+  // instead of offering a second one the database would refuse.
+  const loadPendingEdits = React.useCallback(async (authorId: string) => {
+    try {
+      const supabase = supabaseBrowser();
+      const [articleResult, spotlightResult] = await Promise.all([
+        supabase
+          .from("article_edit_requests")
+          .select("article_id")
+          .eq("editor_id", authorId)
+          .eq("status", "pending"),
+        supabase
+          .from("spotlight_edit_requests")
+          .select("post_id")
+          .eq("editor_id", authorId)
+          .eq("status", "pending"),
+      ]);
+      if (articleResult.error) reportError("pending article edits", articleResult.error);
+      if (spotlightResult.error)
+        reportError("pending spotlight edits", spotlightResult.error);
+      setPendingArticleEdits(
+        new Set(
+          ((articleResult.data ?? []) as { article_id: string }[]).map(
+            (row) => row.article_id,
+          ),
+        ),
+      );
+      setPendingSpotlightEdits(
+        new Set(
+          ((spotlightResult.data ?? []) as { post_id: string }[]).map(
+            (row) => row.post_id,
+          ),
+        ),
+      );
+    } catch (err) {
+      reportError("pending edits", err);
+    }
+  }, []);
+
   React.useEffect(() => {
     if (!signedIn || !userId) return;
+    void loadPendingEdits(userId);
     if (tab === "news") void loadArticles();
     if (tab === "spotlights") void loadSpotlights(userId);
-  }, [tab, signedIn, userId, loadArticles, loadSpotlights]);
+  }, [tab, signedIn, userId, loadArticles, loadSpotlights, loadPendingEdits]);
+
+  /*
+    Both lists carry only titles and dates, so opening the editor fetches that one row whole.
+    Seeding the editor from a list entry would quietly publish a story that had lost its text the
+    moment a reviewer approved the correction.
+  */
+  async function openArticleEditor(article: MyArticle) {
+    setEditBusyId(article.id);
+    setArticlesError("");
+    try {
+      const { data, error } = await supabaseBrowser()
+        .from("articles")
+        .select("id,title,excerpt,body")
+        .eq("id", article.id)
+        .maybeSingle();
+      if (error) {
+        setArticlesError(
+          errorMessage("article for edit", error, "প্রতিবেদনটি লোড করা যায়নি।"),
+        );
+        return;
+      }
+      const row = data as {
+        id: string;
+        title: string;
+        excerpt: string | null;
+        body: string;
+      } | null;
+      if (!row) {
+        setArticlesError("প্রতিবেদনটি লোড করা যায়নি।");
+        return;
+      }
+      setEditing({
+        kind: "article",
+        target: {
+          id: row.id,
+          title: row.title,
+          excerpt: row.excerpt,
+          body: row.body,
+        },
+      });
+    } catch (err) {
+      setArticlesError(
+        errorMessage("article for edit", err, "প্রতিবেদনটি লোড করা যায়নি।"),
+      );
+    } finally {
+      setEditBusyId(null);
+    }
+  }
+
+  async function openSpotlightEditor(post: MySpotlight) {
+    setEditBusyId(post.id);
+    setSpotlightError("");
+    try {
+      const { data, error } = await supabaseBrowser()
+        .from("spotlight_posts")
+        .select("id,title,description")
+        .eq("id", post.id)
+        .maybeSingle();
+      if (error) {
+        setSpotlightError(
+          errorMessage("spotlight for edit", error, "পোস্টটি লোড করা যায়নি।"),
+        );
+        return;
+      }
+      const row = data as {
+        id: string;
+        title: string;
+        description: string;
+      } | null;
+      if (!row) {
+        setSpotlightError("পোস্টটি লোড করা যায়নি।");
+        return;
+      }
+      setEditing({
+        kind: "spotlight",
+        target: { id: row.id, title: row.title, body: row.description },
+      });
+    } catch (err) {
+      setSpotlightError(
+        errorMessage("spotlight for edit", err, "পোস্টটি লোড করা যায়নি।"),
+      );
+    } finally {
+      setEditBusyId(null);
+    }
+  }
+
+  /** A filed request changes the row's badge, so the pending set and the lists are re-read. */
+  function refreshAfterEdit() {
+    if (userId) void loadPendingEdits(userId);
+    if (tab === "news") void loadArticles();
+    if (tab === "spotlights" && userId) void loadSpotlights(userId);
+  }
 
   if (loading) {
     return (
@@ -505,6 +652,9 @@ export function AccountDashboard() {
                       <TableHead>শিরোনাম</TableHead>
                       <TableHead>অবস্থা</TableHead>
                       <TableHead>তারিখ</TableHead>
+                      <TableHead className="w-48">
+                        <span className="sr-only">পদক্ষেপ</span>
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -529,6 +679,24 @@ export function AccountDashboard() {
                             : article.status === "rejected" && article.rejected_at
                               ? formatDateBn(article.rejected_at)
                               : formatDateBn(article.created_at)}
+                        </TableCell>
+                        <TableCell className="align-top">
+                          {pendingArticleEdits.has(article.id) ? (
+                            <Badge variant="secondary">
+                              সম্পাদনা অনুমোদনের অপেক্ষায়
+                            </Badge>
+                          ) : article.status === "published" ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={editBusyId === article.id}
+                              onClick={() => void openArticleEditor(article)}
+                            >
+                              সংশোধনের অনুরোধ
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -591,12 +759,37 @@ export function AccountDashboard() {
                     {post.issue_note}
                   </p>
                 )}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {pendingSpotlightEdits.has(post.id) ? (
+                    <Badge variant="secondary">
+                      সম্পাদনা অনুমোদনের অপেক্ষায়
+                    </Badge>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={editBusyId === post.id}
+                      onClick={() => void openSpotlightEditor(post)}
+                    >
+                      সংশোধনের অনুরোধ
+                    </Button>
+                  )}
+                </div>
               </div>
             ))}
           </CardContent>
         </Card>
       )}
 
+      <ContentEditDialog
+        kind={editing?.kind ?? "article"}
+        open={editing !== null}
+        onOpenChange={(next) => {
+          if (!next) setEditing(null);
+        }}
+        target={editing?.target ?? null}
+        onSubmitted={refreshAfterEdit}
+      />
       <ProfileEditDialog open={editOpen} onOpenChange={setEditOpen} onSaved={setCompletion} />
       <PublicProfileSettings open={manageOpen} onOpenChange={setManageOpen} />
     </div>

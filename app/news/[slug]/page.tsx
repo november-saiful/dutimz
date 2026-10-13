@@ -18,6 +18,7 @@ import {
   storyUrl,
 } from "@/components/dashboard/story-blocks";
 import { StoryArt } from "@/components/dashboard/story-card";
+import { RichTextContent } from "@/components/ui/rich-text-content";
 import {
   CATEGORIES,
   SITE_URL,
@@ -25,6 +26,7 @@ import {
   formatDateBn,
   mediaUrlFor,
 } from "@/lib/site";
+import { inlineMediaIds } from "@/lib/richtext";
 import {
   articleSlugExists,
   getArticleQuestionnaire,
@@ -112,14 +114,19 @@ export default async function ArticlePage({
 
   const category = storyCategory(article);
   const credit = storyCredit(article);
-  const paragraphs = article.body
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter(Boolean);
+  // A picture placed in the text is drawn by the body itself, so the gallery strip must not show
+  // it a second time. `inlineMediaIds` is the same rule the database applies when it decides which
+  // of these pictures the media host is allowed to serve, so the two can never disagree about
+  // which images are "in the text".
+  const inlineMedia = inlineMediaIds(article.body, "article");
   const gallery = (article.article_media ?? [])
     .slice()
     .sort((a, b) => a.position - b.position)
-    .filter((item) => item.media_id !== article.hero_media_key);
+    .filter(
+      (item) =>
+        item.media_id !== article.hero_media_key &&
+        !inlineMedia.includes(item.media_id),
+    );
   const images = [
     article.hero_media_key,
     ...gallery.map((item) => item.media_id),
@@ -227,9 +234,7 @@ export default async function ArticlePage({
           </figure>
 
           <div className="article-body">
-            {paragraphs.map((paragraph, index) => (
-              <p key={index}>{paragraph}</p>
-            ))}
+            <RichTextContent markdown={article.body} />
           </div>
 
           {gallery.length > 0 && (
