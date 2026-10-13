@@ -3,10 +3,16 @@ import type { MetadataRoute } from "next";
 import { CATEGORIES, SITE_URL } from "@/lib/site";
 import { getSitemapArticles, getSitemapCategorySlugs } from "@/lib/stories";
 
-// The desk publishes throughout the day, so the sitemap is rendered when it is asked for
-// rather than frozen into the build: a sitemap listing only what existed at deploy time is
-// worse than none, because crawlers trust it. It costs two indexed queries.
-export const dynamic = "force-dynamic";
+/*
+  Cached like the reading surfaces it lists, and invalidated when the desk changes them.
+
+  A sitemap is only useful while it matches what the site serves, so it cannot be frozen into the
+  build either: the desk publishes throughout the day, and a crawler that finds a story missing
+  from the sitemap stops looking for it. The desk's approval invalidates this route along with the
+  pages (lib/revalidate.ts), and the window below is the backstop — so a story appears here within
+  a minute of the deploy that carried it, or immediately after the approval that published it.
+*/
+export const revalidate = 60;
 
 // Nothing reader-specific is advertised here: /account/, /auth/ and /api/ are disallowed in
 // app/robots.ts, and /saved/ and /profile/me/ are per-reader views with no canonical of their

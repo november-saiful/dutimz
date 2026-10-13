@@ -26,6 +26,22 @@
 // there is still a release failure; the apex simply not being switched over yet is a warning
 // that names the exact action, so a red release always means something is actually broken.
 //
+// Transient 5xx failures are waited out rather than reported.
+//
+// Cloudflare's edge answers 503 for the requests it kills (the ones seen here said
+// `error code: 1102`), and whether a given request is killed is not stable between two
+// attempts a second apart: one release failed on three consecutive requests at the tail of the
+// walk — the last two articles and /sitemap.xml — and the same three URLs answered 200 to the
+// next attempt. One 503 is therefore not a verdict on a deployment, and this check should
+// report a broken site rather than an unlucky request. Retrying does not excuse whatever makes
+// the Worker answer 1102 — the retry lines below are the evidence to look for — but it does
+// keep a healthy deployment from going red on the way past.
+//
+// Every attempt is logged, so the retry is visible in the release log rather than silent, and
+// only 5xx and timeouts are retried: a deployment that is really down answers 5xx to every
+// attempt and still fails the release, while a 404, an unexpected status or a missing header is
+// a fact and is reported at once.
+
 // This sets process.exitCode rather than calling process.exit(): exiting while the HTTP
 // keep-alive sockets are still closing aborts the process on Windows and reports a bogus
 // exit code, which is exactly the sort of noise a smoke check must not emit.
@@ -37,6 +53,8 @@ const maxHops = Number(process.env.MAX_HOPS ?? 5);
 const requestTimeoutMs = Number(process.env.REQUEST_TIMEOUT_MS ?? 15000);
 const cacheAttempts = Number(process.env.CACHE_ATTEMPTS ?? 4);
 const cacheDelayMs = Number(process.env.CACHE_DELAY_MS ?? 2000);
+const retryAttempts = Number(process.env.RETRY_ATTEMPTS ?? 4);
+const retryDelayMs = Number(process.env.RETRY_DELAY_MS ?? 1500);
 const REQUIRED = ['supabaseUrl', 'supabaseAnonKey', 'mediaUrl'];
 
 // Every HTML page the site serves has to carry these. public/_headers applies them to the
@@ -64,12 +82,43 @@ const CANONICAL_PATHS = [
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// The statuses an edge blip produces, and only those. 429 is included because a release makes
+// its requests from a single address in a burst, and being asked to slow down is not a defect
+// in the deployment.
+const isTransient = (status) => status === 429 || status >= 500;
+
+/**
+ * Run `attempt` until it answers something other than a transient failure, or the attempts run
+ * out. The last response is returned rather than thrown so every caller keeps reporting a real,
+ * persistent failure in its own words: nothing here weakens a check, it only waits.
+ */
+async function withRetries(label, attempt) {
+  let last;
+  for (let tries = 1; tries <= retryAttempts; tries += 1) {
+    try {
+      const response = await attempt();
+      if (!isTransient(response.status)) return response;
+      last = response;
+      console.log(`  ${label} answered HTTP ${response.status} (attempt ${tries}/${retryAttempts})`);
+    } catch (error) {
+      last = error;
+      console.log(`  ${label} failed (${error.message}) on attempt ${tries}/${retryAttempts}`);
+    }
+    if (tries < retryAttempts) await sleep(retryDelayMs);
+  }
+  if (last instanceof Error) throw last;
+  console.log(`  ${label} still answered HTTP ${last.status} after ${retryAttempts} attempts`);
+  return last;
+}
+
 async function request(url) {
-  return fetch(url, {
-    redirect: 'manual',
-    headers: { 'cache-control': 'no-cache' },
-    signal: AbortSignal.timeout(requestTimeoutMs),
-  });
+  return withRetries(url, () =>
+    fetch(url, {
+      redirect: 'manual',
+      headers: { 'cache-control': 'no-cache' },
+      signal: AbortSignal.timeout(requestTimeoutMs),
+    }),
+  );
 }
 
 /**
@@ -81,17 +130,21 @@ async function request(url) {
  * very caching this check exists to prove.
  */
 async function visit(url) {
-  return fetch(url, {
-    redirect: 'follow',
-    signal: AbortSignal.timeout(requestTimeoutMs),
-  });
+  return withRetries(url, () =>
+    fetch(url, {
+      redirect: 'follow',
+      signal: AbortSignal.timeout(requestTimeoutMs),
+    }),
+  );
 }
 
 async function fetchText(url, headers = {}) {
-  const response = await fetch(url, {
-    headers: { 'cache-control': 'no-cache', ...headers },
-    signal: AbortSignal.timeout(requestTimeoutMs),
-  });
+  const response = await withRetries(url, () =>
+    fetch(url, {
+      headers: { 'cache-control': 'no-cache', ...headers },
+      signal: AbortSignal.timeout(requestTimeoutMs),
+    }),
+  );
   if (!response.ok) {
     throw new Error(`${url} returned HTTP ${response.status}`);
   }
@@ -111,14 +164,16 @@ function problemsWith(config) {
 // Everything the browser needs to talk to Supabase, used the way the browser uses it.
 async function anonymousRead(config, path) {
   const url = `${config.supabaseUrl}/rest/v1/${path}`;
-  const response = await fetch(url, {
-    headers: {
-      apikey: config.supabaseAnonKey,
-      authorization: `Bearer ${config.supabaseAnonKey}`,
-      'cache-control': 'no-cache',
-    },
-    signal: AbortSignal.timeout(requestTimeoutMs),
-  });
+  const response = await withRetries(url, () =>
+    fetch(url, {
+      headers: {
+        apikey: config.supabaseAnonKey,
+        authorization: `Bearer ${config.supabaseAnonKey}`,
+        'cache-control': 'no-cache',
+      },
+      signal: AbortSignal.timeout(requestTimeoutMs),
+    }),
+  );
   return { url, status: response.status, body: (await response.text()).slice(0, 160) };
 }
 
@@ -199,7 +254,15 @@ function canonicalSamples(links) {
 /** The `www` host for a bare apex, or null when this deployment has no such twin. */
 function wwwHostFor(base) {
   const { protocol, hostname } = new URL(base);
-  if (hostname.startsWith('www.') || hostname.endsWith('.workers.dev') || !hostname.includes('.')) {
+  // A loopback address has no `www` twin either, so `SITE_URL=http://127.0.0.1:3197` — which is
+  // how the check is pointed at a stub or a local Worker — must not go looking for www.127.0.0.1.
+  if (
+    hostname.startsWith('www.') ||
+    hostname.endsWith('.workers.dev') ||
+    !hostname.includes('.') ||
+    hostname === 'localhost' ||
+    /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname)
+  ) {
     return null;
   }
   return `${protocol}//www.${hostname}/`;
@@ -217,19 +280,31 @@ function wwwHostFor(base) {
 async function cacheProblems(base) {
   const problems = [];
 
-  // This is the deterministic proof, and it is gated:
+  // These are the deterministic proofs, and they are gated:
   //
-  // - `/about/` is fully static (`initialRevalidateSeconds: false`), so once it is in the
-  //   cache it is always a hit and can never be legitimately stale.
-  // The homepage and the news and section pages are rendered per request (`force-dynamic`) so an
-  // approved story appears at once, so they are deliberately not gated here: a fresh render is the
-  // intended behaviour for them, not a missing cache.
+  // - `/about/` is fully static (`initialRevalidateSeconds: false`), so once it is in the cache it
+  //   is always a hit and can never be legitimately stale.
+  // - `/` is prerendered and uploaded with the deployment, so its first response has to come from
+  //   the cache too. This is the check that would have caught the failure this exists because of:
+  //   the front page was rendered per request, every request for it exceeded the Worker's resource
+  //   limit, and Cloudflare answered 503 (`error code: 1102`) to every reader. A `MISS` here means
+  //   the front page is being rendered on demand again, which is a release that will fall over
+  //   under any traffic (STALE is allowed: it is still served from the cache).
   //
-  // `/about/` is the one route that is both fully static and cached by design, so it is the
-  // deterministic proof that the cache is wired up.
+  // The sampled article and section routes are deliberately *not* gated: a story published since
+  // the deployment is legitimately a miss the first time it is asked for. What keeps them off the
+  // render path is that the build prerenders the published ones, which the build log reports.
   const targets = [
     { path: '/about/', allowStale: false, required: true },
+    { path: '/', allowStale: true, required: true },
   ];
+
+  // A live article and a section, taken from the front page, and reported rather than gated: they
+  // are the routes a reader actually lands on, so whether they are being served from the cache is
+  // worth seeing in a release log — but a story published since the deployment is legitimately a
+  // miss the first time it is asked for, which is not a release failure.
+  const sampled = [...canonicalSamples(await homeLinks(base)).keys()].slice(0, 2);
+  for (const path of sampled) targets.push({ path, allowStale: true, required: false });
 
   for (const { path, allowStale, required } of targets) {
     const url = new URL(path, base).toString();

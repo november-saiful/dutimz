@@ -22,10 +22,23 @@ import {
   previewStories,
 } from "@/lib/stories";
 
-// Rendered per request so an approved story is on the front page the moment it is approved. The
-// 30 second page cache this used to be only refreshed when a background regeneration ran, so a
-// story could stay off the front page for hours, and a hard refresh did not help.
-export const dynamic = "force-dynamic";
+/*
+  Cached, and invalidated the moment the desk changes what readers see.
+
+  This page used to render on every request, because the 30 second page cache it replaced was only
+  ever refreshed by a background regeneration — a story could stay off the front page for hours.
+  Rendering per request is what made the front page exceed the Worker's resource limit, though:
+  Cloudflare answered 503 (error 1102) to every request for it, and a reader's request paid for a
+  full React render or paid with an error page. The cache is now the thing every reader is served
+  from, and the desk invalidates it the moment a story is approved, edited, published or withdrawn
+  (lib/revalidate.ts, reached through app/api/revalidate/route.ts), so "at once" no longer means
+  "re-render for everyone".
+
+  The window below is the fallback, not the mechanism: it bounds how stale the page can be if an
+  approval's invalidation never arrives. Regeneration happens in the background queue, off the
+  request that triggered it.
+*/
+export const revalidate = 60;
 
 /** The paper's own horizon, for the hero orb's inner ring: pure decoration. */
 function Orb() {

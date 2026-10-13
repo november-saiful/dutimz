@@ -29,6 +29,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { AdminArticles } from "@/components/account/admin-articles";
+import { revalidateReaders } from "@/lib/desk-client";
 import { errorMessage } from "@/lib/errors";
 import { one, supabaseBrowser } from "@/lib/supabase";
 import { bn, bnMoney, formatDateBn } from "@/lib/site";
@@ -394,6 +395,9 @@ export function AdminDashboard() {
         );
         return false;
       }
+      // A granted withdrawal unpublishes the story, so the pages that were showing it have to be
+      // invalidated like any other change to published writing.
+      void revalidateReaders();
       setNotice("উত্তোলনের সিদ্ধান্ত নথিভুক্ত হয়েছে।");
       setReasons((prev) => {
         const next = { ...prev };

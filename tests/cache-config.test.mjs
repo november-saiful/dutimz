@@ -23,11 +23,22 @@ const wranglerConfig = async () =>
   parseJsonc(await readProjectFile('wrangler.jsonc'));
 
 // These names are the adapter's contract, not this project's preference: R2IncrementalCache
-// reads `NEXT_INC_CACHE_R2_BUCKET`, do-queue reads `NEXT_CACHE_DO_QUEUE`, and the class has to
-// be exported from the generated Worker under the name the config declares.
+// reads `NEXT_INC_CACHE_R2_BUCKET`, do-queue reads `NEXT_CACHE_DO_QUEUE`, the sharded tag cache
+// reads `NEXT_TAG_CACHE_DO_SHARDED`, and each class has to be exported from the generated Worker
+// under the name the config declares.
 const R2_BINDING = 'NEXT_INC_CACHE_R2_BUCKET';
 const QUEUE_BINDING = 'NEXT_CACHE_DO_QUEUE';
 const QUEUE_CLASS = 'DOQueueHandler';
+const TAG_CACHE_BINDING = 'NEXT_TAG_CACHE_DO_SHARDED';
+const TAG_CACHE_CLASS = 'DOShardedTagCache';
+
+/** The routes a reader reaches through an approval, and the window each one falls back to. */
+const CACHED_READING_ROUTES = [
+  'app/page.tsx',
+  'app/news/[slug]/page.tsx',
+  'app/category/[slug]/page.tsx',
+  'app/sitemap.ts',
+];
 
 test('the adapter is configured with a real cache and queue, not its no-op defaults', async () => {
   const config = await readProjectFile('open-next.config.ts');
@@ -42,8 +53,14 @@ test('the adapter is configured with a real cache and queue, not its no-op defau
     /from "@opennextjs\/cloudflare\/overrides\/queue\/do-queue"/,
     'the queue must be imported; time-based revalidation cannot enqueue anything without it',
   );
+  assert.match(
+    config,
+    /from "@opennextjs\/cloudflare\/overrides\/tag-cache\/do-sharded-tag-cache"/,
+    'the tag cache must be imported; without one `revalidatePath` is accepted and does nothing',
+  );
   assert.match(config, /incrementalCache:\s*r2IncrementalCache/);
   assert.match(config, /queue:\s*doQueue/);
+  assert.match(config, /tagCache:\s*doShardedTagCache/);
 
   // A bare call is exactly how the site shipped uncached, so it must not come back.
   assert.doesNotMatch(
@@ -73,6 +90,22 @@ test('production binds the cache bucket, the queue class and its migration', asy
   assert.ok(
     (config.migrations ?? []).some((entry) => entry.new_sqlite_classes?.includes(QUEUE_CLASS)),
     'the queue class must be declared in a migration, or the deploy cannot create it',
+  );
+
+  // The tag cache is the only thing that makes the desk's invalidation mean anything, and a
+  // missing binding degrades silently: `revalidatePath` still returns, the pages simply wait out
+  // their revalidate window. So it is asserted here rather than trusted.
+  assert.ok(
+    queue.some(
+      (entry) => entry.name === TAG_CACHE_BINDING && entry.class_name === TAG_CACHE_CLASS,
+    ),
+    `the tag cache must be bound as ${TAG_CACHE_BINDING} -> ${TAG_CACHE_CLASS}`,
+  );
+  assert.ok(
+    (config.migrations ?? []).some((entry) =>
+      entry.new_sqlite_classes?.includes(TAG_CACHE_CLASS),
+    ),
+    'the tag cache class needs its own migration tag: migrations are append-only',
   );
   assert.equal(
     config.observability?.enabled,
@@ -108,10 +141,22 @@ test('the preview environment re-declares every binding it needs, in its own nam
     'the preview must bind the queue as well; its own Worker needs the classes it declares',
   );
   assert.ok(
+    (preview.durable_objects?.bindings ?? []).some(
+      (entry) => entry.name === TAG_CACHE_BINDING && entry.class_name === TAG_CACHE_CLASS,
+    ),
+    'the preview invalidates its own pages, so it needs its own tag cache',
+  );
+  assert.ok(
     (preview.migrations ?? []).some((entry) =>
       entry.new_sqlite_classes?.includes(QUEUE_CLASS),
     ),
     'an environment deploys its own Worker, so it needs its own migration for the class',
+  );
+  assert.ok(
+    (preview.migrations ?? []).some((entry) =>
+      entry.new_sqlite_classes?.includes(TAG_CACHE_CLASS),
+    ),
+    'an environment deploys its own Worker, so it needs its own migration for the tag cache',
   );
 
   // A preview build renders demo content. It writes to its own bucket so preview churn can
@@ -141,23 +186,97 @@ test('the preview names its own script in the self reference', async () => {
   );
 });
 
-test('the pages that show approvals render per request and never read the request', async () => {
-  // A story approved in the desk has to be on the front page, its section and its own page at once.
-  // A cached copy of these pages keeps the old state until a background regeneration runs, which
-  // is how approved stories stayed missing for hours. So they render per request. Because they are
-  // not cached for everyone, they must also not read cookies or headers into their output: a
-  // personalised render would otherwise be served to the wrong visitor.
-  for (const path of ['app/page.tsx', 'app/news/[slug]/page.tsx', 'app/category/[slug]/page.tsx']) {
+test('the pages an approval changes are cached rather than rendered per request', async () => {
+  // These four routes used to render per request so an approval appeared at once. That is what put
+  // them over the Worker's resource limit — Cloudflare answered 503, error 1102 ("Worker exceeded
+  // resource limits") to the front page and to article pages, for every reader, all day. They are
+  // cached now and invalidated by the desk (see the next test), so the price of an approval is one
+  // regeneration rather than a render on every request.
+  for (const path of CACHED_READING_ROUTES) {
     const source = await readProjectFile(path);
-    assert.match(
+    assert.doesNotMatch(
       source,
       /export const dynamic\s*=\s*"force-dynamic"/,
-      `${path} must render per request so an approved story shows up at once`,
+      `${path} must not render per request: that is the load the cache exists to remove`,
     );
+    assert.match(
+      source,
+      /export const revalidate\s*=\s*\d+/,
+      `${path} must declare the window it falls back to when an invalidation never arrives`,
+    );
+    // Cached output is shared by every visitor, so nothing may vary by visitor. A render that read
+    // a cookie or a header would be served, from the cache, to somebody else.
     assert.doesNotMatch(
       source,
       /next\/headers/,
-      `${path} renders the same HTML for every visitor and must not read cookies or headers`,
+      `${path} serves the same HTML to every visitor and must not read cookies or headers`,
+    );
+  }
+
+  // A dynamic segment with no params to prerender is rendered per request and never stored,
+  // whatever `revalidate` says — verified against a local Worker: the route answered
+  // `Cache-Control: private, no-cache, no-store` and wrote nothing to the incremental cache. So
+  // the two routes under a dynamic segment have to name their params.
+  for (const path of ['app/news/[slug]/page.tsx', 'app/category/[slug]/page.tsx']) {
+    const source = await readProjectFile(path);
+    assert.match(
+      source,
+      /export (async )?function generateStaticParams\(\)/,
+      `${path} needs generateStaticParams: without it there is no cache entry to invalidate`,
+    );
+  }
+});
+
+test('the desk invalidates what it changes, through one authenticated door', async () => {
+  // The other half of caching a page an approval changes: something has to say it changed. The
+  // surfaces are named once, on the server, and the invalidation is gated the way every other desk
+  // surface is — by the database's own rule, not a second copy of the role list here.
+  const surfaces = await readProjectFile('lib/revalidate.ts');
+  for (const path of ['/', '/news/[slug]', '/category/[slug]', '/sitemap.xml']) {
+    assert.ok(
+      surfaces.includes(`"${path}"`),
+      `lib/revalidate.ts must invalidate ${path}: an approval changes it`,
+    );
+  }
+  assert.match(surfaces, /revalidatePath\(/, 'the surfaces have to actually be invalidated');
+
+  const route = await readProjectFile('app/api/revalidate/route.ts');
+  assert.match(route, /revalidateReadingSurfaces\(\)/, 'the route performs the invalidation');
+  assert.match(
+    route,
+    /auth\.getUser\(token\)/,
+    'the caller must be proven to be a signed-in account',
+  );
+  assert.match(
+    route,
+    /rpc\("is_moderator_or_admin"\)/,
+    'the role must come from the database rule every other desk surface uses',
+  );
+  assert.doesNotMatch(
+    route,
+    /searchParams|request\.json|await request\.text/,
+    'the caller says "I changed something"; it does not get to choose what is invalidated',
+  );
+
+  // Every desk action that changes what a reader can see has to say so. Each of these is a
+  // mutation of published writing: approving or rejecting a story or a comment, approving an edit
+  // to live writing, publishing, unpublishing, rewriting a story's body, and granting a withdrawal.
+  for (const [path, rpc] of [
+    ['components/account/moderation-queue.tsx', 'moderate_article'],
+    ['components/account/moderation-queue.tsx', 'moderate_comment'],
+    ['components/account/pending-edits.tsx', 'moderate_article_edit'],
+    ['components/account/pending-edits.tsx', 'moderate_spotlight_edit'],
+    ['components/account/admin-articles.tsx', 'admin_update_article'],
+    ['components/account/admin-articles.tsx', 'admin_set_article_publication'],
+    ['components/account/admin-articles.tsx', 'admin_set_article_status'],
+    ['components/account/admin-dashboard.tsx', 'review_withdrawal'],
+  ]) {
+    const source = await readProjectFile(path);
+    assert.ok(source.includes(`"${rpc}"`), `${path} is expected to call ${rpc}`);
+    assert.match(
+      source,
+      /revalidateReaders\(\)/,
+      `${path} changes published content through ${rpc} and must invalidate the reading surfaces`,
     );
   }
 });
@@ -205,6 +324,15 @@ test('the live check proves the cache is serving, not merely that pages answer 2
     /\{ path: '\/about\/', allowStale: false, required: true \}/,
     'a fully static page must be required to hit outright: it can never be legitimately stale, ' +
       'so a miss there cannot be excused as a page that is merely due for regeneration',
+  );
+  // The front page is the one whose per-request render produced the 503s, and it is prerendered
+  // and uploaded with the deployment, so it has to come from the cache too. STALE is allowed:
+  // it is still served from the cache, with the regeneration happening behind the response.
+  assert.match(
+    script,
+    /\{ path: '\/', allowStale: true, required: true \}/,
+    'the front page must be gated on the cache as well, or a release could ship it back to ' +
+      'rendering on every request (Cloudflare 1102) with nothing to say so',
   );
 
   const probe = script.slice(

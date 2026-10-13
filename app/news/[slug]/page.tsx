@@ -31,6 +31,7 @@ import {
   articleSlugExists,
   getArticleQuestionnaire,
   getLatestStories,
+  getSitemapArticles,
   getStoryBySlug,
   shareImageFor,
 } from "@/lib/stories";
@@ -40,10 +41,30 @@ import {
   storyCredit,
 } from "@/lib/supabase";
 
-// Rendered per request: an approved story must be readable the moment it is approved. A cached
-// page, including one first rendered while the story was still pending, keeps the old state until
-// a background regeneration runs, so readers saw approved stories as missing or pending for hours.
-export const dynamic = "force-dynamic";
+/*
+  Cached, and invalidated the moment the desk changes what readers see.
+
+  This used to render on every request, because a cached copy (including one first rendered while
+  the story was still pending) keeps the old state until a background regeneration runs — which is
+  how readers saw approved stories as missing or pending for hours. Rendering per request is also
+  what put the page over the Worker's resource limit: Cloudflare answered 503, error 1102 ("Worker
+  exceeded resource limits"), to article pages as well as to the front page.
+
+  `generateStaticParams` is what makes this route cacheable at all: a dynamic segment with no
+  params to prerender is rendered per request and never stored, whatever `revalidate` says. Every
+  published story is rendered at deploy time (and uploaded with the Worker, so the first reader
+  after a release is served from the cache), and a story published since then is rendered on
+  demand and cached like any other. The desk invalidates what it changes; the window is the
+  backstop for an approval whose invalidation never arrives.
+*/
+export const revalidate = 60;
+
+export async function generateStaticParams(): Promise<{ slug: string }[]> {
+  // Slugs only: the render fetches each story itself, and this list is already the one the
+  // sitemap advertises. A build with no database configured (or a preview) simply prerenders
+  // nothing and every article is generated on demand.
+  return (await getSitemapArticles()).map((article) => ({ slug: article.slug }));
+}
 
 export async function generateMetadata({
   params,

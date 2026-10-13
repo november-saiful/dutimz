@@ -36,13 +36,27 @@
       {
         "name": "NEXT_CACHE_DO_QUEUE",
         "class_name": "DOQueueHandler"
+      },
+      // The tag cache is what makes `revalidatePath` mean anything: the desk's approvals and
+      // edits invalidate the cached reading surfaces through it. The class is exported by the
+      // generated Worker even if this binding is absent, so a missing binding here degrades
+      // silently — pages simply wait out their revalidate window instead.
+      {
+        "name": "NEXT_TAG_CACHE_DO_SHARDED",
+        "class_name": "DOShardedTagCache"
       }
     ]
   },
+  // Migrations are append-only: a class that is already deployed has to keep the tag it was
+  // created with, so the tag cache gets a tag of its own rather than being folded into v1.
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": ["DOQueueHandler"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["DOShardedTagCache"]
     }
   ],
   // The public hostnames are declared here instead of being clicked into the dashboard, so
@@ -94,6 +108,10 @@
           {
             "name": "NEXT_CACHE_DO_QUEUE",
             "class_name": "DOQueueHandler"
+          },
+          {
+            "name": "NEXT_TAG_CACHE_DO_SHARDED",
+            "class_name": "DOShardedTagCache"
           }
         ]
       },
@@ -101,6 +119,10 @@
         {
           "tag": "v1",
           "new_sqlite_classes": ["DOQueueHandler"]
+        },
+        {
+          "tag": "v2",
+          "new_sqlite_classes": ["DOShardedTagCache"]
         }
       ],
       // The queue regenerates a stale page by calling the Worker back through this binding,

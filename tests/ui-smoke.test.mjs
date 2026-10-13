@@ -151,11 +151,15 @@ test('robots and the sitemap are generated from the same site URL', async () => 
 test('the sitemap lists canonical, reader-visible URLs only', async () => {
   const sitemap = await readProjectFile('app/sitemap.ts');
   const code = sitemap.replace(/\/\/[^\n]*/g, '');
-  assert.match(
+  // A sitemap frozen at deploy time lists only what existed then, and crawlers trust it — so it is
+  // neither built once nor rendered per request. It is cached and invalidated by the desk that
+  // publishes the stories it lists (lib/revalidate.ts), with the window as its backstop.
+  assert.doesNotMatch(
     sitemap,
     /force-dynamic/,
-    'a sitemap frozen at deploy time lists only what existed then, and crawlers trust it',
+    'the sitemap is cached now: rendering it per request was one of the routes Cloudflare 1102-ed',
   );
+  assert.match(sitemap, /export const revalidate = \d+/);
   // Every advertised URL must be the trailing-slash canonical the site redirects to, or the
   // crawler is sent through a redirect on each page.
   assert.match(code, /\/news\/\$\{article\.slug\}\//);
@@ -508,9 +512,11 @@ test('the homepage is the reference design\'s home view over the real archive', 
   // The front page is the design's composition — hero with the orb, the three
   // previews, the recommended rail, the latest rows and the two carousels —
   // and every slot is filled from the archive read. An approved story still
-  // has to appear at once, so the route renders per request.
+  // has to appear at once: the route is cached and the desk invalidates it,
+  // rather than every reader's request paying for a render (Cloudflare 1102).
   const page = await readProjectFile('app/page.tsx');
-  assert.match(page, /export const dynamic = "force-dynamic"/);
+  assert.doesNotMatch(page, /force-dynamic/);
+  assert.match(page, /export const revalidate = \d+/);
   assert.match(page, /<DutimzShell bare>/);
   assert.match(page, /hero-grid/);
   assert.match(page, /aria-label="প্রধান প্রতিবেদন"/);

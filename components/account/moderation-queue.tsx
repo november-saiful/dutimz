@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextContent } from "@/components/ui/rich-text-content";
+import { revalidateReaders } from "@/lib/desk-client";
 import { errorMessage } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
 import { formatDateBn } from "@/lib/site";
@@ -159,6 +160,10 @@ export function ModerationQueue() {
         );
         return;
       }
+      // An approved story is on the front page, in its section and on its own page as soon as the
+      // cached copies of those pages are invalidated; a comment lands on a cached article page the
+      // same way. Both decisions go through here, so both go through the same call.
+      void revalidateReaders();
       setReasons((prev) => {
         const next = { ...prev };
         delete next[id];

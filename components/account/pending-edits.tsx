@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { RichTextContent } from "@/components/ui/rich-text-content";
 import { Textarea } from "@/components/ui/textarea";
+import { revalidateReaders } from "@/lib/desk-client";
 import { errorMessage } from "@/lib/errors";
 import { bn, formatDateBn } from "@/lib/site";
 import { one, supabaseBrowser } from "@/lib/supabase";
@@ -251,6 +252,10 @@ export function PendingEdits() {
         );
         return;
       }
+      // An approved edit has just rewritten writing that is already live, so the cached copies of
+      // the pages showing it are invalidated here — the same call the moderation queue makes for an
+      // approval, because it is the same consequence.
+      void revalidateReaders();
       setReasons((prev) => {
         const next = { ...prev };
         delete next[id];

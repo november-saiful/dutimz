@@ -2,13 +2,32 @@ import type { Metadata } from "next";
 
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
 import { MiniRow, storyItemFromStory } from "@/components/dashboard/story-blocks";
-import { CATEGORY_NAMES } from "@/lib/site";
+import { CATEGORIES, CATEGORY_NAMES } from "@/lib/site";
 import { getCategoryStories } from "@/lib/stories";
 
-// Rendered per request: a newly approved story has to appear in its section at once. A cached
-// section page is only refreshed by a background regeneration, which is how stories stayed
-// missing from their section for hours.
-export const dynamic = "force-dynamic";
+/*
+  Cached, and invalidated when the desk changes what readers see in this section.
+
+  A newly approved story has to appear in its section at once, which is why this rendered per
+  request — and rendering every section on every request is what put these pages over the
+  Worker's resource limit (Cloudflare 503, error 1102). The desk's approvals and edits now
+  invalidate the cached pages instead, so the section is refreshed by the change rather than by
+  the reader's request. The window bounds how stale it can get if an invalidation never arrives.
+*/
+export const revalidate = 60;
+
+/**
+ * A dynamic segment with nothing to prerender is rendered per request and never stored, whatever
+ * `revalidate` says, so every section is named here. The list is the site's own configuration
+ * rather than a query: unlike articles, the sections are known without the database, and a section
+ * that exists in the database but not here still renders on demand (`dynamicParams` defaults to
+ * true) and is cached from then on.
+ */
+export function generateStaticParams(): { slug: string }[] {
+  return CATEGORIES.filter((category) => category.slug !== "all").map((category) => ({
+    slug: category.slug,
+  }));
+}
 
 export async function generateMetadata({
   params,

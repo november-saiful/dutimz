@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextContent } from "@/components/ui/rich-text-content";
+import { revalidateReaders } from "@/lib/desk-client";
 import { errorMessage } from "@/lib/errors";
 import { inlineMediaIds } from "@/lib/richtext";
 import { supabaseBrowser } from "@/lib/supabase";
@@ -191,6 +192,9 @@ export function AdminArticles() {
         setError(errorMessage("article edit", saveError, "প্রতিবেদন সম্পাদনা করা যায়নি। আবার চেষ্টা করুন।"));
         return;
       }
+      // The edit has rewriten a story a reader can reach, so the cached copies of the reading
+      // surfaces are invalidated before the desk moves on.
+      void revalidateReaders();
       setNotice("প্রতিবেদন সংরক্ষিত হয়েছে।");
       setEditing(null);
       await load(status, query);
@@ -268,6 +272,9 @@ export function AdminArticles() {
         );
         return;
       }
+      // A byline or publication date decides whether the story is on the front page at all, and
+      // which author it is credited to there.
+      void revalidateReaders();
       setNotice("বাইলাইন ও প্রকাশের তারিখ সংরক্ষিত হয়েছে।");
       setPublishing(null);
       await load(status, query);
@@ -296,6 +303,9 @@ export function AdminArticles() {
         setError(errorMessage("article status", statusError, "প্রতিবেদনের অবস্থা বদলানো যায়নি। আবার চেষ্টা করুন।"));
         return;
       }
+      // Publishing puts the story on the front page, its section and its own page; rejecting takes
+      // it off all three.
+      void revalidateReaders();
       setNotice(next === "published" ? "প্রতিবেদন প্রকাশ করা হয়েছে।" : "প্রতিবেদন প্রকাশ থেকে সরানো হয়েছে।");
       setDeciding(null);
       await load(status, query);

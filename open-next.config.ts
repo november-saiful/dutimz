@@ -14,6 +14,7 @@
 import { defineCloudflareConfig } from "@opennextjs/cloudflare";
 import r2IncrementalCache from "@opennextjs/cloudflare/overrides/incremental-cache/r2-incremental-cache";
 import doQueue from "@opennextjs/cloudflare/overrides/queue/do-queue";
+import doShardedTagCache from "@opennextjs/cloudflare/overrides/tag-cache/do-sharded-tag-cache";
 
 export default defineCloudflareConfig({
   // Rendered pages and the data cache live in the `dutimz-cache` bucket (bound as
@@ -21,11 +22,18 @@ export default defineCloudflareConfig({
   // so the media buckets stay reachable only by the media Worker.
   //
   // No regional cache wrapper: its lookup is served from the local Cache API, and its real
-  // benefit (bypassing the tag cache on a hit) is worth nothing while the tag cache is a
-  // no-op, which it is because this app never calls revalidateTag/revalidatePath.
+  // benefit (bypassing the tag cache on a hit) is worth nothing while every tag a page carries
+  // is a soft tag that the tag cache already answers for.
   incrementalCache: r2IncrementalCache,
   // Time-based revalidation (`export const revalidate = ...`) is exactly what needs a queue.
   // Without one the adapter logs "Dummy queue is not implemented" and never regenerates a
   // stale entry. The queue reaches the Worker back through WORKER_SELF_REFERENCE.
   queue: doQueue,
+  // The desk edits what readers see, and the pages it changes are cached, so the invalidation
+  // that `revalidatePath` records has somewhere to live: without a real tag cache the call is
+  // accepted and silently does nothing (the adapter's default tag cache is a no-op), and an
+  // approved story then waits for the page's own revalidate window. Sharded rather than
+  // single-DO because every page render reads it, and one Durable Object for the whole site
+  // is a queue of writes in front of every hit.
+  tagCache: doShardedTagCache,
 });

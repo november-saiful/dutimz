@@ -26,6 +26,26 @@ export function supabaseServer() {
 }
 
 /**
+ * Server-side client that acts as the owner of an access token: every PostgREST read and every
+ * RPC through it runs under that reader's own row level security policies.
+ *
+ * This is the same shape the media Worker uses for the uploads it accepts — it verifies the
+ * token it was handed and then lets the database decide what that reader may do — so no second
+ * copy of the permission rules has to exist in this process.
+ */
+export function supabaseForToken(accessToken: string) {
+  return createSupabaseClient(supabaseUrl, supabaseAnonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "X-Client-Info": "dutimz-next",
+      },
+    },
+  });
+}
+
+/**
  * Browsers cap a `Set-Cookie` lifetime at 400 days. Every session cookie this site writes uses
  * the same ceiling, so the OAuth callback and the browser client can never disagree about how
  * long a reader stays signed in. See `app/auth/callback/route.ts`.
