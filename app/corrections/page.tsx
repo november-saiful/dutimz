@@ -10,6 +10,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+/*
+  Cached shell: the corrections list loads client-side with a fresh fetch, so
+  caching this shell costs no freshness and serves readers from the page cache.
+*/
+export const revalidate = 60;
+
 export const metadata: Metadata = {
   title: "সংশোধন ও তথ্য যাচাই",
   description:

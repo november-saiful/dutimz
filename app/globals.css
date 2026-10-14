@@ -1742,6 +1742,38 @@ footer.site-footer {
   max-width: var(--maxw);
 }
 
+/* ============ ROUTE PROGRESS ============ */
+/*
+  The bar at the very top edge while the reader moves between pages. Page
+  changes here are server renders, so a tap can sit on a frozen page with no
+  feedback; this is that feedback, in the brand's own colour and nothing else —
+  one accent, one purpose (it only ever means "the next page is on its way").
+  Above every chrome strip (top bar 60, overlays 50, dock 40) so it is never
+  covered by the thing it is waiting on. The motion is a single linear slide on
+  transform only; the global reduced-motion reset stills it, and the end state
+  (hidden, unmounted by the component) never depends on the animation finishing.
+*/
+.route-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 80;
+  width: 35%;
+  height: 3px;
+  border-radius: 0 999px 999px 0;
+  background: var(--blue);
+  pointer-events: none;
+  animation: route-progress-slide 1.1s linear infinite;
+}
+@keyframes route-progress-slide {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(290%);
+  }
+}
+
 /* ============ PHONE DOCK ============ */
 /*
   The five destinations a phone reader moves between, as the reference deck's

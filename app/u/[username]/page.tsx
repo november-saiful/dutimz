@@ -3,6 +3,12 @@ import type { Metadata } from "next";
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
 import { PublicProfile } from "@/components/profile/public-profile";
 
+/*
+  Cached shell: PublicProfile fetches the member's data client-side, so caching
+  this shell costs no freshness and serves profile visits from the page cache.
+*/
+export const revalidate = 60;
+
 export async function generateMetadata({
   params,
 }: {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import * as React from "react";
 
 import { Field, FormMessage } from "@/components/ui/field";
@@ -146,7 +147,7 @@ export function Comments({ articleId }: { articleId: string }) {
           return (
             <article key={comment.id} className="comment">
               <div className="c-name">
-                <a href={`/u/${encodeURIComponent(author.username)}/`}>{name}</a>
+                <Link href={`/u/${encodeURIComponent(author.username)}/`}>{name}</Link>
               </div>
               <div className="c-time">
                 <time dateTime={comment.created_at}>

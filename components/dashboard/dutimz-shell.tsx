@@ -1,3 +1,4 @@
+import Link from "next/link";
 import * as React from "react";
 
 import { DashboardHeader, type Crumb } from "@/components/dashboard/dashboard-header";
@@ -46,14 +47,14 @@ export async function DutimzShell({
             <header className="min-w-0">
               {crumbs && crumbs.length > 0 && (
                 <nav aria-label="অবস্থান" className="crumb">
-                  <a href="/">মূলপাতা</a>
+                  <Link href="/">মূলপাতা</Link>
                   {crumbs.map((crumb) => (
                     <React.Fragment key={crumb.label}>
                       <svg viewBox="0 0 24 24" aria-hidden>
                         <path d="M5 12h14M13 6l6 6-6 6" />
                       </svg>
                       {crumb.href ? (
-                        <a href={crumb.href}>{crumb.label}</a>
+                        <Link href={crumb.href}>{crumb.label}</Link>
                       ) : (
                         <span>{crumb.label}</span>
                       )}

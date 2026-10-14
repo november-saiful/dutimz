@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Noto_Serif_Bengali } from "next/font/google";
 import "./globals.css";
+import { RouteProgress } from "@/components/dashboard/route-progress";
 import { ToastProvider } from "@/components/ui/toast";
 import { SITE_URL } from "@/lib/site";
 
@@ -53,6 +54,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/brand-icon.svg" />
       </head>
       <body>
+        <RouteProgress />
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground"

@@ -3,6 +3,9 @@ import type { Metadata } from "next";
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+/* Fully static copy: prerender once, serve from the R2 page cache, refresh in background. */
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: "সম্পাদকীয় নীতিমালা",
   description: "DUTIMZ-এর তথ্যযাচাই, ন্যায্যতা, গোপনীয়তা ও সংশোধন নীতি।",

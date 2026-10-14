@@ -9,6 +9,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+/*
+  Cached shell: the forum list loads client-side with its own fresh fetch, so
+  caching this shell costs no freshness and serves readers from the R2 page cache.
+*/
+export const revalidate = 60;
+
 export const metadata: Metadata = {
   title: "স্পটলাইট",
   description: "যেকোনো ইস্যু নিয়ে সদস্যদের পোস্ট ও আলোচনার জায়গা।",

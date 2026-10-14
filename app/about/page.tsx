@@ -9,6 +9,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+/* Fully static copy: prerender once, serve from the R2 page cache, refresh in background. */
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: "আমাদের পরিচয়",
   description: "DUTIMZ — ঢাকা বিশ্ববিদ্যালয়ের সংবাদমাধ্যমের পরিচয়।",

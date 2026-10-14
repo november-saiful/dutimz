@@ -10,6 +10,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
+/*
+  Cached shell: the numbers themselves load client-side (PublicStats/SpotlightStats
+  fetch fresh data), so caching this shell costs no freshness and saves a full
+  render per reader. Listed in lib/revalidate.ts reading surfaces.
+*/
+export const revalidate = 60;
+
 export const metadata: Metadata = {
   title: "কার্যক্রমের পরিসংখ্যান",
   description:
