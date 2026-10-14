@@ -68,6 +68,12 @@ export async function uploadImage(
     error?: string;
   } | null;
   if (!response.ok) {
+    // 403 without a JSON body is the origin gate, not the member's file: this
+    // address is not allowed to post to the media Worker (local and preview
+    // hosts are accepted; anything else must upload from the main site).
+    if (response.status === 403 && !payload?.error) {
+      throw new Error("এই ঠিকানা থেকে ছবি পাঠানো যাচ্ছে না। মূল সাইট থেকে চেষ্টা করুন।");
+    }
     throw new Error(
       payload?.error ?? `মিডিয়া সার্ভার থেকে ${response.status} ত্রুটি এসেছে`,
     );

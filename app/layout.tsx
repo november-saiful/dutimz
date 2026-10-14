@@ -62,7 +62,10 @@ export default function RootLayout({
           মূল লেখায় যান
         </a>
         <ToastProvider>
-          <div id="main-content">{children}</div>
+          {/* No id here: the shell owns <main id="main-content"> (and the loading
+              skeletons render their own), so an id on this wrapper would duplicate
+              the skip-link target on every page. */}
+          <div>{children}</div>
         </ToastProvider>
       </body>
     </html>

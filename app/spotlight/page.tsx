@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import * as React from "react";
 
 import { SpotlightForum } from "@/components/forum/spotlight-forum";
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
@@ -36,7 +37,11 @@ export default function SpotlightPage() {
           </CardDescription>
         </CardHeader>
       </Card>
-      <SpotlightForum />
+      {/* Suspense boundary for the forum's `useSearchParams` deep-link
+          (`?compose=1` from the phone dock's create action). */}
+      <React.Suspense>
+        <SpotlightForum />
+      </React.Suspense>
     </DutimzShell>
   );
 }

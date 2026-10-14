@@ -160,25 +160,31 @@ export function FeatureCard({ item }: { item: StoryItem }) {
   );
 }
 
-/** The design's section header: a flag label and a "view more" link. */
+/**
+ * The design's section header: a flag label and, only when a real collection
+ * stands behind the band, a "view more" link. A band with no destination
+ * renders no link rather than pointing at a page that is not its archive.
+ */
 export function BlockHead({
   flag,
   moreHref,
   moreLabel = "সব দেখুন",
 }: {
   flag: string;
-  moreHref: string;
+  moreHref?: string;
   moreLabel?: string;
 }) {
   return (
     <div className="block-head">
       <Flag label={flag} />
-      <Link href={moreHref} className="more">
-        {moreLabel}
-        <svg viewBox="0 0 24 24" aria-hidden>
-          <path d="M5 12h14M13 6l6 6-6 6" />
-        </svg>
-      </Link>
+      {moreHref && (
+        <Link href={moreHref} className="more">
+          {moreLabel}
+          <svg viewBox="0 0 24 24" aria-hidden>
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
+        </Link>
+      )}
     </div>
   );
 }

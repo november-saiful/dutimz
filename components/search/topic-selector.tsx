@@ -6,19 +6,18 @@ import { CATEGORIES } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
 interface TopicSelectorProps {
-  onSelectTopic: (topic: string) => void;
-  selectedTopic?: string;
+  onSelectDesk: (slug: string) => void;
+  selectedDesk?: string | null;
 }
 
-const TOPICS = [
-  { slug: "campus", label: "ক্যাম্পাস", count: "১২০+" },
-  { slug: "student-life", label: "শিক্ষার্থী জীবন", count: "৯৫+" },
-  { slug: "culture", label: "সংস্কৃতি ও সাহিত্য", count: "৫০+" },
-  { slug: "opinion", label: "মতামত ও বিশ্লেষণ", count: "৪০+" },
-  { slug: "sports", label: "খেলাধুলা", count: "৩০+" },
-];
-
-export function TopicSelector({ onSelectTopic, selectedTopic }: TopicSelectorProps) {
+/**
+ * The desks as a filter, from the same configured list the top bar, the menu
+ * and the footer read — one desk list everywhere, so a chip always names a
+ * desk that exists. Choosing a chip filters the archive by that desk's slug
+ * (a server-side predicate), instead of searching for the desk's name as text.
+ */
+export function TopicSelector({ onSelectDesk, selectedDesk }: TopicSelectorProps) {
+  const desks = CATEGORIES.filter((category) => category.slug !== "all");
   return (
     <div className="rounded-[24px] border border-border/80 bg-card p-5 shadow-sm">
       <div className="flex items-center justify-between mb-4">
@@ -29,14 +28,15 @@ export function TopicSelector({ onSelectTopic, selectedTopic }: TopicSelectorPro
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {TOPICS.map((topic) => {
-          const isSelected = selectedTopic === topic.label || selectedTopic === topic.slug;
+        {desks.map((desk) => {
+          const isSelected = selectedDesk === desk.slug;
 
           return (
             <button
-              key={topic.slug}
+              key={desk.slug}
               type="button"
-              onClick={() => onSelectTopic(topic.label)}
+              onClick={() => onSelectDesk(desk.slug)}
+              aria-pressed={isSelected}
               className={cn(
                 "relative flex items-center justify-between p-3 rounded-[18px] border text-left transition-all",
                 isSelected
@@ -45,8 +45,7 @@ export function TopicSelector({ onSelectTopic, selectedTopic }: TopicSelectorPro
               )}
             >
               <div className="min-w-0 pr-2">
-                <p className="text-sm font-semibold truncate leading-tight">{topic.label}</p>
-                <p className="text-[11px] text-muted-foreground mt-1">{topic.count} প্রতিবেদন</p>
+                <p className="text-sm font-semibold truncate leading-tight">{desk.label}</p>
               </div>
 
               <div

@@ -314,13 +314,6 @@
   color: var(--ink);
   flex: none;
 }
-.lang svg {
-  width: 14px;
-  height: 14px;
-  stroke: var(--ink);
-  fill: none;
-  stroke-width: 2;
-}
 .search {
   display: flex;
   align-items: center;
@@ -1075,6 +1068,19 @@
   font-size: 14.5px;
 }
 
+/* The month's band sits on its own ground so the two carousels stop reading
+   as one repeated shape. One quiet tint, page-bleed inside the framed column:
+   the chrome varies, the carousel both suites probe stays untouched. */
+.band-tint {
+  background: var(--shell);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 20px 20px 22px;
+}
+/* Phone stacking for the ledger lives in the responsive block below, beside
+   every other phone rule — a second phone breakpoint up here would shadow the
+   stylesheet's own phone section for anything slicing on it. */
+
 /*
   The front page's lead band is the design's connected carousel
   (`components/ui/connected-carousel.tsx`), and it needs nothing from this
@@ -1674,13 +1680,21 @@ footer.site-footer {
   color: var(--ink);
 }
 .sub-form {
+  margin-bottom: 22px;
+}
+.sub-row {
   display: flex;
   align-items: center;
   gap: 10px;
   background: #fff;
   border-radius: 14px;
   padding: 6px 6px 6px 16px;
-  margin-bottom: 22px;
+}
+.sub-hint {
+  margin: 8px 2px 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
 }
 .sub-form input {
   flex: 1;
@@ -1981,6 +1995,9 @@ footer.site-footer {
   z-index: 41;
   background: rgba(29, 15, 30, 0.45);
   pointer-events: auto;
+  border: 0;
+  padding: 0;
+  cursor: default;
 }
 .dock-create-pop {
   position: fixed;
@@ -2165,6 +2182,10 @@ footer.site-footer {
   }
   .pn .next .lbl {
     justify-content: flex-start;
+  }
+  .band-tint {
+    border-radius: 16px;
+    padding: 16px 14px 18px;
   }
   .chip {
     padding: 8px 10px;

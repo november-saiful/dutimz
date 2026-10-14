@@ -67,6 +67,22 @@ const MIME_EXTENSIONS: Record<string, string> = {
 function allowedOrigins(env: Env) {
   return new Set(env.ALLOWED_ORIGINS.split(',').map((value) => value.trim()).filter(Boolean));
 }
+/**
+ * Whether a browser Origin may post to the media Worker. Production stays an
+ * exact allowlist — but a member editing their profile on localhost or on a
+ * pull-request preview posts to the same Worker, and an exact list can never
+ * name those hosts, so every upload outside production was answered 403 and the
+ * profile pictures could never be set there. Loopback and the platform's own
+ * preview suffix carry no ambient authority (the Bearer token is minted per
+ * caller and unreadable cross-origin), so matching them by shape is safe while
+ * an arbitrary `https://attacker.example` stays rejected.
+ */
+function isAllowedOrigin(origin: string, allowed: Set<string>): boolean {
+  if (allowed.has(origin)) return true;
+  if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return true;
+  if (/^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.workers\.dev$/.test(origin)) return true;
+  return false;
+}
 function response(body: BodyInit | null, status: number, allowedOrigin: string, headers?: HeadersInit) {
   const output = new Headers(headers);
   output.set('Access-Control-Allow-Origin', allowedOrigin);
@@ -302,7 +318,7 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const origin = request.headers.get('Origin');
     const allowed = allowedOrigins(env);
-    const allowedOrigin = origin && allowed.has(origin) ? origin : null;
+    const allowedOrigin = origin && isAllowedOrigin(origin, allowed) ? origin : null;
     if (origin && !allowedOrigin) return new Response('Forbidden', { status: 403, headers: { 'Vary': 'Origin' } });
     const corsOrigin = allowedOrigin ?? [...allowed][0] ?? '';
     const url = new URL(request.url);

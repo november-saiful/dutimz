@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { BadgeCheck, Trash2 } from "lucide-react";
 
@@ -125,6 +126,8 @@ function durationLabel(value: string | null): string {
 
 export function SpotlightForum() {
   const { toast } = useToast();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [signedIn, setSignedIn] = React.useState<boolean | null>(null);
   const [userId, setUserId] = React.useState<string | null>(null);
   const [role, setRole] = React.useState<string | null>(null);
@@ -138,6 +141,7 @@ export function SpotlightForum() {
   // The description carries Markdown now and its editor is controlled; the ref is what lets an
   // uploaded picture be placed in the middle of the text instead of only attached to the post.
   const editorRef = React.useRef<RichTextEditorHandle>(null);
+  const titleInputRef = React.useRef<HTMLInputElement>(null);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
   const [done, setDone] = React.useState("");
@@ -145,6 +149,16 @@ export function SpotlightForum() {
   const [confirming, setConfirming] = React.useState<SpotlightPost | null>(null);
   const [deleteBusy, setDeleteBusy] = React.useState(false);
   const [deleteError, setDeleteError] = React.useState("");
+  const [composerOpen, setComposerOpen] = React.useState(false);
+
+  // Faster writing: focus the title as soon as the publish modal opens.
+  React.useEffect(() => {
+    if (!composerOpen) return;
+    const frame = requestAnimationFrame(() => {
+      titleInputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [composerOpen]);
 
   // The marking dialog. One form serves all four states; which fields it demands depends on the
   // state chosen, and the database enforces the same rules.
@@ -405,7 +419,8 @@ export function SpotlightForum() {
       setGallery([]);
       setTitle("");
       setDescription("");
-      setDone("আপনার পোস্ট প্রকাশিত হয়েছে।");
+      setDone("");
+      setComposerOpen(false);
       toast({
         tone: "success",
         title: "পোস্ট প্রকাশিত হয়েছে।",
@@ -425,33 +440,55 @@ export function SpotlightForum() {
     }
   }
 
+  function closeComposer() {
+    setComposerOpen(false);
+  }
+
+  // Deep-link from the phone dock's create action (`/spotlight/?compose=1`):
+  // raise the publish modal and clean the address so a refresh or a share
+  // does not reopen it.
+  React.useEffect(() => {
+    if (searchParams.get("compose") !== "1") return;
+    setComposerOpen(true);
+    router.replace("/spotlight/");
+  }, [searchParams, router]);
+
   return (
     <div className="flex flex-col gap-6">
-      {signedIn === false && (
-        <Card>
-          <CardHeader>
-            <CardTitle>পোস্ট করতে প্রবেশ করুন</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center gap-3">
-            <p className="text-sm text-muted-foreground">
-              স্পটলাইটে যেকোনো ইস্যু নিয়ে পোস্ট করতে গুগল দিয়ে প্রবেশ করুন।
-            </p>
-            <SignInButton />
-          </CardContent>
-        </Card>
-      )}
+      <div className="flex items-center justify-end">
+        <Button type="button" onClick={() => setComposerOpen(true)}>
+          ইস্যু প্রকাশ করুন
+        </Button>
+      </div>
 
-      {signedIn && (
-        <form onSubmit={submit}>
-          <Card>
-            <CardHeader>
-              <CardTitle>নতুন পোস্ট</CardTitle>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-4">
+      <Dialog
+        open={composerOpen}
+        onOpenChange={(open) => {
+          if (!open) closeComposer();
+          else setComposerOpen(true);
+        }}
+      >
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>নতুন ইস্যু প্রকাশ করুন</DialogTitle>
+            <DialogDescription>
+              শিরোনাম, বিবরণ ও চাইলে ছবিসহ আপনার ইস্যুটি লিখুন।
+            </DialogDescription>
+          </DialogHeader>
+          {signedIn === false ? (
+            <div className="flex flex-col items-center gap-3 py-2 text-center">
+              <p className="text-sm text-muted-foreground">
+                স্পটলাইটে যেকোনো ইস্যু নিয়ে পোস্ট করতে গুগল দিয়ে প্রবেশ করুন।
+              </p>
+              <SignInButton />
+            </div>
+          ) : (
+            <form onSubmit={submit} className="flex flex-col gap-4">
               <FieldSection title="পোস্ট" description="শিরোনাম, বিবরণ ও চাইলে ছবি।">
                 <FieldGrid>
                   <Field label="শিরোনাম" htmlFor="spotlight-title" wide>
                     <Input
+                      ref={titleInputRef}
                       id="spotlight-title"
                       value={title}
                       maxLength={180}
@@ -490,13 +527,18 @@ export function SpotlightForum() {
               />
               {error && <FormMessage>{error}</FormMessage>}
               {done && <FormMessage tone="success">{done}</FormMessage>}
-              <Button type="submit" disabled={busy} className="self-start">
-                {busy ? "পাঠানো হচ্ছে…" : "পোস্ট করুন →"}
-              </Button>
-            </CardContent>
-          </Card>
-        </form>
-      )}
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={closeComposer}>
+                  বাতিল
+                </Button>
+                <Button type="submit" disabled={busy}>
+                  {busy ? "পাঠানো হচ্ছে…" : "পোস্ট করুন"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <section aria-labelledby="spotlight-feed-heading" className="flex flex-col gap-4">
         <h2 id="spotlight-feed-heading" className="text-xl font-semibold">

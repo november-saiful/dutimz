@@ -100,9 +100,10 @@ export default async function HomePage() {
             <CalendlyCarousel items={deck} autoPlayInterval={7000} pauseOnHover />
           </section>
 
-          {/* The desk's own recommendations, under the slider. */}
+          {/* The desk's own recommendations, under the slider. No "more" link:
+              no single collection stands behind this band. */}
           <section className="block" aria-label="প্রস্তাবিত প্রতিবেদন">
-            <BlockHead flag="প্রস্তাবিত" moreHref="/search/" />
+            <BlockHead flag="প্রস্তাবিত" />
             <div className="recommended">
               {feature && <FeatureCard item={feature} />}
               <div className="recommended-rows">
@@ -113,7 +114,8 @@ export default async function HomePage() {
             </div>
           </section>
 
-          {/* The newest reports, as the design's full-width thumbnail rows. */}
+          {/* The newest reports, as the design's full-width thumbnail rows. The
+              empty-query search page is this band's archive, so it gets the link. */}
           <section className="block" aria-label="সর্বশেষ প্রতিবেদন">
             <BlockHead flag="সর্বশেষ খবর" moreHref="/search/" />
             {latest.map(
@@ -122,7 +124,7 @@ export default async function HomePage() {
           </section>
 
           <section className="block" aria-label="পাঠকের পছন্দ">
-            <BlockHead flag="পাঠকের পছন্দ" moreHref="/search/" />
+            <BlockHead flag="পাঠকের পছন্দ" />
             <StoryCarousel label="পাঠকের পছন্দ">
               {readersChoice.map(
                 (item, index) =>
@@ -131,8 +133,15 @@ export default async function HomePage() {
             </StoryCarousel>
           </section>
 
-          <section className="block" aria-label="মাসের সেরা">
-            <BlockHead flag="মাসের সেরা" moreHref="/search/" />
+          {/*
+            The second carousel sits on a tinted band, so the two carousels stop
+            reading as one repeated shape: পাঠকের পছন্দ on the page ground,
+            মাসের সেরা on its own ground. The overflow suite probes both
+            carousels as its render signal, so the band varies the chrome —
+            never the carousel itself.
+          */}
+          <section className="block band-tint" aria-label="মাসের সেরা">
+            <BlockHead flag="মাসের সেরা" />
             <StoryCarousel label="মাসের সেরা">
               {bestOfMonth.map(
                 (item, index) =>

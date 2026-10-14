@@ -110,8 +110,10 @@ const CREATE_OPTIONS: { key: string; href: string; title: string; sub: string; i
     icon: PenLine,
   },
   {
+    // The query deep-links into the feed's publish modal (the forum opens its
+    // composer when it sees `compose=1` and then cleans the address).
     key: "issue",
-    href: "/spotlight/",
+    href: "/spotlight/?compose=1",
     title: "ইস্যু প্রকাশ করুন",
     sub: "স্পটলাইটে লিখুন",
     icon: Sparkles,
@@ -259,13 +261,22 @@ export function MobileDock() {
   // Nothing to mark: the row has not been measured yet, or no tab is current.
   const liquidIdle = !placed || currentIndex < 0;
   const [createOpen, setCreateOpen] = React.useState(false);
+  const createButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  const createPopRef = React.useRef<HTMLDivElement | null>(null);
 
   React.useEffect(() => {
     if (!createOpen) return;
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setCreateOpen(false);
+      if (event.key === "Escape") {
+        setCreateOpen(false);
+        // The popover unmounts on close, so the caret is handed back to the
+        // button that raised it rather than dropped to the page body.
+        createButtonRef.current?.focus();
+      }
     }
     document.addEventListener("keydown", onKey);
+    // The popover is a small dialog: the first action takes the caret on open.
+    createPopRef.current?.querySelector("a")?.focus();
     return () => document.removeEventListener("keydown", onKey);
   }, [createOpen]);
 
@@ -297,10 +308,18 @@ export function MobileDock() {
   return (
     <nav className="dock" aria-label="প্রধান নেভিগেশন">
       {createOpen ? (
-        <div className="dock-create-scrim" onClick={() => setCreateOpen(false)} aria-hidden />
+        <button
+          type="button"
+          className="dock-create-scrim"
+          aria-label="প্রকাশ মেনু বন্ধ করুন"
+          onClick={() => {
+            setCreateOpen(false);
+            createButtonRef.current?.focus();
+          }}
+        />
       ) : null}
       {createOpen ? (
-        <div className="dock-create-pop" role="dialog" aria-modal="true" aria-label="প্রকাশ করুন">
+        <div ref={createPopRef} className="dock-create-pop" role="dialog" aria-modal="true" aria-label="প্রকাশ করুন">
           <p className="dock-create-title">প্রকাশ করুন</p>
           <ul className="dock-create-list">
             {CREATE_OPTIONS.map((option) => {
@@ -368,6 +387,7 @@ export function MobileDock() {
         <div className="dock-row">
           {TABS.slice(0, 2).map(renderTab)}
           <button
+            ref={createButtonRef}
             type="button"
             data-dock="create"
             aria-label="তৈরি করুন"

@@ -341,7 +341,12 @@ export default async function ArticlePage({
 
       {forYou.length > 0 && (
         <section className="block" aria-label="আপনার জন্য আরও">
-          <BlockHead flag="আপনার জন্য আরও" moreHref="/search/" />
+          {/* The link searches this story's own desk, so "more" means more
+              like this — not the generic archive. */}
+          <BlockHead
+            flag="আপনার জন্য আরও"
+            moreHref={`/search/?q=${encodeURIComponent(category.title_bn)}`}
+          />
           <StoryCarousel label="আপনার জন্য আরও">
             {forYou.map((item, index) => (
               <CarouselCard key={`${item.slug}-${index}`} item={item} />

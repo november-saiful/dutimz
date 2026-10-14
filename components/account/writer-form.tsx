@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import {
   Field,
   FieldGrid,
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/rich-text-editor";
 import {
   QuestionnaireFields,
+  visibleFields,
   type QuestionnaireVersion,
 } from "@/components/account/questionnaire-fields";
 import {
@@ -37,6 +39,51 @@ import { supabaseBrowser } from "@/lib/supabase";
 import { CATEGORIES, SITE_URL } from "@/lib/site";
 
 const PUBLISHING_ROLES = ["reporter", "moderator", "admin"];
+
+/**
+ * The writer's unsent work, kept in this browser only. Gallery blobs cannot
+ * survive a reload (their object URLs die with the page), so the draft holds
+ * the text and the questionnaire answers; photos are re-attached next visit.
+ */
+const DRAFT_KEY = "dutimz-write-draft";
+
+type WriteDraft = {
+  title: string;
+  category: string;
+  body: string;
+  answers: Record<string, unknown>;
+  /** The questionnaire version the answers were given against. */
+  qv: string | null;
+};
+
+function readDraft(): WriteDraft | null {
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<WriteDraft>;
+    return {
+      title: typeof parsed.title === "string" ? parsed.title : "",
+      category: typeof parsed.category === "string" ? parsed.category : "",
+      body: typeof parsed.body === "string" ? parsed.body : "",
+      answers:
+        parsed.answers && typeof parsed.answers === "object" && !Array.isArray(parsed.answers)
+          ? (parsed.answers as Record<string, unknown>)
+          : {},
+      qv: typeof parsed.qv === "string" ? parsed.qv : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function isAnswered(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (typeof value === "number") return true;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return true;
+}
 
 /** The path of a stored absolute article URL, for a router link. */
 function previewPathFor(url: string): string {
@@ -65,15 +112,70 @@ export function WriterForm() {
   const [done, setDone] = React.useState("");
   const [questionnaire, setQuestionnaire] =
     React.useState<QuestionnaireVersion | null>(null);
-  const [answers, setAnswers] = React.useState<Record<string, unknown>>({});
+  // The draft is read once, up front, so a reload restores the writer's words
+  // before the first paint rather than flashing an empty form.
+  const [initialDraft] = React.useState<WriteDraft | null>(() =>
+    typeof window === "undefined" ? null : readDraft(),
+  );
+  const [title, setTitle] = React.useState(initialDraft?.title ?? "");
+  const [categorySlug, setCategorySlug] = React.useState(initialDraft?.category ?? "");
+  const [draftDismissed, setDraftDismissed] = React.useState(false);
+  const [answers, setAnswers] = React.useState<Record<string, unknown>>(
+    initialDraft?.answers ?? {},
+  );
   const [gallery, setGallery] = React.useState<GalleryItem[]>([]);
   // "on" keeps the RPC contract: the group still submits `is_anonymous=on`.
   const [anonymous, setAnonymous] = React.useState("off");
   // The body is Markdown now, and the editor is controlled, so the text lives in state as well.
   // It is named for the draft rather than for the column because the submit path still reads the
   // value out of FormData under `name="body"`, exactly as the textarea's did.
-  const [bodyDraft, setBodyDraft] = React.useState("");
+  const [bodyDraft, setBodyDraft] = React.useState(initialDraft?.body ?? "");
   const editorRef = React.useRef<RichTextEditorHandle>(null);
+
+  // Answers given against a retired questionnaire version are dropped the
+  // moment the active one arrives: the server would reject them as belonging
+  // to questions that no longer apply.
+  React.useEffect(() => {
+    if (!questionnaire || !initialDraft) return;
+    if (initialDraft.qv !== questionnaire.id) setAnswers({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questionnaire]);
+
+  // Autosave, debounced: every keystroke schedules a write, and the write
+  // carries the questionnaire version so a stale draft can be recognised.
+  React.useEffect(() => {
+    const frame = window.setTimeout(() => {
+      try {
+        if (!title && !categorySlug && !bodyDraft && Object.keys(answers).length === 0) {
+          window.localStorage.removeItem(DRAFT_KEY);
+          return;
+        }
+        const draft: WriteDraft = {
+          title,
+          category: categorySlug,
+          body: bodyDraft,
+          answers,
+          qv: questionnaire?.id ?? initialDraft?.qv ?? null,
+        };
+        window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      } catch {
+        // A full or blocked store must never break the form.
+      }
+    }, 600);
+    return () => window.clearTimeout(frame);
+  }, [title, categorySlug, bodyDraft, answers, questionnaire, initialDraft]);
+
+  function clearDraft() {
+    try {
+      window.localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      // See above.
+    }
+    setTitle("");
+    setCategorySlug("");
+    setBodyDraft("");
+    setAnswers({});
+  }
 
   React.useEffect(() => {
     let cancelled = false;
@@ -230,8 +332,15 @@ export function WriterForm() {
           ? ((result.data as { slug: string }).slug)
           : "";
       form.reset();
+      setTitle("");
+      setCategorySlug("");
       setBodyDraft("");
       setAnswers({});
+      try {
+        window.localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        // See above.
+      }
       setAnonymous("off");
       for (const item of gallery) URL.revokeObjectURL(item.objectUrl);
       setGallery([]);
@@ -309,8 +418,48 @@ export function WriterForm() {
     );
   }
 
+  const hadDraft = Boolean(
+    initialDraft &&
+      (initialDraft.title ||
+        initialDraft.category ||
+        initialDraft.body ||
+        Object.keys(initialDraft.answers).length > 0),
+  );
+  // How far through the required questions the writer is, over the fields
+  // actually visible with the current answers — the honest denominator.
+  const requiredFields = questionnaire
+    ? visibleFields(questionnaire.schema, answers).filter((field) => field.required)
+    : [];
+  const answeredRequired = requiredFields.filter((field) =>
+    isAnswered(answers[field.id]),
+  ).length;
+  const requiredProgress = requiredFields.length
+    ? Math.round((answeredRequired / requiredFields.length) * 100)
+    : 100;
+
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
+      {hadDraft && !draftDismissed && !done && (
+        <div
+          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2"
+          role="status"
+        >
+          <p className="text-sm text-muted-foreground">
+            আগের খসড়া ফিরিয়ে আনা হয়েছে। ছবি থাকলে আবার যুক্ত করুন।
+          </p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              clearDraft();
+              setDraftDismissed(true);
+            }}
+          >
+            খসড়া মুছুন
+          </Button>
+        </div>
+      )}
       <Card>
         <CardContent className="flex flex-col gap-4 pt-6">
           <FieldSection
@@ -326,6 +475,8 @@ export function WriterForm() {
                 <Input
                   id="write-title"
                   name="title"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
                   maxLength={180}
                   required
                   placeholder="আপনার প্রতিবেদনের শিরোনাম"
@@ -335,8 +486,9 @@ export function WriterForm() {
                 <Select
                   id="write-category"
                   name="category_slug"
+                  value={categorySlug}
+                  onChange={(event) => setCategorySlug(event.target.value)}
                   required
-                  defaultValue=""
                 >
                   <option value="" disabled>
                     বিভাগ বেছে নিন
@@ -395,6 +547,19 @@ export function WriterForm() {
               title="ঘটনা ও কার্যক্রমের বিবরণ"
               description="যা জানা নেই তা ফাঁকা রাখুন। ভুক্তভোগী ও অভিযুক্তের পরিচিতি কেবল প্রশাসনিক পর্যালোচনার জন্য; জনসমক্ষে শুধু পরিচয়বিহীন সামগ্রিক পরিসংখ্যান দেখানো হবে।"
             >
+              {requiredFields.length > 0 && (
+                <div className="flex items-center gap-3">
+                  <Progress
+                    value={requiredProgress}
+                    aria-label={`আবশ্যক প্রশ্নের অগ্রগতি: ${answeredRequired} / ${requiredFields.length}`}
+                    className="h-2 flex-1"
+                  />
+                  <p className="shrink-0 text-xs text-muted-foreground" aria-live="polite">
+                    আবশ্যক {new Intl.NumberFormat("bn-BD").format(answeredRequired)} /{" "}
+                    {new Intl.NumberFormat("bn-BD").format(requiredFields.length)}
+                  </p>
+                </div>
+              )}
               <QuestionnaireFields
                 questionnaire={questionnaire}
                 answers={answers}

@@ -80,6 +80,29 @@ for (const origin of ['https://dutimz.com', 'https://www.dutimz.com']) {
   });
 }
 
+test('local and preview origins upload like production', async () => {
+  // A member editing their profile on localhost or on a pull-request preview
+  // posts to the same media Worker; an exact allowlist can never name those
+  // hosts, so they were answered 403 and no picture could ever be set there.
+  for (const origin of ['http://localhost:3000', 'http://127.0.0.1:8788', 'https://dutimz-preview.dhaka-123.workers.dev']) {
+    const preflight = await worker.fetch(new Request('https://media.dutimz.com/profile/upload', {
+      method: 'OPTIONS',
+      headers: { Origin: origin, 'Access-Control-Request-Method': 'POST' },
+    }), env);
+    assert.equal(preflight.status, 204, `${origin} must clear preflight`);
+    assert.equal(preflight.headers.get('Access-Control-Allow-Origin'), origin);
+    // Unauthenticated, so the request passes the origin gate and fails on the
+    // missing session instead — 401 proves the origin was allowed.
+    const unauthenticated = await worker.fetch(new Request('https://media.dutimz.com/profile/upload', {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'image/jpeg' },
+      body: 'image-bytes',
+    }), env);
+    assert.equal(unauthenticated.status, 401, `${origin} must reach authentication, not a 403`);
+    assert.equal(unauthenticated.headers.get('Access-Control-Allow-Origin'), origin);
+  }
+});
+
 test('unlisted origins cannot use upload or preflight', async () => {
   for (const method of ['OPTIONS', 'POST']) {
     const response = await worker.fetch(new Request('https://media.dutimz.com/upload', {

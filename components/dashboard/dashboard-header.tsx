@@ -288,22 +288,17 @@ export function DashboardHeader({
 
         <div className="top-actions">
           {/*
-            The site publishes in Bengali only, so the language control is shown
-            but disabled until a second edition exists — an honest "coming soon"
-            rather than a menu that switches nothing.
+            The site publishes in Bengali only, so the language indicator is a
+            static chip until a second edition exists — no chevron, because there
+            is no menu to open.
           */}
-          <button
-            type="button"
+          <span
             className="lang"
-            disabled
-            aria-label="বাংলা (শীঘ্রই আসছে)"
-            title="শীঘ্রই আসছে"
+            aria-label="বাংলা সংস্করণ"
+            title="বাংলা সংস্করণ"
           >
             বাং
-            <svg viewBox="0 0 24 24" aria-hidden>
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
+          </span>
 
           {/*
             The phone's search. A bar this narrow cannot hold a field beside the
