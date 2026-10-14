@@ -80,6 +80,16 @@ const CANONICAL_PATHS = [
   '/corrections/',
 ];
 
+// Retired addresses that live on as redirects rather than pages. The university desk
+// merged into campus (supabase/migrations/202610140002_merge_campus_university.sql), so
+// its old address permanentRedirects to /category/campus/ instead of rendering. A
+// freshly deployed build prerenders the front page before the migration applies, so the
+// walk can still sample the old link from a stale homepage seconds after deploy — that
+// redirect is the intended behaviour, not a broken canonical.
+const RETIRED_REDIRECTS = {
+  '/category/university/': '/category/campus/',
+};
+
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // The statuses an edge blip produces, and only those. 429 is included because a release makes
@@ -302,8 +312,9 @@ async function cacheProblems(base) {
   // A live article and a section, taken from the front page, and reported rather than gated: they
   // are the routes a reader actually lands on, so whether they are being served from the cache is
   // worth seeing in a release log — but a story published since the deployment is legitimately a
-  // miss the first time it is asked for, which is not a release failure.
-  const sampled = [...canonicalSamples(await homeLinks(base)).keys()].slice(0, 2);
+  // miss the first time it is asked for, which is not a release failure. Retired addresses are
+  // redirects, not pages, so they are never cache targets.
+  const sampled = [...canonicalSamples(await homeLinks(base)).keys()].filter((path) => !RETIRED_REDIRECTS[path]).slice(0, 2);
   for (const path of sampled) targets.push({ path, allowStale: true, required: false });
 
   for (const { path, allowStale, required } of targets) {
@@ -354,9 +365,26 @@ async function routeProblems(base) {
   console.log(`Walking ${CANONICAL_PATHS.length + samples.size} canonical URLs on ${base}`);
 
   const checkCanonical = async (path) => {
-    const { chain, loop, response } = await walk(new URL(path, base).toString());
+    const { chain, loop, response, final } = await walk(new URL(path, base).toString());
     if (loop) {
       problems.push(`redirect loop at ${path}: ${describeChain(chain)}`);
+      return;
+    }
+    const retired = RETIRED_REDIRECTS[path];
+    if (retired) {
+      if (chain.length <= 1) {
+        problems.push(`${path} is retired and must redirect to ${retired}, but answers ${response.status} directly`);
+        return;
+      }
+      if (response.status !== 200) {
+        problems.push(`${path} ends at HTTP ${response.status} after ${chain.length - 1} redirect(s)`);
+        return;
+      }
+      if (new URL(final).pathname !== retired) {
+        problems.push(`${path} is retired and should settle on ${retired} but landed on ${new URL(final).pathname}`);
+        return;
+      }
+      console.log(`  ${path} retired, redirects to ${retired}`);
       return;
     }
     if (chain.length > 1) {
@@ -383,17 +411,19 @@ async function routeProblems(base) {
   for (const [canonical, plain] of samples) {
     await checkCanonical(canonical);
 
+    const retired = RETIRED_REDIRECTS[canonical];
+    const expected = retired ?? canonical;
     const { chain, loop, response, final } = await walk(new URL(plain, base).toString());
     if (loop) {
       problems.push(`redirect loop from ${plain}: ${describeChain(chain)}`);
     } else if (response.status !== 200) {
       problems.push(`${plain} ends at HTTP ${response.status} after ${chain.length - 1} redirect(s)`);
-    } else if (new URL(final).pathname !== canonical) {
-      problems.push(`${plain} should settle on ${canonical} but landed on ${new URL(final).pathname}`);
-    } else if (chain.length > 2) {
+    } else if (new URL(final).pathname !== expected) {
+      problems.push(`${plain} should settle on ${expected} but landed on ${new URL(final).pathname}`);
+    } else if (!retired && chain.length > 2) {
       problems.push(`${plain} takes ${chain.length - 1} redirects to reach ${canonical}: ${describeChain(chain)}`);
     } else {
-      console.log(`  ${plain} -> ${canonical} in ${chain.length - 1} redirect(s)`);
+      console.log(`  ${plain} -> ${expected} in ${chain.length - 1} redirect(s)`);
     }
   }
 

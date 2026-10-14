@@ -44,7 +44,7 @@ const html = (links = []) =>
  * The cache state is served rather than simulated: the check only ever judges the second visit
  * to /about/, and it is asking whether the header is readable, not whether R2 is real.
  */
-async function startStub(fail) {
+async function startStub(fail, homeLinks = [ARTICLE, SECTION, '/statistics/']) {
   const hits = new Map();
   let base = '';
   const server = createServer((request, response) => {
@@ -99,7 +99,7 @@ async function startStub(fail) {
       // with the deployment), so the stub reports what a real deployment reports: the first visit
       // renders and stores it, every visit after that is a hit.
       case '/':
-        return send(200, html([ARTICLE, SECTION, '/statistics/']), {
+        return send(200, html(homeLinks), {
           'x-nextjs-cache': seen > 1 ? 'HIT' : 'MISS',
         });
       case '/about/':
@@ -117,6 +117,12 @@ async function startStub(fail) {
       case ARTICLE:
       case SECTION:
         return send(301, '', { location: `${url.pathname}/` });
+      // The retired university desk lives on as a redirect to campus (the merge migration),
+      // so the walk must accept it landing on campus instead of answering 200 itself.
+      case '/category/university/':
+        return send(308, '', { location: '/category/campus/' });
+      case '/category/university':
+        return send(301, '', { location: '/category/university/' });
       default:
         return send(404, 'not found');
     }
@@ -205,6 +211,24 @@ test('a deployment that answers 503 to every attempt still fails the release', a
       /::error::.*sitemap\.xml is advertised by robots\.txt but did not answer 200: 503 \/sitemap\.xml/,
       `the failure must name what was actually broken:\n${stderr}`,
     );
+  } finally {
+    await stub.close();
+  }
+});
+
+test('a retired desk address passes the release when it redirects to its merge target', async () => {
+  // Run #95 went red on exactly this: the university desk merged into campus, so
+  // /category/university/ permanentRedirects to /category/campus/. A freshly deployed
+  // build prerenders the front page before the migration applies, so the walk can still
+  // sample the old link from a stale homepage seconds after deploy — that redirect is the
+  // intended behaviour, not a broken canonical.
+  const stub = await startStub(() => false, [ARTICLE, SECTION, '/category/university/', '/statistics/']);
+  try {
+    const { code, stdout, stderr } = await runCheck(stub.base);
+
+    assert.equal(code, 0, `the retired redirect failed the release:\n${stderr}`);
+    assert.match(stdout, /\/category\/university\/ retired, redirects to \/category\/campus\//);
+    assert.match(stdout, /Live routes OK/);
   } finally {
     await stub.close();
   }
