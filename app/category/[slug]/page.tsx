@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { permanentRedirect } from "next/navigation";
 
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
 import { MiniRow, storyItemFromStory } from "@/components/dashboard/story-blocks";
@@ -50,6 +51,9 @@ export default async function CategoryPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  // The university desk merged into campus: its old address lives on as a
+  // redirect rather than an empty section.
+  if (slug === "university") permanentRedirect("/category/campus/");
   const { title, description, stories } = await getCategoryStories(slug);
   const label = CATEGORY_NAMES[slug] ?? title;
   const items = stories.map(storyItemFromStory);

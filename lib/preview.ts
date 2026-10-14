@@ -45,8 +45,8 @@ export const previewStories: PreviewStory[] = [
     title: "পড়াশোনা, গবেষণা ও মুক্তচিন্তার মিলনস্থল আমাদের বিশ্ববিদ্যালয়",
     excerpt:
       "বিশ্ববিদ্যালয়ের নানা পরিসর থেকে উঠে আসা ভাবনা ও অভিজ্ঞতার জন্য থাকছে আলাদা আয়োজন।",
-    category: "বিশ্ববিদ্যালয়",
-    categorySlug: "university",
+    category: "ক্যাম্পাস",
+    categorySlug: "campus",
     author: "সম্পাদকীয় ডেস্ক",
     time: "প্রিভিউ",
     imageUrl:

@@ -20,7 +20,6 @@ export type Category = { label: string; slug: string };
 export const CATEGORIES: Category[] = [
   { label: "সব খবর", slug: "all" },
   { label: "ক্যাম্পাস", slug: "campus" },
-  { label: "বিশ্ববিদ্যালয়", slug: "university" },
   { label: "শিক্ষার্থী জীবন", slug: "student-life" },
   { label: "সংস্কৃতি", slug: "culture" },
   { label: "মতামত", slug: "opinion" },
@@ -65,7 +64,6 @@ export function roleTitle(role: string | null | undefined): string {
 export function slugArtClass(slug: string): string {
   if (slug.includes("culture") || slug.includes("opinion"))
     return "art-culture";
-  if (slug.includes("university")) return "art-library";
   if (slug.includes("student")) return "art-student";
   return "art-campus";
 }

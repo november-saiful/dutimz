@@ -8,8 +8,6 @@ import {
   GraduationCap,
   Home,
   Layers,
-  PenLine,
-  Sparkles,
 } from "lucide-react";
 
 import { StoryArt } from "@/components/dashboard/story-card";
@@ -22,7 +20,6 @@ import {
   ProfileSectionHead,
   ProfileSideBlock,
   ProfileStats,
-  ProfileTip,
 } from "@/components/profile/profile-pieces";
 import { Skeleton } from "@/components/ui/skeleton";
 import { reportError } from "@/lib/errors";
@@ -352,15 +349,6 @@ export function PublicProfile({ username }: { username: string }) {
           <ProfileMeta
             items={facts.map((fact) => ({ icon: fact.icon, text: fact.value }))}
           />
-          <div className="pf-actions">
-            <Link className="pf-btn primary" href="/account/write/">
-              <PenLine aria-hidden />
-              প্রতিবেদন লিখুন
-            </Link>
-            <Link className="pf-btn ghost" href="/spotlight/">
-              স্পটলাইট দেখুন
-            </Link>
-          </div>
         </div>
       </header>
 
@@ -475,18 +463,6 @@ export function PublicProfile({ username }: { username: string }) {
               </dl>
             </ProfileSideBlock>
           ) : null}
-
-          <ProfileTip
-            kicker="ক্যাম্পাস ডেস্ক"
-            title="আপনার গল্পটাও পাঠান"
-            body="হল, বিভাগ কিংবা ক্যাম্পাসের যেকোনো ঘটনা — যাচাই করে প্রকাশ করবে সম্পাদকীয় ডেস্ক।"
-            action={
-              <Link className="pf-btn" href="/account/write/">
-                <Sparkles aria-hidden />
-                প্রতিবেদন পাঠান
-              </Link>
-            }
-          />
         </aside>
       </div>
     </div>

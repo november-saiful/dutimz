@@ -521,18 +521,23 @@
 }
 
 /*
-  The panel itself: a floating card inset from every edge, sitting over its own
-  scrim, and scrolling its own content rather than letting it hang off a short
-  screen.
+  The panel itself: a floating card that respects the viewport's margins on a
+  wide screen. It hugs its own content instead of stretching full-height, and
+  only when the content outgrows the viewport does it cap itself and scroll
+  internally rather than hanging off the screen.
 */
 .menu-panel {
   z-index: 110;
   /* The tint a row takes on hover, a step off the page's own paper. */
   --menu-soft: #f3ecf4;
-  inset: 18px 18px 18px auto;
+  top: 18px;
+  right: 18px;
+  bottom: auto;
+  left: auto;
   width: min(360px, calc(100vw - 36px));
   max-width: none;
   height: auto;
+  max-height: calc(100dvh - 36px);
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -1981,15 +1986,18 @@ footer.site-footer {
     display: none;
   }
   /*
-    The menu, full-bleed under the bar: the button that opened it stays visible
-    above its own panel, which is where a phone expects to find it.
+    The menu under the bar on a phone: the button that opened it stays visible
+    above its own panel, which is where a phone expects to find it. The panel
+    takes only the space its rows need — never the whole viewport — and caps
+    itself at the screen with an internal scroll when the rows outgrow it.
   */
   .menu-panel {
     top: calc(var(--topbar) + 10px);
     right: 10px;
-    bottom: 10px;
+    bottom: auto;
     left: 10px;
     width: auto;
+    max-height: calc(100dvh - var(--topbar) - 20px);
   }
   /* The bar hands its field to the button: the popup carries the same form, so a
      phone never wears two search affordances at once. */

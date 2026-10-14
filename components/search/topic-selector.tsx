@@ -12,7 +12,6 @@ interface TopicSelectorProps {
 
 const TOPICS = [
   { slug: "campus", label: "ক্যাম্পাস", count: "১২০+" },
-  { slug: "university", label: "বিশ্ববিদ্যালয়", count: "৮৫+" },
   { slug: "student-life", label: "শিক্ষার্থী জীবন", count: "৯৫+" },
   { slug: "culture", label: "সংস্কৃতি ও সাহিত্য", count: "৫০+" },
   { slug: "opinion", label: "মতামত ও বিশ্লেষণ", count: "৪০+" },

@@ -3,7 +3,6 @@ import {
   Backpack,
   Building2,
   Clock,
-  GraduationCap,
   Heart,
   LayoutGrid,
   Medal,
@@ -45,7 +44,6 @@ const FLAG_ICONS: Record<string, LucideIcon> = {
   // The desks themselves.
   "সব খবর": LayoutGrid,
   ক্যাম্পাস: Building2,
-  বিশ্ববিদ্যালয়: GraduationCap,
   "শিক্ষার্থী জীবন": Backpack,
   সংস্কৃতি: Palette,
   মতামত: Quote,

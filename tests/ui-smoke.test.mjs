@@ -1195,10 +1195,23 @@ test('the phone menu shows the same desks and the account behind one button', as
     css.indexOf('@media (max-width: 600px)'),
   );
   assert.match(phone, /\.nav \{\s*display: none;/, 'the pills leave the phone bar for the panel');
+  // The panel opens under the bar but takes only its rows' own space: it must
+  // not stretch to the fold on a phone, and caps itself with an internal scroll
+  // when the rows outgrow the screen.
   assert.match(
     phone,
     /\.menu-panel \{[\s\S]*?top: calc\(var\(--topbar\) \+ 10px\)/,
-    'and the panel goes full-bleed under the bar it opened from',
+    'and the panel opens under the bar it opened from',
+  );
+  assert.match(
+    phone,
+    /\.menu-panel \{[\s\S]*?bottom: auto;/,
+    'and it hugs its content instead of stretching full-bleed',
+  );
+  assert.match(
+    phone,
+    /\.menu-panel \{[\s\S]*?max-height: calc\(100dvh - var\(--topbar\) - 20px\)/,
+    'and it caps itself at the screen rather than running past the fold',
   );
   const shell = await readProjectFile('components/dashboard/dutimz-shell.tsx');
   assert.doesNotMatch(shell, /MobileBottomNav/, 'the retired phone dock stays gone');
@@ -1577,6 +1590,43 @@ test('the member dashboard separates identity, news and spotlights', async () =>
   assert.match(dashboard, /rejection_reason/, 'a rejected story must show the reason it was refused');
   assert.match(dashboard, /spotlight_posts/, 'the spotlight tab lists the member\'s own issues');
   assert.doesNotMatch(dashboard, /UUID/, 'no dashboard field may ask for a raw id');
+});
+
+test('desk tools live on the account page, not the public profile', async () => {
+  const publicProfile = await readProjectFile('components/profile/public-profile.tsx');
+  assert.doesNotMatch(publicProfile, /প্রতিবেদন লিখুন/, 'the public page must not offer the newsroom composer');
+  assert.doesNotMatch(publicProfile, /প্রতিবেদন পাঠান/, 'the public page must not carry a story-submission call to action');
+  assert.doesNotMatch(publicProfile, /স্পটলাইট দেখুন/, 'the public page must not link out to Spotlight');
+  assert.doesNotMatch(publicProfile, /href="\/account\/write\/"/, 'the public page must not carry a newsroom destination');
+  assert.doesNotMatch(publicProfile, /href="\/spotlight\/"/, 'the public page must not carry a Spotlight destination');
+
+  const dashboard = await readProjectFile('components/account/account-dashboard.tsx');
+  assert.match(dashboard, /href: "\/account\/moderation\/"/, 'moderation must be reachable from the account page');
+  assert.match(dashboard, /show: role === "moderator" \|\| role === "admin"/, 'moderation must stay limited to the desk');
+  assert.match(dashboard, /href: "\/account\/admin\/"/, 'the admin panel must be reachable from the account page');
+  assert.match(dashboard, /show: role === "admin"/, 'the admin panel must stay limited to administrators');
+});
+
+test('campus and university are one desk', async () => {
+  // The two desks covered the same beat, so they merged under the campus name:
+  // one entry in the configured list, one topic, one flag, and every published
+  // article moved by migration rather than left behind on a retired slug.
+  const site = await readProjectFile('lib/site.ts');
+  assert.match(site, /\{ label: "ক্যাম্পাস", slug: "campus" \}/, 'campus stays the merged desk');
+  assert.doesNotMatch(site, /"university"/, 'the retired slug leaves the configured list');
+  const topics = await readProjectFile('components/search/topic-selector.tsx');
+  assert.doesNotMatch(topics, /"university"/, 'search offers one campus topic, not two desks');
+  const flag = await readProjectFile('components/dashboard/flag.tsx');
+  assert.doesNotMatch(flag, /বিশ্ববিদ্যালয়/, 'no desk mark points at the retired name');
+  const preview = await readProjectFile('lib/preview.ts');
+  assert.doesNotMatch(preview, /categorySlug: "university"/, 'the preview fixture files under campus too');
+  const migration = await readProjectFile('supabase/migrations/202610140002_merge_campus_university.sql');
+  assert.match(migration, /update public\.articles[\s\S]*?slug = 'campus'[\s\S]*?slug = 'university'/, 'published articles move to campus');
+  assert.match(migration, /delete from public\.categories where slug = 'university'/, 'the retired row is removed');
+  assert.match(migration, /begin;/, 'the merge is atomic');
+  assert.ok(migration.trimEnd().endsWith('commit;'), 'the merge commits as one transaction');
+  const page = await readProjectFile('app/category/[slug]/page.tsx');
+  assert.match(page, /permanentRedirect\("\/category\/campus\/"\)/, 'the old address redirects instead of rendering empty');
 });
 
 test('the site mark ships with the bar and the footer', async () => {
