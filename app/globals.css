@@ -41,7 +41,8 @@
   --color-success-foreground: #ffffff;
 
   --color-muted: #ece9f0;
-  --color-muted-foreground: #948c9e;
+  /* Secondary text: 5.3:1 on shell, 5.7:1 on white, 4.8:1 on card (WCAG AA). */
+  --color-muted-foreground: #6b6376;
 
   --color-accent: #e6e1ea;
   --color-accent-foreground: #1a1220;
@@ -135,7 +136,8 @@
     --line: #e3dfe7;
     --ink: #1a1220;
     --body: #453c4a;
-    --muted: #948c9e;
+    /* Same ink as --color-muted-foreground: the old #948c9e read 3.0:1 (AA fail). */
+    --muted: #6b6376;
     --blue: #5f2367;
     --purple: #7a3d7f;
     --purple2: #a370a0;
