@@ -16,23 +16,35 @@ export function StoryArt({
   imageUrl,
   title,
   className = "",
+  sizes = "(max-width: 768px) 100vw, 400px",
   priority = false,
 }: {
   slug: string;
   imageUrl?: string | null;
   title: string;
   className?: string;
+  /**
+   * The width the picture is drawn at, for the browser's srcset choice. A card
+   * keeps the default; a full-bleed frame asks for the whole viewport.
+   */
+  sizes?: string;
   /** Set on the one picture that is above the fold; everything else stays lazy. */
   priority?: boolean;
 }) {
   if (imageUrl) {
     return (
-      <span className={`relative block overflow-hidden ${className}`}>
+      // `flex`, not Tailwind's `block`: this site's own `.block` is the page
+      // container (1240px wide, centred, with the gutter as padding), and a
+      // class attribute can only answer to both. A full-bleed surface — the
+      // hero slider — was therefore capped at the page measure with the plate
+      // showing either side of it. The wrapper's only child is the absolutely
+      // positioned picture, so the display mode decides nothing but that.
+      <span className={`relative flex overflow-hidden ${className}`}>
         <Image
           src={imageUrl}
           alt={title}
           fill
-          sizes="(max-width: 768px) 100vw, 400px"
+          sizes={sizes}
           className="object-cover"
           priority={priority}
           loading={priority ? undefined : "lazy"}

@@ -40,6 +40,28 @@ export function spotlightMediaUrlFor(mediaId: string): string {
   return `${MEDIA_URL}/spotlight/media/${encodeURIComponent(mediaId)}`;
 }
 
+/**
+ * What a member's role is called on their own page and share card — the eyebrow
+ * above their name reads "DUTIMZ Reporter", "DUTIMZ Admin". English, because it
+ * is one masthead line beside the site's own wordmark; the Bengali name for the
+ * same role already serves the dashboard, where the label describes an account
+ * rather than introducing a person to a reader.
+ *
+ * `reader` is every signed-in member with no newsroom job, and their page says
+ * "Member" rather than naming a rank they do not hold. An unknown or missing
+ * role falls back to the same word.
+ */
+const ROLE_TITLES: Record<string, string> = {
+  reader: "Member",
+  reporter: "Reporter",
+  moderator: "Moderator",
+  admin: "Admin",
+};
+
+export function roleTitle(role: string | null | undefined): string {
+  return ROLE_TITLES[(role ?? "").trim().toLowerCase()] ?? "Member";
+}
+
 export function slugArtClass(slug: string): string {
   if (slug.includes("culture") || slug.includes("opinion"))
     return "art-culture";

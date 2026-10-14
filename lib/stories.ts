@@ -2,67 +2,14 @@ import { reportError } from "./errors";
 import { CATEGORIES, mediaUrlFor } from "./site";
 import { isSupabaseConfigured, supabaseServer, type Story } from "./supabase";
 
-export type PreviewStory = {
-  slug: string;
-  title: string;
-  excerpt: string;
-  category: string;
-  categorySlug: string;
-  author: string;
-  time: string;
-  imageUrl?: string;
-};
-
-/** Same illustrative copy as src/data/stories.ts demo mode. */
-export const previewStories: PreviewStory[] = [
-  {
-    slug: "campus-voices-preview",
-    title: "শিক্ষার্থীদের ভাবনা ও উদ্যোগে আরও প্রাণবন্ত হোক ক্যাম্পাস",
-    excerpt:
-      "ক্যাম্পাসজুড়ে শিক্ষার্থীদের নতুন উদ্যোগ, মতামত আর সম্ভাবনার গল্প তুলে ধরবে DUTIMZ।",
-    category: "ক্যাম্পাস",
-    categorySlug: "campus",
-    author: "সম্পাদকীয় ডেস্ক",
-    time: "প্রিভিউ",
-    imageUrl:
-      "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&q=85",
-  },
-  {
-    slug: "library-preview",
-    title: "পড়াশোনা, গবেষণা ও মুক্তচিন্তার মিলনস্থল আমাদের বিশ্ববিদ্যালয়",
-    excerpt:
-      "বিশ্ববিদ্যালয়ের নানা পরিসর থেকে উঠে আসা ভাবনা ও অভিজ্ঞতার জন্য থাকছে আলাদা আয়োজন।",
-    category: "বিশ্ববিদ্যালয়",
-    categorySlug: "university",
-    author: "সম্পাদকীয় ডেস্ক",
-    time: "প্রিভিউ",
-    imageUrl:
-      "https://images.unsplash.com/photo-1562774053-701939374585?auto=format&fit=crop&w=1200&q=85",
-  },
-  {
-    slug: "culture-preview",
-    title: "সংস্কৃতি, সৃজনশীলতা আর শিক্ষার্থীদের নিজের মঞ্চ",
-    excerpt: "ক্যাম্পাসের শিল্প, সাহিত্য ও সাংস্কৃতিক আয়োজনের খবর এক জায়গায়।",
-    category: "সংস্কৃতি",
-    categorySlug: "culture",
-    author: "সম্পাদকীয় ডেস্ক",
-    time: "প্রিভিউ",
-    imageUrl:
-      "https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=1200&q=85",
-  },
-  {
-    slug: "student-life-preview",
-    title: "ক্যাম্পাস জীবনের গল্পে শিক্ষার্থীদের কণ্ঠস্বর",
-    excerpt:
-      "হল, ক্লাব, পাঠচক্র ও প্রতিদিনের ক্যাম্পাসজীবনের নানা দিক নিয়ে ধারাবাহিক আয়োজন।",
-    category: "শিক্ষার্থী জীবন",
-    categorySlug: "student-life",
-    author: "সম্পাদকীয় ডেস্ক",
-    time: "প্রিভিউ",
-    imageUrl:
-      "https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&w=1200&q=85",
-  },
-];
+/*
+  The demo fixtures themselves live in `lib/preview.ts`, which imports nothing at
+  all: both profile pages read them from a *client* component, and this module
+  reaches for the server-side Supabase client, so a browser bundle importing the
+  fixtures from here would drag that graph in with them. Re-exported, so every
+  existing import — the front page's — keeps working unchanged.
+*/
+export { previewStories, type PreviewStory } from "./preview";
 
 export function isDemoMode(): boolean {
   return !isSupabaseConfigured();

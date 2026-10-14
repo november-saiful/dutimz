@@ -1,5 +1,5 @@
 begin;
-select plan(266);
+select plan(277);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -1030,6 +1030,82 @@ select is_empty(
 select ok(
   (select username is not null and display_name is not null from public.get_public_profile('reader_2200000000004000')),
   'Identity stays public no matter how the visibility is set'
+);
+select results_eq(
+  $$select role from public.get_public_profile('reader_2200000000004000')$$,
+  $$values ('reporter'::text)$$,
+  'The public profile names the member''s role, so their page and card introduce them as a reporter'
+);
+reset role;
+
+-- A member's own face and banner. Both are open to every signed-in member — a reader who has
+-- never filed a story still has a profile — and both are public identity, so the picture stays
+-- readable by a signed-out visitor while the table holding its object key is readable by nobody.
+insert into public.profile_media_assets (id, owner_id, original_key, mime_type, original_bytes) values
+  ('94000000-0000-4000-8000-000000000001', '22000000-0000-4000-8000-000000000002', 'profiles/22000000-0000-4000-8000-000000000002/one.webp', 'image/webp', 4096)
+on conflict (id) do nothing;
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select lives_ok(
+  $$update public.profiles set cover_url = 'https://media.dutimz.com/profile/media/94000000-0000-4000-8000-000000000001' where id = '22000000-0000-4000-8000-000000000002'$$,
+  'A member may set their own banner'
+);
+reset role;
+select results_eq(
+  $$select cover_url from public.profiles where id = '22000000-0000-4000-8000-000000000002'$$,
+  $$values ('https://media.dutimz.com/profile/media/94000000-0000-4000-8000-000000000001'::text)$$,
+  'The banner the member chose is the one stored'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
+select lives_ok(
+  $$update public.profiles set cover_url = 'https://media.dutimz.com/profile/media/94000000-0000-4000-8000-0000000000ff' where id = '22000000-0000-4000-8000-000000000002'$$,
+  'A banner update aimed at another member is refused by the row policy, not by the statement'
+);
+reset role;
+select results_eq(
+  $$select cover_url from public.profiles where id = '22000000-0000-4000-8000-000000000002'$$,
+  $$values ('https://media.dutimz.com/profile/media/94000000-0000-4000-8000-000000000001'::text)$$,
+  'Another member leaves the banner they tried to replace untouched'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select lives_ok(
+  $$insert into public.profile_media_assets (id, owner_id, original_key, mime_type, original_bytes) values ('94000000-0000-4000-8000-000000000002', '22000000-0000-4000-8000-000000000002', 'profiles/22000000-0000-4000-8000-000000000002/two.webp', 'image/webp', 2048)$$,
+  'A member records their own upload'
+);
+select throws_ok(
+  $$insert into public.profile_media_assets (id, owner_id, original_key, mime_type, original_bytes) values ('94000000-0000-4000-8000-000000000003', '33000000-0000-4000-8000-000000000003', 'profiles/33000000-0000-4000-8000-000000000003/three.webp', 'image/webp', 2048)$$,
+  '42501', null,
+  'A member cannot record an upload against another member'
+);
+select throws_ok(
+  $$select count(*) from public.profile_media_assets$$,
+  '42501', null,
+  'The object-key table behind a profile picture is not readable by any client'
+);
+reset role;
+
+set local role anon;
+select set_config('request.jwt.claim.role', 'anon', true);
+select set_config('request.jwt.claim.sub', '', true);
+select results_eq(
+  $$select owner_id, mime_type from public.get_profile_media('94000000-0000-4000-8000-000000000001')$$,
+  $$values ('22000000-0000-4000-8000-000000000002'::uuid, 'image/webp'::text)$$,
+  'A signed-out visitor resolves the picture they are meant to see'
+);
+select is_empty(
+  $$select 1 from public.get_profile_media('94000000-0000-4000-8000-0000000000ff')$$,
+  'An unknown media id resolves to nothing'
+);
+select results_eq(
+  $$select cover_url from public.get_public_profile('reader_2200000000004000')$$,
+  $$values ('https://media.dutimz.com/profile/media/94000000-0000-4000-8000-000000000001'::text)$$,
+  'The public profile hands the banner to a signed-out visitor'
 );
 reset role;
 

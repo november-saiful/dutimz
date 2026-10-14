@@ -9,6 +9,7 @@ import { Comments } from "@/components/article/comments";
 import { PendingArticle } from "@/components/article/pending-article";
 import { ReadingProgress } from "@/components/article/reading-progress";
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
+import { Flag } from "@/components/dashboard/flag";
 import { StoryCarousel } from "@/components/dashboard/story-carousel";
 import {
   BlockHead,
@@ -313,7 +314,7 @@ export default async function ArticlePage({
         <aside className="a-aside">
           {recommended.length > 0 && (
             <>
-              <span className="flag">প্রস্তাবিত</span>
+              <Flag label="প্রস্তাবিত" />
               {recommended.map((item, index) => (
                 <MiniRow key={`${item.slug}-${index}`} item={item} />
               ))}
@@ -321,13 +322,13 @@ export default async function ArticlePage({
           )}
           {monthBest.length > 0 && (
             <>
-              <span className="flag">মাসের সেরা</span>
+              <Flag label="মাসের সেরা" />
               {monthBest.map((item, index) => (
                 <MiniRow key={`${item.slug}-${index}`} item={item} />
               ))}
             </>
           )}
-          <span className="flag">আরও খবর</span>
+          <Flag label="আরও খবর" />
           <div className="tagpills">
             {desks.map((desk) => (
               <Link key={desk.slug} href={`/category/${desk.slug}/`}>

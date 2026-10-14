@@ -7,7 +7,7 @@ interface Env {
   ALLOWED_ORIGINS: string;
 }
 
-type Scope = 'article' | 'spotlight';
+type Scope = 'article' | 'spotlight' | 'profile';
 type User = { id: string; email?: string };
 type MediaAsset = {
   id: string;
@@ -30,6 +30,24 @@ const ALLOWED_TYPES = new Set([
 // Every accepted image is re-encoded, whatever its source format.
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
 const COMPRESSED_MIME = 'image/webp';
+/**
+ * Where each kind of media lives. A scope owns its own prefix, its own table and the gate the Worker
+ * resolves it through, so an id from one scope can never be resolved as another's.
+ *
+ * A member's face and banner are stored in the forum's bucket under a prefix of their own rather than
+ * in a third bucket: they are public content of the same kind, and shipping profile images must not
+ * require an operator to provision storage first. Their gate is open to any visitor, because a
+ * profile picture is public identity — and the key still never leaves the server.
+ */
+const SCOPES: Record<Scope, { table: string; prefix: string; base: string; readRpc: string }> = {
+  article: { table: 'media_assets', prefix: 'originals', base: '/media', readRpc: 'get_media_asset' },
+  spotlight: { table: 'spotlight_media_assets', prefix: 'spotlight', base: '/spotlight/media', readRpc: 'get_spotlight_media' },
+  profile: { table: 'profile_media_assets', prefix: 'profiles', base: '/profile/media', readRpc: 'get_profile_media' },
+};
+/** News keeps its own private bucket; everything public shares the forum's. */
+function bucketFor(env: Env, scope: Scope): R2Bucket | undefined {
+  return scope === 'article' ? env.MEDIA_BUCKET : env.SPOTLIGHT_BUCKET;
+}
 // Every stored image is at most 200 KB, whatever its source size or format. Re-encoding walks this
 // ladder from the sharpest step down and keeps the first WebP that fits under the cap.
 const MAX_STORED_IMAGE_BYTES = 200 * 1024;
@@ -151,9 +169,8 @@ async function upload(request: Request, env: Env, allowedOrigin: string, scope: 
   if (scope === 'article' && (!role || !['reporter', 'moderator', 'admin'].includes(role.role))) {
     return json({ error: 'ফাইল পাঠাতে সম্পাদকীয় অনুমতি প্রয়োজন।' }, 403, allowedOrigin);
   }
-  const bucket = scope === 'article' ? env.MEDIA_BUCKET : env.SPOTLIGHT_BUCKET;
-  const table = scope === 'article' ? 'media_assets' : 'spotlight_media_assets';
-  const prefix = scope === 'article' ? 'originals' : 'spotlight';
+  const bucket = bucketFor(env, scope);
+  const { table, prefix, base } = SCOPES[scope];
   const mime = cleanMime(request.headers.get('Content-Type') ?? '');
   if (!ALLOWED_TYPES.has(mime)) return json({ error: 'এই ফাইলের ধরন অনুমোদিত নয়। HEIC ফাইল সমর্থিত নয়; JPEG, PNG, WebP, GIF বা AVIF ব্যবহার করুন।' }, 415, allowedOrigin);
   const maximum = mime.startsWith('image/') ? MAX_IMAGE_BYTES : mime.startsWith('video/') || mime.startsWith('audio/') ? MAX_VIDEO_BYTES : MAX_DOCUMENT_BYTES;
@@ -239,7 +256,6 @@ async function upload(request: Request, env: Env, allowedOrigin: string, scope: 
     console.error('Media record rejected', detail);
     return json({ error: 'মিডিয়ার নিরাপদ তথ্য নথিভুক্ত করা যায়নি।' }, 502, allowedOrigin);
   }
-  const base = scope === 'article' ? '/media' : '/spotlight/media';
   return json({
     id,
     url: `${new URL(request.url).origin}${base}/${id}`,
@@ -252,9 +268,9 @@ async function upload(request: Request, env: Env, allowedOrigin: string, scope: 
 
 async function serveMedia(request: Request, env: Env, allowedOrigin: string, scope: Scope, mediaId: string, headOnly: boolean) {
   if (!isUuid(mediaId)) return json({ error: 'ফাইল পাওয়া যায়নি।' }, 404, allowedOrigin);
-  const bucket = scope === 'article' ? env.MEDIA_BUCKET : env.SPOTLIGHT_BUCKET;
+  const bucket = bucketFor(env, scope);
   if (!bucket) return json({ error: 'ফাইল পাওয়া যায়নি।' }, 404, allowedOrigin);
-  const rpc = scope === 'article' ? 'get_media_asset' : 'get_spotlight_media';
+  const rpc = SCOPES[scope].readRpc;
   const user = await currentUser(request, env);
   const token = request.headers.get('Authorization') ?? `Bearer ${env.SUPABASE_ANON_KEY}`;
   // Resolve the object through a SECURITY DEFINER RPC so the raw R2 key is never read from a
@@ -300,6 +316,13 @@ export default {
     }
     if (url.pathname === '/spotlight/upload' && request.method === 'POST') {
       return upload(request, env, corsOrigin, 'spotlight');
+    }
+    // A member's own picture or banner: any signed-in reader, their own object only.
+    if (url.pathname === '/profile/upload' && request.method === 'POST') {
+      return upload(request, env, corsOrigin, 'profile');
+    }
+    if (url.pathname.startsWith('/profile/media/') && (request.method === 'GET' || request.method === 'HEAD')) {
+      return serveMedia(request, env, corsOrigin, 'profile', decodeURIComponent(url.pathname.slice('/profile/media/'.length)), request.method === 'HEAD');
     }
     if (url.pathname.startsWith('/spotlight/media/') && (request.method === 'GET' || request.method === 'HEAD')) {
       return serveMedia(request, env, corsOrigin, 'spotlight', decodeURIComponent(url.pathname.slice('/spotlight/media/'.length)), request.method === 'HEAD');

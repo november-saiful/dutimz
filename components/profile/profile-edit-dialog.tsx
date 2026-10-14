@@ -23,6 +23,11 @@ import { Progress } from "@/components/ui/progress";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage, reportError } from "@/lib/errors";
+import {
+  IMAGE_ACCEPT,
+  MAX_IMAGE_BYTES,
+  uploadImage,
+} from "@/lib/media-upload";
 import { supabaseBrowser } from "@/lib/supabase";
 import { bn } from "@/lib/site";
 
@@ -56,21 +61,123 @@ const EMPTY: Values = {
   payout_number: "",
 };
 
+/** A member's own two pictures, as the columns hold them. */
+type Images = { avatar_url: string | null; cover_url: string | null };
+
+const NO_IMAGES: Images = { avatar_url: null, cover_url: null };
+
 /**
- * The one place a member completes their profile. The dashboard opens it; no
- * other page or form edits a profile, and the username is read-only because a
- * handle is a stable public address that only the desk may change.
+ * The one place a member completes their profile — and the one place they upload
+ * their own face and banner. The dashboard opens it; no other page or form edits a
+ * profile, and the username is read-only because a handle is a stable public
+ * address that only the desk may change.
+ *
+ * The two pictures save on their own, as soon as the upload lands: they are not
+ * part of the form's validation (nothing can be wrong with a picture except its
+ * size, which the media Worker enforces), and making a member press “তথ্য সংরক্ষণ
+ * করুন” again after choosing a photo is how a banner gets lost.
  */
+/**
+ * One picture, with its preview and its two actions. A member's own upload replaces
+ * whatever was there (the Google picture included), and “সরান” puts the column back
+ * to null rather than storing an empty string — `avatar_url` is nullable by design.
+ *
+ * It is a top-level component on purpose: a declaration inside the dialog would be a
+ * new type on every keystroke the member types, remounting the picker and dropping
+ * the file input mid-choice.
+ */
+function ImagePicker({
+  id,
+  label,
+  hint,
+  shape,
+  wide = false,
+  value,
+  busy,
+  onPick,
+  onRemove,
+}: {
+  id: string;
+  label: string;
+  hint: string;
+  shape: "avatar" | "cover";
+  wide?: boolean;
+  value: string | null;
+  busy: boolean;
+  onPick: (file?: File) => void;
+  onRemove: () => void;
+}) {
+  const frame =
+    shape === "avatar"
+      ? "size-20 rounded-full"
+      : "h-28 w-full rounded-xl";
+  return (
+    <Field label={label} htmlFor={id} hint={hint} wide={wide}>
+      <div className="flex items-start gap-3">
+        <div
+          className={`${frame} shrink-0 overflow-hidden border border-border bg-muted`}
+        >
+          {value ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={value} alt="" className="size-full object-cover" />
+          ) : null}
+        </div>
+        <div className="flex min-w-0 flex-col gap-2">
+          <input
+            id={id}
+            type="file"
+            accept={IMAGE_ACCEPT}
+            disabled={busy}
+            onChange={(event) => {
+              onPick(event.target.files?.[0]);
+              // Chosen twice in a row is still a choice: clear it so the same file fires again.
+              event.target.value = "";
+            }}
+            className="max-w-full text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm"
+          />
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy || !value}
+              onClick={onRemove}
+            >
+              সরান
+            </Button>
+            {busy && (
+              <span className="text-xs text-muted-foreground">
+                সংরক্ষণ হচ্ছে…
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </Field>
+  );
+}
+
 export function ProfileEditDialog({
   open,
   onOpenChange,
   onSaved,
+  onImagesChanged,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: (completion: number) => void;
+  /**
+   * The dashboard's band and avatar should follow a new picture immediately, so
+   * the saved pair is handed back rather than left to a refetch: this dialog is
+   * where the write happened, and a second read could only agree with it.
+   */
+  onImagesChanged?: (images: Images) => void;
 }) {
   const [values, setValues] = React.useState<Values>(EMPTY);
+  const [images, setImages] = React.useState<Images>(NO_IMAGES);
+  const [imageBusy, setImageBusy] = React.useState<keyof Images | null>(null);
+  const [imageError, setImageError] = React.useState("");
+  const [imageDone, setImageDone] = React.useState("");
   const [completion, setCompletion] = React.useState(0);
   const [loading, setLoading] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -97,7 +204,11 @@ export function ProfileEditDialog({
           return;
         }
         const [profileResult, detailsResult, completionResult] = await Promise.all([
-          supabase.from("profiles").select("username,display_name,bio").eq("id", user.id).maybeSingle(),
+          supabase
+            .from("profiles")
+            .select("username,display_name,bio,avatar_url,cover_url")
+            .eq("id", user.id)
+            .maybeSingle(),
           supabase
             .from("profile_details")
             .select("department,session,du_registration_number,residency_status,hall_name,whatsapp_number,whatsapp_na,payout_method,payout_number")
@@ -116,8 +227,18 @@ export function ProfileEditDialog({
         if (profileResult.error || detailsResult.error) {
           setError("আপনার তথ্য লোড করা যায়নি। আবার চেষ্টা করুন।");
         }
-        const profile = profileResult.data as { username?: string; display_name?: string; bio?: string } | null;
+        const profile = profileResult.data as {
+          username?: string;
+          display_name?: string;
+          bio?: string;
+          avatar_url?: string | null;
+          cover_url?: string | null;
+        } | null;
         const details = detailsResult.data as Record<string, unknown> | null;
+        setImages({
+          avatar_url: profile?.avatar_url ?? null,
+          cover_url: profile?.cover_url ?? null,
+        });
         setValues({
           display_name: profile?.display_name ?? "",
           username: profile?.username ?? "",
@@ -135,6 +256,7 @@ export function ProfileEditDialog({
         setCompletion(Number(completionResult.data ?? 0));
       } catch (err) {
         reportError("profile editor load", err);
+        if (!cancelled) setImages(NO_IMAGES);
         if (!cancelled) setError("আপনার তথ্য লোড করা যায়নি। আবার চেষ্টা করুন।");
       } finally {
         if (!cancelled) setLoading(false);
@@ -147,6 +269,79 @@ export function ProfileEditDialog({
 
   const set = <K extends keyof Values>(key: K, value: Values[K]) =>
     setValues((current) => ({ ...current, [key]: value }));
+
+  /** Write one picture column — a URL, or null when the member removes it. */
+  async function saveImage(column: keyof Images, url: string | null) {
+    setImageError("");
+    setImageDone("");
+    setImageBusy(column);
+    try {
+      const supabase = supabaseBrowser();
+      const {
+        data: { user },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !user) {
+        setImageError("ছবি সংরক্ষণ করতে অ্যাকাউন্টে প্রবেশ করুন।");
+        return;
+      }
+      // Only these two columns are written here; the handle and the role stay out
+      // of this component's reach, as they are out of the form's.
+      const { error: saveError } = await supabase
+        .from("profiles")
+        .update({ [column]: url })
+        .eq("id", user.id);
+      if (saveError) {
+        setImageError(
+          errorMessage(
+            "profile image save",
+            saveError,
+            "ছবি সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
+          ),
+        );
+        return;
+      }
+      const next: Images = { ...images, [column]: url };
+      setImages(next);
+      setImageDone(
+        column === "avatar_url"
+          ? "প্রোফাইল ছবি সংরক্ষণ হয়েছে।"
+          : "কভার ছবি সংরক্ষণ হয়েছে।",
+      );
+      onImagesChanged?.(next);
+    } catch (err) {
+      setImageError(
+        errorMessage("profile image save", err, "ছবি সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।"),
+      );
+    } finally {
+      setImageBusy(null);
+    }
+  }
+
+  /** Upload the chosen file, then keep its URL on the member's own row. */
+  async function pickImage(column: keyof Images, file?: File) {
+    if (!file) return;
+    setImageError("");
+    setImageDone("");
+    if (file.size > MAX_IMAGE_BYTES) {
+      setImageError("ছবিটি সর্বোচ্চ ২০ মেগাবাইট হতে পারে।");
+      return;
+    }
+    setImageBusy(column);
+    try {
+      const uploaded = await uploadImage(file, "profile");
+      await saveImage(column, uploaded.url);
+    } catch (err) {
+      setImageError(
+        errorMessage(
+          "profile image upload",
+          err,
+          "ছবি আপলোড করা যায়নি। আবার চেষ্টা করুন।",
+        ),
+      );
+      setImageBusy(null);
+    }
+  }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -231,6 +426,38 @@ export function ProfileEditDialog({
         ) : (
           <form onSubmit={submit} className="flex flex-col gap-5">
             <Progress value={completion} />
+
+            <FieldSection
+              title="ছবি"
+              description="প্রোফাইল ছবি আর কভার ছবি — দুটোই আপনার প্রকাশ্য পাতায় দেখা যাবে। ছবি বাছাই করলেই সংরক্ষিত হয়ে যায়।"
+            >
+              <FieldGrid>
+                <ImagePicker
+                  id="edit-avatar"
+                  label="প্রোফাইল ছবি"
+                  hint="বর্গাকার ছবি ভালো দেখায়। সর্বোচ্চ ২০ MB (JPEG, PNG, WebP, GIF, AVIF)।"
+                  shape="avatar"
+                  value={images.avatar_url}
+                  busy={imageBusy === "avatar_url"}
+                  onPick={(file) => void pickImage("avatar_url", file)}
+                  onRemove={() => void saveImage("avatar_url", null)}
+                />
+                <ImagePicker
+                  id="edit-cover"
+                  label="কভার ছবি"
+                  hint="প্রোফাইলের উপরের বড় ছবি — চওড়া ছবি সবচেয়ে ভালো মানায়।"
+                  shape="cover"
+                  wide
+                  value={images.cover_url}
+                  busy={imageBusy === "cover_url"}
+                  onPick={(file) => void pickImage("cover_url", file)}
+                  onRemove={() => void saveImage("cover_url", null)}
+                />
+              </FieldGrid>
+              {imageError && <FormMessage>{imageError}</FormMessage>}
+              {imageDone && <FormMessage tone="success">{imageDone}</FormMessage>}
+            </FieldSection>
+
             <FieldSection title="পরিচিতি" description="পাঠকের কাছে আপনার নাম এভাবেই দেখানো হবে।">
               <FieldGrid>
                 <Field label="পূর্ণ নাম" htmlFor="edit-name">

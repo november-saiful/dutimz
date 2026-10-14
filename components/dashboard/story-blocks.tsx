@@ -1,6 +1,8 @@
 import Link from "next/link";
 
+import { Flag } from "@/components/dashboard/flag";
 import { StoryArt } from "@/components/dashboard/story-card";
+import type { CarouselItem } from "@/components/ui/connected-carousel";
 import { mediaUrlFor, relativeTimeBn } from "@/lib/site";
 import type { PreviewStory } from "@/lib/stories";
 import { storyCategory, storyCredit, type Story } from "@/lib/supabase";
@@ -58,6 +60,24 @@ export function storyItemFromPreview(story: PreviewStory): StoryItem {
 
 export function storyUrl(item: StoryItem): string {
   return `/news/${encodeURIComponent(item.slug)}/`;
+}
+
+/**
+ * One story as the lead deck's card wants it: the design's own fields, filled
+ * from the same flattened story every other card on the page reads.
+ */
+export function deckItemFromStory(item: StoryItem): CarouselItem {
+  return {
+    id: item.slug,
+    stat: item.title,
+    quote: item.excerpt,
+    category: item.section,
+    author: item.byline,
+    role: item.when,
+    href: storyUrl(item),
+    image: item.image,
+    sectionSlug: item.sectionSlug,
+  };
 }
 
 /**
@@ -119,16 +139,6 @@ export function CarouselCard({ item }: { item: StoryItem }) {
   );
 }
 
-/** One of the three hero previews under the lead story. */
-export function PreviewItem({ item }: { item: StoryItem }) {
-  return (
-    <Link href={storyUrl(item)} className="preview">
-      <StoryMeta item={item} />
-      <h4 className="clamp3">{item.title}</h4>
-    </Link>
-  );
-}
-
 /** The overlaid feature card at the top of the recommended rail. */
 export function FeatureCard({ item }: { item: StoryItem }) {
   return (
@@ -162,7 +172,7 @@ export function BlockHead({
 }) {
   return (
     <div className="block-head">
-      <span className="flag">{flag}</span>
+      <Flag label={flag} />
       <Link href={moreHref} className="more">
         {moreLabel}
         <svg viewBox="0 0 24 24" aria-hidden>

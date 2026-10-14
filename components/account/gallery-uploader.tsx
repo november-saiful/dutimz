@@ -6,21 +6,15 @@ import { ArrowLeft, ArrowRight, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, FormMessage } from "@/components/ui/field";
 import { errorMessage } from "@/lib/errors";
-import { freshAccessToken } from "@/lib/supabase";
+import {
+  IMAGE_ACCEPT as ACCEPT,
+  MAX_IMAGE_BYTES as MAX_BYTES,
+  uploadImage,
+} from "@/lib/media-upload";
 
-const ACCEPT = "image/jpeg,image/png,image/webp,image/gif,image/avif";
 const MAX_FILES = 10;
-const MAX_BYTES = 20 * 1024 * 1024;
 
 export type GalleryItem = { id: string; objectUrl: string; name: string };
-
-function mediaBase(): string {
-  const configured = process.env.NEXT_PUBLIC_MEDIA_URL ?? "";
-  if (configured) return configured.replace(/\/$/, "");
-  if (typeof window !== "undefined" && window.location.hostname === "localhost")
-    return "http://localhost:8788";
-  return "https://media.dutimz.com";
-}
 
 export function GalleryUploader({
   items,
@@ -45,37 +39,12 @@ export function GalleryUploader({
   const inputRef = React.useRef<HTMLInputElement>(null);
 
   async function uploadOne(file: File): Promise<GalleryItem> {
-    // The media Worker reads the raw body with Content-Type + bearer token —
-    // same contract the old editor used. HEIC is rejected server-side (415).
-    //
-    // The token comes from the shared `@supabase/ssr` session, and `freshAccessToken`
-    // refreshes it when the stored one has expired. A bare supabase-js client built
-    // here would read localStorage and find no session at all, and a stale cookie
-    // session would send a dead token the media Worker answers with 401 — both of
-    // which tell a signed-in reporter to sign in with Google before their own upload.
-    const token = await freshAccessToken();
-    if (!token) throw new Error("ছবি পাঠাতে আগে গুগল দিয়ে প্রবেশ করুন।");
-    const endpoint = scope === "spotlight" ? "/spotlight/upload" : "/upload";
-    const response = await fetch(`${mediaBase()}${endpoint}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": file.type,
-        Authorization: `Bearer ${token}`,
-      },
-      body: file,
-    });
-    const payload = (await response.json().catch(() => null)) as {
-      id?: string;
-      error?: string;
-    } | null;
-    if (!response.ok) {
-      throw new Error(
-        payload?.error ?? `মিডিয়া সার্ভার থেকে ${response.status} ত্রুটি এসেছে`,
-      );
-    }
-    if (!payload?.id) throw new Error("ছবির আইডি পাওয়া যায়নি।");
+    // The upload contract itself lives in `lib/media-upload.ts`: the raw body, the
+    // shared session's bearer token, and HEIC rejected server-side (415). This file
+    // owns only what a gallery adds to it — the local preview and the file's name.
+    const uploaded = await uploadImage(file, scope);
     return {
-      id: payload.id,
+      id: uploaded.id,
       objectUrl: URL.createObjectURL(file),
       name: file.name,
     };

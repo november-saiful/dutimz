@@ -2,7 +2,7 @@
 
 /*
  * A connected carousel: one card in focus, the neighbours peeking out of either
- * side of it, a progress-driven dot per card and a slow auto-advance.
+ * side of it, a dot per card and a slow auto-advance.
  *
  * The registry source ships three hand-tuned geometries — a phone layout, a
  * tablet layout and a desktop one — which are three different *arrangements* of
@@ -32,28 +32,47 @@
  * forbids), an empty deck renders nothing instead of indexing into it, and the
  * headline and pull quote are clamped to three lines because a real report
  * headline is longer than the registry demo's marketing copy.
+ *
+ * It is the front page's lead band, so three things are the site's rather than
+ * the registry's: the cards wear `StoryArt`, which is the one renderer of a
+ * story's picture (and the brand's fallback art when a story has none); the
+ * card in focus carries its headline as the link into the report, the way every
+ * other card on the site does.
+ *
+ * The registry's blue progress fill is dropped, deliberately: nothing on the
+ * page counts the wait down in paint. The dot row still says which card the
+ * reader is on, and the timer still turns the deck by itself — the fill was a
+ * second reading of the same fact, drawn small, so the deck is quieter without
+ * it.
  */
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 
-import Image from "next/image";
+import Link from "next/link";
 
 import { motion } from "framer-motion";
 
 import type { HTMLAttributes, MouseEvent, KeyboardEvent } from "react";
 
+import { StoryArt } from "@/components/dashboard/story-card";
 import { cn } from "@/lib/utils";
 
 export interface CarouselItem {
   id: string | number;
+  /** The headline: the card's subject, and the reader's way into the report. */
   stat: string;
+  /** The short description under it. */
   quote: string;
   /** The section label, shown as a badge on every card. */
   category?: string;
   author: string;
   role: string;
-  defaultImage: string;
-  selectedImage: string;
+  /** The story's own address. Without one the card is a picture, not a link. */
+  href?: string;
+  /** The story's own picture; a story without art wears the brand's fallback. */
+  image?: string | null;
+  /** The desk, for that fallback's own class. */
+  sectionSlug?: string;
   alt?: string;
 }
 
@@ -370,8 +389,11 @@ export function CalendlyCarousel({
             }}
           >
             {VISIBLE_OFFSETS.map((offset) => {
-              // With a single story, rendering the neighbour slots wraps the
-              // same card around the focused card. Keep only the real focus.
+              // A ring can only show as many distinct neighbours as it has
+              // stories. Below five, the outer pair would be two pictures of
+              // the same report sitting either side of it; with one story, every
+              // neighbour would be that story. Keep only what is real.
+              if (total < 5 && Math.abs(offset) === 2) return null;
               if (total === 1 && offset !== 0) return null;
               const virtualIndex = page + offset;
               const itemIndex = ((virtualIndex % total) + total) % total;
@@ -411,7 +433,7 @@ export function CalendlyCarousel({
                       <svg
                         viewBox="0 0 20 37.3338"
                         preserveAspectRatio="none"
-                        className="size-full fill-current overflow-visible block"
+                        className="size-full fill-current overflow-visible"
                       >
                         <path d="M0 0C0 0 1.2422 13.5759 10 13.5759C18.7578 13.5759 20 0 20 0V37.3338C20 37.3338 18.7578 23.7578 10 23.7578C1.2422 23.7578 0 37.3338 0 37.3338V0Z" />
                       </svg>
@@ -432,7 +454,7 @@ export function CalendlyCarousel({
                       <svg
                         viewBox="0 0 20 37.3338"
                         preserveAspectRatio="none"
-                        className="size-full fill-current overflow-visible block"
+                        className="size-full fill-current overflow-visible"
                       >
                         <path d="M0 0C0 0 1.2422 13.5759 10 13.5759C18.7578 13.5759 20 0 20 0V37.3338C20 37.3338 18.7578 23.7578 10 23.7578C1.2422 23.7578 0 37.3338 0 37.3338V0Z" />
                       </svg>
@@ -453,7 +475,7 @@ export function CalendlyCarousel({
                       <svg
                         viewBox="0 0 16 28"
                         preserveAspectRatio="none"
-                        className="size-full fill-current overflow-visible block"
+                        className="size-full fill-current overflow-visible"
                       >
                         <path d="M0 0C0 0 0.993759 10.1818 8 10.1818C15.0062 10.1818 16 0 16 0V28C16 28 15.0062 17.8182 8 17.8182C0.993759 17.8182 0 28 0 28V0Z" />
                       </svg>
@@ -474,7 +496,7 @@ export function CalendlyCarousel({
                       <svg
                         viewBox="0 0 16 28"
                         preserveAspectRatio="none"
-                        className="size-full fill-current overflow-visible block"
+                        className="size-full fill-current overflow-visible"
                       >
                         <path d="M0 0C0 0 0.993759 10.1818 8 10.1818C15.0062 10.1818 16 0 16 0V28C16 28 15.0062 17.8182 8 17.8182C0.993759 17.8182 0 28 0 28V0Z" />
                       </svg>
@@ -495,14 +517,12 @@ export function CalendlyCarousel({
                       )}
                     >
                       <div className="size-full rounded-[24px] overflow-hidden bg-muted relative">
-                        <Image
-                          alt={item.alt || item.author}
-                          src={item.defaultImage}
-                          fill
-                          unoptimized
-                          draggable={false}
-                          style={{ objectFit: "cover" }}
-                          className="size-full object-cover"
+                        <StoryArt
+                          slug={item.sectionSlug ?? ""}
+                          imageUrl={item.image}
+                          title={item.alt ?? item.stat}
+                          sizes="(max-width: 768px) 70vw, 340px"
+                          className="size-full"
                         />
                       </div>
                     </motion.div>
@@ -541,7 +561,16 @@ export function CalendlyCarousel({
                             title={item.stat}
                             className="text-4xl font-bold tracking-tight text-foreground leading-tight w-full line-clamp-3 break-words"
                           >
-                            {item.stat}
+                            {item.href ? (
+                              <Link
+                                href={item.href}
+                                className="outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                              >
+                                {item.stat}
+                              </Link>
+                            ) : (
+                              item.stat
+                            )}
                           </h3>
 
                           <>
@@ -568,7 +597,7 @@ export function CalendlyCarousel({
 
                                   <div className="shrink-0 flex items-center justify-start px-3 h-[6px] -my-[1px] text-secondary relative z-10">
                                     <svg
-                                      className="block shrink-0 fill-current overflow-visible"
+                                      className="shrink-0 fill-current overflow-visible"
                                       preserveAspectRatio="none"
                                       viewBox="0 -2 14 12"
                                       width="14"
@@ -589,14 +618,13 @@ export function CalendlyCarousel({
                         </div>
 
                         <div className="relative shrink-0 overflow-hidden rounded-[22px] bg-muted w-[clamp(180px,44%,330px)] h-full">
-                          <Image
-                            alt={item.alt || item.author}
-                            src={item.selectedImage}
-                            fill
-                            unoptimized
-                            draggable={false}
-                            style={{ objectFit: "cover" }}
-                            className="size-full object-cover"
+                          <StoryArt
+                            slug={item.sectionSlug ?? ""}
+                            imageUrl={item.image}
+                            title={item.alt ?? item.stat}
+                            sizes="(max-width: 768px) 60vw, 330px"
+                            className="size-full"
+                            priority={isActive}
                           />
                         </div>
                       </motion.div>
@@ -640,7 +668,10 @@ export function CalendlyCarousel({
             >
               <span
                 className={cn(
-                  "block overflow-hidden transition-[width] duration-300 ease-out",
+                  // Never the Tailwind `block` utility here: this site's own stylesheet owns
+                  // `.block` (the band's max-width and padding), so that class would inflate
+                  // the dot to the band's 72px minimum and erase the current-card pill.
+                  "transition-[width] duration-300 ease-out",
                   isSelected
                     ? "bg-secondary"
                     : "bg-secondary hover:bg-muted-foreground/30",
@@ -650,26 +681,7 @@ export function CalendlyCarousel({
                   width: isSelected ? dotWidth : dotPill,
                   borderRadius: dotRadius,
                 }}
-              >
-                {isSelected && (
-                  <span
-                    // Keyed by the slide so the animation restarts with each card; its duration
-                    // is the auto-advance interval, so the fill and the timer stay in step.
-                    key={page}
-                    className="block h-full bg-blue-600 dark:bg-blue-500"
-                    style={{
-                      borderRadius: dotRadius,
-                      transformOrigin: "0% 50%",
-                      transform: reduceMotion ? "scaleX(1)" : undefined,
-                      animation: reduceMotion
-                        ? undefined
-                        : `dutimz-carousel-progress ${autoPlayInterval}ms linear forwards`,
-                      animationPlayState:
-                        pauseOnHover && isHovered ? "paused" : "running",
-                    }}
-                  />
-                )}
-              </span>
+              />
             </button>
           );
         })}

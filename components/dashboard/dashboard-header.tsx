@@ -13,7 +13,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { UserDropdown } from "@/components/ui/user-dropdown";
+import { SiteMenu, isCurrentSection, sectionHref } from "@/components/dashboard/site-menu";
 import {
   ACCOUNT_HIDDEN_ACTIONS,
   ACCOUNT_ROUTES,
@@ -55,9 +55,14 @@ function initialsFor(name: string): string {
 
 /**
  * The site's top bar, in the reference design's shape: the mark on the left,
- * the section pills beside it, and the language chip, search field, account
- * menu and phone burger on the right. The section pills are the real desks from
- * the database, so a retired desk disappears from the bar on its own.
+ * the section pills beside it, and the language chip, search field and the one
+ * menu on the right. The section pills are the real desks from the database, so
+ * a retired desk disappears from the bar on its own.
+ *
+ * The menu is a single control — desks and account together (`SiteMenu`) — which
+ * is why the bar has no burger and no bare avatar beside it any more: on a phone
+ * the pills hand their desks to that panel, and the member's own surfaces are
+ * the same panel's account rows.
  */
 export function DashboardHeader({
   sections,
@@ -66,7 +71,6 @@ export function DashboardHeader({
 }) {
   const router = useRouter();
   const pathname = usePathname() ?? "/";
-  const [menuOpen, setMenuOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   // The phone's search field lives in a popup this button raises; both fields
   // write the same `query`, so switching widths never strands a half-typed term.
@@ -179,11 +183,9 @@ export function DashboardHeader({
     if (target && target !== pathname) router.replace(target);
   }, [menuUser, pathname, router]);
 
-  // The phone menu is a disclosure over the section pills and the phone search is
-  // a popup over the bar; both close on any navigation, including the reader's
-  // own back button.
+  // The phone search is a popup over the bar, and it closes on any navigation,
+  // including the reader's own back button. The menu closes itself the same way.
   React.useEffect(() => {
-    setMenuOpen(false);
     setSearchOpen(false);
   }, [pathname]);
 
@@ -268,22 +270,13 @@ export function DashboardHeader({
           <img src="/dutimz-text-logo.svg" alt="" width={1278} height={372} />
         </Link>
 
-        <nav
-          id="site-nav"
-          className={`nav${menuOpen ? " open" : ""}`}
-          aria-label="বিভাগ"
-        >
+        <nav className="nav" aria-label="বিভাগ">
           {sections.map((section) => {
-            const href =
-              section.slug === "all" ? "/" : `/category/${section.slug}/`;
-            const active =
-              section.slug === "all"
-                ? pathname === "/"
-                : pathname.startsWith(`/category/${section.slug}`);
+            const active = isCurrentSection(section.slug, pathname);
             return (
               <Link
                 key={section.slug}
-                href={href}
+                href={sectionHref(section.slug)}
                 className={`pill${active ? " active" : ""}`}
                 aria-current={active ? "page" : undefined}
               >
@@ -314,7 +307,7 @@ export function DashboardHeader({
 
           {/*
             The phone's search. A bar this narrow cannot hold a field beside the
-            mark, the account menu and the burger, so the field is raised on
+            mark, the menu and the search toggle, so the field is raised on
             demand: the button opens the site's own sheet from the top with the
             same form the wide bar shows inline.
           */}
@@ -384,28 +377,17 @@ export function DashboardHeader({
           </form>
 
           {/*
-            The account menu is always present: signed-out visitors get a
-            sign-in call to action inside it instead of a bare avatar that
-            dropped them on a page they could not use.
+            The one menu, and always present: it holds the desks and the account
+            together, and a signed-out visitor gets the sign-in call to action
+            inside it instead of a bare avatar that dropped them on a page they
+            could not use.
           */}
-          <UserDropdown
-            user={menuUser ? { ...menuUser, status: "online" } : null}
+          <SiteMenu
+            sections={sections}
+            user={menuUser}
             onAction={handleMenuAction}
             hiddenActions={HIDDEN_MENU_ACTIONS}
           />
-
-          <button
-            type="button"
-            className="burger"
-            aria-label="মেনু"
-            aria-expanded={menuOpen}
-            aria-controls="site-nav"
-            onClick={() => setMenuOpen((open) => !open)}
-          >
-            <span />
-            <span />
-            <span />
-          </button>
         </div>
       </div>
     </header>

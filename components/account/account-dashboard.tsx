@@ -2,39 +2,66 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { Bookmark, PenLine, Settings2, ShieldCheck, Wallet } from "lucide-react";
+import {
+  Bookmark,
+  IdCard,
+  PenLine,
+  Percent,
+  Settings2,
+  ShieldCheck,
+  Sparkles,
+  Wallet,
+} from "lucide-react";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { ContentEditDialog, type EditTarget } from "@/components/account/content-edit-dialog";
 import { SignInButton } from "@/components/auth/sign-in-button";
 import { ProfileEditDialog } from "@/components/profile/profile-edit-dialog";
 import { PublicProfileSettings } from "@/components/profile/public-profile-settings";
-import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  EntryDot,
+  ProfileBand,
+  ProfileEntry,
+  ProfileKicker,
+  ProfileMeta,
+  ProfileSectionHead,
+  ProfileSideBlock,
+  ProfileStats,
+  ProfileTip,
+} from "@/components/profile/profile-pieces";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { errorMessage, reportError } from "@/lib/errors";
+import { previewMember } from "@/lib/preview";
+import { bn, bnMoney, formatDateBn } from "@/lib/site";
 import {
   isMissingSession,
   isSupabaseConfigured,
   supabaseBrowser,
 } from "@/lib/supabase";
-import { bn, bnMoney, formatDateBn } from "@/lib/site";
+
+/*
+ * The member's own corner, `/account/`.
+ *
+ * It is the same page as `/u/<handle>/` — the reference design's editorial
+ * profile, one band, one identity, one strip of real numbers, reporting in a wide
+ * column and tools in a narrow one — because a member's own view of themselves
+ * should not look like a control panel bolted to a different site.
+ *
+ * What is *not* restyled is the behaviour: the same four reads on load, the same
+ * three tabs, the same correction requests (an edit here is a request the desk
+ * reviews, never a write), the same Spotlight statuses and the same dialogs. The
+ * pieces below take their data from that logic untouched.
+ *
+ * Two changes the layout forced, both deliberate:
+ *
+ *  - every number in the strip has to be read before it can be printed, so the
+ *    dashboard now takes its three reads when the session arrives rather than
+ *    when a tab is opened — one read for the whole page, the way the front page
+ *    works, instead of one per tab;
+ *  - with no Supabase credentials at all (demo builds and pull-request previews)
+ *    the preview member stands in — the same member `/u/<handle>/` shows — so the
+ *    page can be reviewed as a profile instead of as an empty shell.
+ */
 
 type Role = "reader" | "reporter" | "moderator" | "admin";
 
@@ -74,6 +101,13 @@ const ISSUE_STATUS_LABELS: Record<string, string> = {
   invalid: "ভিত্তিহীন / অপ্রাসঙ্গিক",
 };
 
+const ROLE_LABELS: Record<Role, string> = {
+  reader: "পাঠক",
+  reporter: "রিপোর্টার",
+  moderator: "মডারেটর",
+  admin: "প্রশাসক",
+};
+
 const SPOTLIGHT_FILTERS: { key: string; label: string }[] = [
   { key: "all", label: "সব" },
   { key: "open", label: "খোলা" },
@@ -82,21 +116,20 @@ const SPOTLIGHT_FILTERS: { key: string; label: string }[] = [
   { key: "invalid", label: "ভিত্তিহীন" },
 ];
 
-function statusVariant(
-  status: string,
-): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "rejected" || status === "invalid") return "destructive";
-  if (status === "published" || status === "solved") return "outline";
-  return "secondary";
+/** The state a row is in, as the stylesheet's own tint for it. */
+function statusClass(status: string): string {
+  return `pf-status ${status === "draft" ? "open" : status}`;
 }
 
 export function AccountDashboard() {
+  const demo = !isSupabaseConfigured();
   const [loading, setLoading] = React.useState(true);
   const [signedIn, setSignedIn] = React.useState(false);
   const [userId, setUserId] = React.useState<string | null>(null);
   const [name, setName] = React.useState("আপনার নাম");
   const [handle, setHandle] = React.useState("@username");
   const [avatar, setAvatar] = React.useState<string | null>(null);
+  const [cover, setCover] = React.useState<string | null>(null);
   const [role, setRole] = React.useState<Role>("reader");
   const [completion, setCompletion] = React.useState(0);
   const [balance, setBalance] = React.useState("৳০");
@@ -136,8 +169,21 @@ export function AccountDashboard() {
         client. This effect finishes in a `finally` with no `catch`, so without
         this guard the throw escapes the effect, reaches the error boundary and
         replaces the page with Next's error document.
+
+        The preview member stands in for that build: the same person the public
+        profile shows, so the two halves of one identity agree, and they are the
+        only member a preview ever answers as.
       */
-      if (!isSupabaseConfigured()) {
+      if (demo) {
+        setName(previewMember.displayName);
+        setHandle(`@${previewMember.username}`);
+        setRole(previewMember.role);
+        setCompletion(previewMember.completion);
+        setBalance(bnMoney(previewMember.balance));
+        setArticles(previewMember.articles);
+        setSpotlights(previewMember.spotlights);
+        setSignedIn(true);
+        setUserId(previewMember.username);
         setLoading(false);
         return;
       }
@@ -163,7 +209,7 @@ export function AccountDashboard() {
           await Promise.all([
             supabase
               .from("profiles")
-              .select("username,display_name,avatar_url")
+              .select("username,display_name,avatar_url,cover_url")
               .eq("id", user.id)
               .maybeSingle(),
             supabase
@@ -191,6 +237,7 @@ export function AccountDashboard() {
           username?: string;
           display_name?: string;
           avatar_url?: string | null;
+          cover_url?: string | null;
         } | null;
         setName(
           profile?.display_name ||
@@ -202,6 +249,7 @@ export function AccountDashboard() {
         );
         setHandle(`@${profile?.username ?? ""}`);
         setAvatar(profile?.avatar_url ?? null);
+        setCover(profile?.cover_url ?? null);
         setRole((roleResult.data?.role as Role | undefined) ?? "reader");
         setCompletion(Number(completionResult.data ?? 0));
         const wallet = walletResult.data as {
@@ -229,7 +277,7 @@ export function AccountDashboard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [demo]);
 
   const loadArticles = React.useCallback(async () => {
     setArticlesError("");
@@ -315,12 +363,17 @@ export function AccountDashboard() {
     }
   }, []);
 
+  /*
+    One read for the whole page, not one per tab: the strip above prints the
+    counts, so the counts have to be in hand before a tab is opened. The preview
+    build has nothing to ask, and asks nothing.
+  */
   React.useEffect(() => {
-    if (!signedIn || !userId) return;
+    if (demo || !signedIn || !userId) return;
     void loadPendingEdits(userId);
-    if (tab === "news") void loadArticles();
-    if (tab === "spotlights") void loadSpotlights(userId);
-  }, [tab, signedIn, userId, loadArticles, loadSpotlights, loadPendingEdits]);
+    void loadArticles();
+    void loadSpotlights(userId);
+  }, [demo, signedIn, userId, loadArticles, loadSpotlights, loadPendingEdits]);
 
   /*
     Both lists carry only titles and dates, so opening the editor fetches that one row whole.
@@ -409,77 +462,117 @@ export function AccountDashboard() {
 
   /** A filed request changes the row's badge, so the pending set and the lists are re-read. */
   function refreshAfterEdit() {
+    if (demo) return;
     if (userId) void loadPendingEdits(userId);
-    if (tab === "news") void loadArticles();
-    if (tab === "spotlights" && userId) void loadSpotlights(userId);
+    void loadArticles();
+    if (userId) void loadSpotlights(userId);
   }
 
   if (loading) {
     return (
-      <div className="grid gap-4 md:grid-cols-3">
-        <Skeleton className="h-48" />
-        <Skeleton className="h-48" />
-        <Skeleton className="h-48" />
+      <div className="pf-page">
+        <ProfileBand tag="সদস্য পরিসর" />
+        <header className="pf-head">
+          <Skeleton className="size-[152px] rounded-full" />
+          <div className="pf-body">
+            <Skeleton className="mb-3 h-4 w-32" />
+            <Skeleton className="mb-4 h-12 w-64" />
+            <Skeleton className="mb-3 h-4 w-48" />
+            <Skeleton className="h-16 w-full" />
+          </div>
+        </header>
+        <div className="pf-stats">
+          {[0, 1, 2, 3].map((slot) => (
+            <div className="pf-stat" key={slot}>
+              <Skeleton className="h-9 w-20" />
+              <Skeleton className="mt-3 h-3 w-28" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   if (!signedIn) {
     return (
-      <Card className="mx-auto max-w-md text-center">
-        <CardHeader>
-          {loadError && <CardTitle className="text-destructive">{loadError}</CardTitle>}
-          <CardTitle>অ্যাকাউন্টে প্রবেশ করুন</CardTitle>
-          <CardDescription>
-            ড্যাশবোর্ড দেখতে আগে গুগল দিয়ে প্রবেশ করুন।
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <SignInButton />
-        </CardContent>
-      </Card>
+      <div className="pf-page">
+        <ProfileBand tag="সদস্য পরিসর" />
+        <div className="pf-layout">
+          <section className="pf-main">
+            <ProfileSectionHead title="অ্যাকাউন্টে প্রবেশ করুন" sub="গুগল" />
+            {loadError && (
+              <p className="pf-alert" role="alert">
+                {loadError}
+              </p>
+            )}
+            <p className="pf-note">
+              প্রোফাইল, সংরক্ষিত খবর ও লেখালেখির সবকিছু এক জায়গায় দেখতে আগে গুগল
+              দিয়ে প্রবেশ করুন।
+            </p>
+            <div className="pf-actions">
+              <SignInButton />
+            </div>
+          </section>
+          <aside>
+            <ProfileTip
+              kicker="খোলা পড়া"
+              title="প্রবেশ ছাড়াও পড়া যায়"
+              body="মূলপাতার সব প্রতিবেদন, বিভাগ ও স্পটলাইট খোলা — প্রবেশ করা লাগে কেবল নিজের পরিসর দেখতে।"
+              action={
+                <Link className="pf-btn" href="/">
+                  মূলপাতায় যান
+                </Link>
+              }
+            />
+          </aside>
+        </div>
+      </div>
     );
   }
 
+  const roleLabel = ROLE_LABELS[role] ?? ROLE_LABELS.reader;
+  const publicHandle = handle.replace(/^@/, "");
+  const publicProfilePath = publicHandle
+    ? `/u/${encodeURIComponent(publicHandle)}/`
+    : null;
+
   const actions = [
     {
-      href: "/saved",
+      href: "/saved/",
       icon: Bookmark,
       title: "সংরক্ষিত প্রতিবেদন",
       subtitle: "পরে পড়ার জন্য রাখা খবর দেখুন",
       show: true,
     },
     {
-      href: "/account/write",
+      href: "/account/write/",
       icon: PenLine,
       title: role === "reader" ? "রিপোর্টার হিসেবে আবেদন" : "প্রতিবেদন লিখুন",
       subtitle: "নিজের লেখা ও প্রস্তাবনা পাঠান",
       show: true,
     },
     {
-      href: "/account/balance",
+      href: "/account/balance/",
       icon: Wallet,
       title: "আয় ও উত্তোলন",
       subtitle: "জমা আয় ও উত্তোলনের ইতিহাস",
       show: true,
     },
     {
-      href: "/account/moderation",
+      href: "/account/moderation/",
       icon: ShieldCheck,
       title: "মডারেশন ডেস্ক",
       subtitle: "অপেক্ষমাণ প্রতিবেদন পর্যালোচনা করুন",
       show: role === "moderator" || role === "admin",
     },
     {
-      href: "/account/admin",
+      href: "/account/admin/",
       icon: Settings2,
       title: "প্রশাসনিক নিয়ন্ত্রণ",
       subtitle: "ব্যবহারকারী ও অর্থপরিশোধ পরিচালনা করুন",
       show: role === "admin",
     },
   ];
-
-  const publicHandle = handle.replace(/^@/, "");
 
   const tabs: { key: "identity" | "news" | "spotlights"; label: string }[] = [
     { key: "identity", label: "পরিচয়" },
@@ -497,289 +590,366 @@ export function AccountDashboard() {
     spotlightFilter === "all" ? true : post.issue_status === spotlightFilter,
   );
 
+  const panelSub = {
+    identity: roleLabel,
+    news: `প্রকাশিত ${bn(articleCounts.published)} · অপেক্ষমাণ ${bn(
+      articleCounts.pending,
+    )} · প্রত্যাখ্যাত ${bn(articleCounts.rejected)}`,
+    spotlights: `মোট ${bn((spotlights ?? []).length)}`,
+  }[tab];
+
+  const identityFacts: [string, string][] = [
+    ["নাম", name],
+    ["ইউজারনেম", handle],
+    ["ভূমিকা", roleLabel],
+    ["প্রোফাইল সম্পূর্ণ", `${bn(completion)}%`],
+    ["প্রকাশ্য প্রোফাইল", publicHandle ? "চালু" : "সেট করা হয়নি"],
+  ];
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="pf-page">
       {loadError && (
-        <p className="text-sm text-destructive" role="alert">
+        <p className="pf-alert" role="alert">
           {loadError}
         </p>
       )}
 
-      <div
-        role="tablist"
-        aria-label="ড্যাশবোর্ড বিভাগ"
-        className="flex flex-wrap gap-1 rounded-lg border p-1"
-      >
-        {tabs.map((entry) => (
-          <Button
-            key={entry.key}
-            role="tab"
-            aria-selected={tab === entry.key}
-            variant={tab === entry.key ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setTab(entry.key)}
-          >
-            {entry.label}
-          </Button>
-        ))}
-      </div>
-
-      {tab === "identity" && (
-        <div className="flex flex-col gap-4">
-          <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <p className="text-xs font-medium text-muted-foreground">
-                  আপনার পরিচয়
-                </p>
-                <div className="flex items-center gap-3">
-                  <Avatar className="size-12">
-                    {avatar && <AvatarImage src={avatar} alt="" />}
-                    <AvatarFallback>ঢা</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <CardTitle className="text-lg">{name}</CardTitle>
-                    <p className="text-sm text-muted-foreground">{handle}</p>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2">
-                <Button variant="outline" onClick={() => setEditOpen(true)}>
-                  প্রোফাইল সম্পাদনা
-                </Button>
-                {publicHandle ? (
-                  <Button variant="outline" asChild>
-                    <Link href={`/u/${encodeURIComponent(publicHandle)}/`}>
-                      পাবলিক প্রোফাইল দেখুন
-                    </Link>
-                  </Button>
-                ) : (
-                  <Button variant="outline" disabled>
-                    পাবলিক প্রোফাইল দেখুন
-                  </Button>
-                )}
-                <Button variant="outline" onClick={() => setManageOpen(true)}>
-                  পাবলিক প্রোফাইল ব্যবস্থাপনা
-                </Button>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <p className="text-xs font-medium text-muted-foreground">
-                  মোট জমা আয়
-                </p>
-                <CardTitle className="text-2xl tabular-nums">{balance}</CardTitle>
-                <CardDescription>
-                  প্রোফাইল সম্পূর্ণ না হওয়া পর্যন্ত জমা আয় আটকে থাকবে।
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button variant="link" className="px-0" asChild>
-                  <Link href="/account/balance">বিস্তারিত দেখুন →</Link>
-                </Button>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <p className="text-xs font-medium text-muted-foreground">
-                  প্রোফাইল সম্পূর্ণ
-                </p>
-                <CardTitle className="text-2xl tabular-nums">
-                  {bn(completion)}%
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2">
-                <Progress value={completion} />
-                <p className="text-xs text-muted-foreground">
-                  {completion === 100
-                    ? "প্রোফাইল সম্পূর্ণ—যোগ্য হলে আয়ের সুবিধা চালু আছে।"
-                    : "তথ্য পূরণ করলে আপনার লেখার আয়ের সুবিধা চালু হবে।"}
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            {actions
-              .filter((a) => a.show)
-              .map((action) => (
-                <Link key={action.href} href={action.href}>
-                  <Card className="transition-colors hover:bg-accent">
-                    <CardContent className="flex items-center gap-3 pt-6">
-                      <action.icon className="size-6 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium">{action.title}</p>
-                        <p className="truncate text-sm text-muted-foreground">
-                          {action.subtitle}
-                        </p>
-                      </div>
-                      <span aria-hidden>→</span>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
+      <ProfileBand
+        tag={demo ? "প্রিভিউ সদস্য" : "সদস্য পরিসর"}
+        cover={cover}
+      />
+      <header className="pf-head">
+        <span className="pf-avatar">
+          {avatar ? (
+            <img src={avatar} alt="" />
+          ) : (
+            <span aria-hidden>{name.slice(0, 1)}</span>
+          )}
+        </span>
+        <div className="pf-body">
+          <ProfileKicker>{roleLabel}</ProfileKicker>
+          <h1 className="pf-name">{name}</h1>
+          <p className="pf-role">
+            {handle}
+            {" · "}
+            <b>{publicHandle ? "প্রকাশ্য প্রোফাইল চালু" : "প্রকাশ্য প্রোফাইল নেই"}</b>
+          </p>
+          <ProfileMeta
+            items={[
+              { icon: ShieldCheck, text: roleLabel },
+              { icon: Percent, text: `সম্পূর্ণ ${bn(completion)}%` },
+              { icon: Wallet, text: balance },
+              { icon: IdCard, text: handle },
+            ]}
+          />
+          <div className="pf-actions">
+            <button
+              type="button"
+              className="pf-btn primary"
+              onClick={() => setEditOpen(true)}
+            >
+              <PenLine aria-hidden />
+              প্রোফাইল সম্পাদনা
+            </button>
+            <button
+              type="button"
+              className="pf-btn ghost"
+              onClick={() => setManageOpen(true)}
+            >
+              <Settings2 aria-hidden />
+              পাবলিক প্রোফাইল ব্যবস্থাপনা
+            </button>
+            {publicProfilePath ? (
+              <Link className="pf-btn ghost" href={publicProfilePath}>
+                <IdCard aria-hidden />
+                প্রকাশ্য পাতাটি দেখুন
+              </Link>
+            ) : null}
           </div>
         </div>
-      )}
+      </header>
 
-      {tab === "news" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>আমার সংবাদ</CardTitle>
-            <CardDescription>
-              প্রকাশিত {bn(articleCounts.published)} · অপেক্ষমাণ{" "}
-              {bn(articleCounts.pending)} · প্রত্যাখ্যাত {bn(articleCounts.rejected)}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            {articlesError && <p className="text-sm text-destructive" role="alert">{articlesError}</p>}
-            {!articlesError && articles === null && (
-              <p className="text-sm text-muted-foreground">লোড হচ্ছে…</p>
-            )}
-            {!articlesError && articles !== null && articles.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                এখনো কোনো সংবাদ জমা দেওয়া হয়নি।{" "}
-                <Link href="/account/write" className="underline">
-                  প্রথম প্রতিবেদন লিখুন
-                </Link>
-                ।
-              </p>
-            )}
-            {articles !== null && articles.length > 0 && (
-              <div className="overflow-x-auto">
-                <Table aria-label="আমার সংবাদ">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>শিরোনাম</TableHead>
-                      <TableHead>অবস্থা</TableHead>
-                      <TableHead>তারিখ</TableHead>
-                      <TableHead className="w-48">
-                        <span className="sr-only">পদক্ষেপ</span>
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {articles.map((article) => (
-                      <TableRow key={article.id}>
-                        <TableCell className="max-w-[28rem]">
-                          <p className="truncate font-medium">{article.title}</p>
-                          {article.status === "rejected" && article.rejection_reason && (
-                            <p className="mt-1 text-xs text-destructive">
-                              কারণ: {article.rejection_reason}
-                            </p>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={statusVariant(article.status)}>
-                            {ARTICLE_STATUS_LABELS[article.status] ?? article.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-muted-foreground">
-                          {article.status === "published" && article.published_at
-                            ? formatDateBn(article.published_at)
-                            : article.status === "rejected" && article.rejected_at
-                              ? formatDateBn(article.rejected_at)
-                              : formatDateBn(article.created_at)}
-                        </TableCell>
-                        <TableCell className="align-top">
-                          {pendingArticleEdits.has(article.id) ? (
-                            <Badge variant="secondary">
-                              সম্পাদনা অনুমোদনের অপেক্ষায়
-                            </Badge>
-                          ) : article.status === "published" ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              disabled={editBusyId === article.id}
-                              onClick={() => void openArticleEditor(article)}
-                            >
-                              সংশোধনের অনুরোধ
-                            </Button>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      <ProfileStats
+        stats={[
+          { value: bn(articleCounts.published), label: "প্রকাশিত সংবাদ" },
+          { value: bn(articleCounts.pending), label: "অপেক্ষমাণ" },
+          { value: bn((spotlights ?? []).length), label: "স্পটলাইট পোস্ট" },
+          { value: balance, label: "জমা আয়" },
+        ]}
+      />
 
-      {tab === "spotlights" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>আমার স্পটলাইট</CardTitle>
-            <CardDescription>
-              জমা দেওয়া ইস্যু ও তাদের বর্তমান অবস্থা।
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-wrap gap-1">
-              {SPOTLIGHT_FILTERS.map((filter) => (
-                <Button
-                  key={filter.key}
-                  variant={spotlightFilter === filter.key ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSpotlightFilter(filter.key)}
-                >
-                  {filter.label}
-                </Button>
-              ))}
-            </div>
-            {spotlightError && <p className="text-sm text-destructive" role="alert">{spotlightError}</p>}
-            {!spotlightError && spotlights === null && (
-              <p className="text-sm text-muted-foreground">লোড হচ্ছে…</p>
+      <div className="pf-layout">
+        <section className="pf-main" aria-labelledby="account-panel-heading">
+          <ProfileSectionHead
+            id="account-panel-heading"
+            title={tabs.find((entry) => entry.key === tab)?.label ?? ""}
+            sub={panelSub}
+          />
+
+          <div
+            role="tablist"
+            aria-label="ড্যাশবোর্ড বিভাগ"
+            className="pf-chips"
+          >
+            {tabs.map((entry) => (
+              <button
+                key={entry.key}
+                type="button"
+                role="tab"
+                id={`account-tab-${entry.key}`}
+                aria-selected={tab === entry.key}
+                aria-controls="account-panel"
+                className={`pf-chip${tab === entry.key ? " active" : ""}`}
+                onClick={() => setTab(entry.key)}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </div>
+
+          <div
+            id="account-panel"
+            role="tabpanel"
+            aria-labelledby={`account-tab-${tab}`}
+          >
+            {tab === "identity" && (
+              <>
+                <dl className="pf-facts">
+                  {identityFacts.map(([label, value]) => (
+                    <div className="pf-fact" key={label}>
+                      <dt>{label}</dt>
+                      <dd>{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <ProfileSideBlock icon={Percent} label="প্রোফাইল সম্পূর্ণ">
+                  <Progress value={completion} />
+                  <p className="pf-link-sub mt-3">
+                    {completion === 100
+                      ? "প্রোফাইল সম্পূর্ণ—যোগ্য হলে আয়ের সুবিধা চালু আছে।"
+                      : "তথ্য পূরণ করলে আপনার লেখার আয়ের সুবিধা চালু হবে।"}
+                  </p>
+                </ProfileSideBlock>
+              </>
             )}
-            {!spotlightError && spotlights !== null && filteredSpotlights.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                এই ছাঁকনিতে কোনো ইস্যু নেই।{" "}
-                <Link href="/spotlight" className="underline">
-                  স্পটলাইটে যান
-                </Link>
-                ।
-              </p>
-            )}
-            {filteredSpotlights.map((post) => (
-              <div key={post.id} className="rounded-lg border p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <p className="font-medium">{post.title}</p>
-                  <Badge variant={statusVariant(post.issue_status)}>
-                    {ISSUE_STATUS_LABELS[post.issue_status] ?? post.issue_status}
-                  </Badge>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {formatDateBn(post.created_at)}
-                  {post.solver_name ? ` · ${post.solver_name}` : ""}
-                </p>
-                {post.issue_note && (
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {post.issue_note}
+
+            {tab === "news" && (
+              <>
+                {articlesError && (
+                  <p className="pf-alert" role="alert">
+                    {articlesError}
                   </p>
                 )}
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {pendingSpotlightEdits.has(post.id) ? (
-                    <Badge variant="secondary">
-                      সম্পাদনা অনুমোদনের অপেক্ষায়
-                    </Badge>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={editBusyId === post.id}
-                      onClick={() => void openSpotlightEditor(post)}
+                {!articlesError && articles === null && (
+                  <p className="pf-note">লোড হচ্ছে…</p>
+                )}
+                {!articlesError && articles !== null && articles.length === 0 && (
+                  <p className="pf-note">
+                    এখনো কোনো সংবাদ জমা দেওয়া হয়নি।{" "}
+                    <Link href="/account/write/">প্রথম প্রতিবেদন লিখুন</Link>।
+                  </p>
+                )}
+                {articles !== null && articles.length > 0 && (
+                  <div className="pf-list">
+                    {articles.map((article) => {
+                      const when =
+                        article.status === "published" && article.published_at
+                          ? article.published_at
+                          : article.status === "rejected" && article.rejected_at
+                            ? article.rejected_at
+                            : article.created_at;
+                      const label =
+                        ARTICLE_STATUS_LABELS[article.status] ?? article.status;
+                      return (
+                        <ProfileEntry
+                          key={article.id}
+                          wide
+                          href={
+                            article.status === "published"
+                              ? `/news/${encodeURIComponent(article.slug)}/`
+                              : null
+                          }
+                          title={article.title}
+                          excerpt={
+                            article.status === "rejected" &&
+                            article.rejection_reason
+                              ? `কারণ: ${article.rejection_reason}`
+                              : null
+                          }
+                          meta={
+                            <>
+                              <time dateTime={when}>{formatDateBn(when)}</time>
+                              <EntryDot />
+                              <span className={statusClass(article.status)}>
+                                {label}
+                              </span>
+                            </>
+                          }
+                          actions={
+                            pendingArticleEdits.has(article.id) ? (
+                              <span className={statusClass("pending")}>
+                                সম্পাদনা অনুমোদনের অপেক্ষায়
+                              </span>
+                            ) : article.status === "published" ? (
+                              <button
+                                type="button"
+                                className="pf-btn ghost sm"
+                                disabled={editBusyId === article.id}
+                                onClick={() => void openArticleEditor(article)}
+                              >
+                                সংশোধনের অনুরোধ
+                              </button>
+                            ) : null
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
+
+            {tab === "spotlights" && (
+              <>
+                <div className="pf-chips" role="group" aria-label="ইস্যুর অবস্থা">
+                  {SPOTLIGHT_FILTERS.map((filter) => (
+                    <button
+                      key={filter.key}
+                      type="button"
+                      aria-pressed={spotlightFilter === filter.key}
+                      className={`pf-chip${
+                        spotlightFilter === filter.key ? " active" : ""
+                      }`}
+                      onClick={() => setSpotlightFilter(filter.key)}
                     >
-                      সংশোধনের অনুরোধ
-                    </Button>
-                  )}
+                      {filter.label}
+                    </button>
+                  ))}
                 </div>
+                {spotlightError && (
+                  <p className="pf-alert" role="alert">
+                    {spotlightError}
+                  </p>
+                )}
+                {!spotlightError && spotlights === null && (
+                  <p className="pf-note">লোড হচ্ছে…</p>
+                )}
+                {!spotlightError &&
+                  spotlights !== null &&
+                  filteredSpotlights.length === 0 && (
+                    <p className="pf-note">
+                      এই ছাঁকনিতে কোনো ইস্যু নেই।{" "}
+                      <Link href="/spotlight/">স্পটলাইটে যান</Link>।
+                    </p>
+                  )}
+                {filteredSpotlights.length > 0 && (
+                  <div className="pf-list">
+                    {filteredSpotlights.map((post) => (
+                      <ProfileEntry
+                        key={post.id}
+                        wide
+                        href={`/spotlight/${encodeURIComponent(post.id)}/`}
+                        title={post.title}
+                        excerpt={post.issue_note}
+                        meta={
+                          <>
+                            <time dateTime={post.created_at}>
+                              {formatDateBn(post.created_at)}
+                            </time>
+                            {post.solver_name || post.solve_duration ? (
+                              <>
+                                <EntryDot />
+                                <span>
+                                  {[post.solver_name, post.solve_duration]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </span>
+                              </>
+                            ) : null}
+                            <EntryDot />
+                            <span className={statusClass(post.issue_status)}>
+                              {ISSUE_STATUS_LABELS[post.issue_status] ??
+                                post.issue_status}
+                            </span>
+                          </>
+                        }
+                        actions={
+                          pendingSpotlightEdits.has(post.id) ? (
+                            <span className={statusClass("pending")}>
+                              সম্পাদনা অনুমোদনের অপেক্ষায়
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="pf-btn ghost sm"
+                              disabled={editBusyId === post.id}
+                              onClick={() => void openSpotlightEditor(post)}
+                            >
+                              সংশোধনের অনুরোধ
+                            </button>
+                          )
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </section>
+
+        <aside>
+          <ProfileSideBlock icon={Wallet} label="আয়">
+            <dl className="pf-facts">
+              <div className="pf-fact">
+                <dt>জমা আয়</dt>
+                <dd>{balance}</dd>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+              <div className="pf-fact">
+                <dt>অবস্থা</dt>
+                <dd>
+                  {completion === 100 ? "উত্তোলনের জন্য প্রস্তুত" : "আটকে আছে"}
+                </dd>
+              </div>
+            </dl>
+            <div className="mt-4 flex">
+              <Link className="pf-btn ghost sm" href="/account/balance/">
+                আয়ের বিস্তারিত
+              </Link>
+            </div>
+          </ProfileSideBlock>
+
+          <ProfileSideBlock icon={Sparkles} label="আমার সরঞ্জাম">
+            <ul className="pf-links">
+              {actions
+                .filter((action) => action.show)
+                .map((action) => (
+                  <li key={action.href}>
+                    <Link className="pf-link" href={action.href}>
+                      <action.icon aria-hidden />
+                      <span className="pf-link-text">
+                        <span className="pf-link-title">{action.title}</span>
+                        <span className="pf-link-sub">{action.subtitle}</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+            </ul>
+          </ProfileSideBlock>
+
+          <ProfileTip
+            kicker="সম্পাদকীয় ডেস্ক"
+            title="নতুন প্রতিবেদন পাঠান"
+            body="খসড়া জমা দিলে সম্পাদকীয় ডেস্ক যাচাই করে প্রকাশ করবে; প্রকাশিত লেখার আয় জমা হবে আপনার অ্যাকাউন্টে।"
+            action={
+              <Link className="pf-btn" href="/account/write/">
+                <PenLine aria-hidden />
+                প্রতিবেদন লিখুন
+              </Link>
+            }
+          />
+        </aside>
+      </div>
 
       <ContentEditDialog
         kind={editing?.kind ?? "article"}
@@ -790,7 +960,15 @@ export function AccountDashboard() {
         target={editing?.target ?? null}
         onSubmitted={refreshAfterEdit}
       />
-      <ProfileEditDialog open={editOpen} onOpenChange={setEditOpen} onSaved={setCompletion} />
+      <ProfileEditDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        onSaved={setCompletion}
+        onImagesChanged={(images) => {
+          setAvatar(images.avatar_url);
+          setCover(images.cover_url);
+        }}
+      />
       <PublicProfileSettings open={manageOpen} onOpenChange={setManageOpen} />
     </div>
   );

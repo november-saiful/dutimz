@@ -19,18 +19,32 @@ import { cn } from "@/lib/utils";
  * floating card at the foot of the screen.
  *
  * It is the reference deck's morphing tab bar (`expo-motion-tabs`) carried to the
- * web. The reference is React Native + Reanimated; the vocabulary is the same and
- * the engine is CSS — the active tab opens to reveal its label (the label's width
- * animates from zero and the tab grows with it), the accent pill behind it fades
- * in, the icon crossfades from muted to the brand's deep purple, and a tap
- * squeezes the tab.
- * Keeping it on CSS leaves the dock one small `usePathname` island with no
- * animation library in the first load, and the site's global
- * `prefers-reduced-motion` reset neutralises every part of it for free.
+ * web. The reference is React Native + Reanimated; the vocabulary is the same. The
+ * current tab opens to reveal its label (the label's width animates from zero and
+ * the tab grows with it), the icon crossfades from muted to white on the brand's
+ * own colour, and a tap squeezes the tab.
  *
- * Phones only, and only below the width where the top bar has already collapsed
- * its desks behind the burger, so no width has two competing navigations: the
- * dock carries the five primary destinations, the burger keeps every desk.
+ * The indicator behind the current tab is a drop of liquid rather than a
+ * rectangle that slides: two blobs, one chasing the tab the reader chose and one
+ * a beat behind it, both inside an inline SVG goo filter, so the pair stretches
+ * across the gap as a single shape and snaps back into one pill on arrival.
+ *
+ * The physics are the stylesheet's, not a library's: the blobs move on two CSS
+ * curves that were fitted, frame by frame, to the spring pair the reference effect
+ * runs (a stiff 400/30 leading pair and a looser 200/20 trailing one), so the drop
+ * snaps to the tab with a hint of bounce and its tail arrives half a second in.
+ * That keeps the dock one small `usePathname` island with no animation library in
+ * the first load, and the site's global `prefers-reduced-motion` reset neutralises
+ * every part of it for free.
+ *
+ * The blobs are *fed*, not computed: the tabs are content-sized flex children that
+ * redistribute as one of them opens, so the liquid is written the tab's measured
+ * box, frame by frame while the row settles, instead of a position the dock worked
+ * out for itself.
+ *
+ * Phones only, and only below the width where the top bar has already handed its
+ * desks to the menu, so no width has two competing navigations: the dock carries
+ * the five primary destinations, the menu keeps every desk.
  *
  * The entries are the reader-facing ones the top bar and the footer already
  * publish. The account tab stands for the member's own surfaces — the dashboard,
@@ -93,6 +107,13 @@ const TABS: DockTab[] = [
 ];
 
 /**
+ * The id of the inline goo filter the liquid layer points at with
+ * `filter: url(#…)`. Namespaced: the dock is one component on a page that may hold
+ * other SVGs, and it is a document-wide reference.
+ */
+const GOO_FILTER_ID = "dock-goo";
+
+/**
  * A first guess at a label's width, for the server-rendered first paint, before
  * the mounted dock has measured the real thing. Bengali at the label's own 12px/700
  * runs at roughly 4.3px per character plus a fixed 7px of glyph overhead; the
@@ -111,6 +132,82 @@ export function MobileDock() {
     Object.fromEntries(TABS.map((tab) => [tab.key, estimateLabelWidth(tab.label)])),
   );
   const labelRefs = React.useRef<Record<string, HTMLElement | null>>({});
+  // The card, and the liquid layer whose printed edge the blobs are measured from.
+  const cardRef = React.useRef<HTMLDivElement | null>(null);
+  const gooRef = React.useRef<HTMLDivElement | null>(null);
+  // The two blobs: the drop and the tail that lags behind it.
+  const leadRef = React.useRef<HTMLDivElement | null>(null);
+  const trailRef = React.useRef<HTMLDivElement | null>(null);
+  /*
+    Whether the blobs have been placed on the tab they belong to yet. Until they
+    have, the layer stays out of the first paint rather than leaning at the left,
+    and its first placement lands without a transition — the stylesheet starts
+    moving the blobs only once this is set, and it is set in the same commit that
+    writes their first geometry.
+  */
+  const [placed, setPlaced] = React.useState(false);
+
+  // The tab the address stands for, or -1 on a page that is none of them (a story,
+  // say), where the dock marks nothing and so shows no liquid either.
+  const currentIndex = TABS.findIndex((tab) => tab.current(pathname));
+
+  /*
+    Where the liquid is, read from the row itself rather than worked out: the tabs
+    are content-sized flex children that redistribute as one of them opens, so
+    which pixels the current one occupies is the browser's answer, not ours. The
+    rect is the tab's *transformed* box, which also carries the press squeeze into
+    the blob for free.
+
+    The write is plain style on the two blobs; their own transitions do the moving,
+    which is why this can simply be handed a new answer whenever one arrives.
+  */
+  const readGeometry = React.useCallback(() => {
+    const card = cardRef.current;
+    const goo = gooRef.current;
+    if (!card || !goo) return false;
+    const current = card.querySelector<HTMLElement>('.dock-tab[aria-current="page"]');
+    if (!current) return false;
+    // The layer's own padding box is the blobs' origin: `inset: 0` on it, and
+    // `left: 0` plus the translate on each blob.
+    const from = goo.getBoundingClientRect();
+    const box = current.getBoundingClientRect();
+    const x = box.left - from.left;
+    for (const blob of [leadRef.current, trailRef.current]) {
+      if (!blob) continue;
+      blob.style.transform = `translateX(${x}px)`;
+      blob.style.width = `${box.width}px`;
+    }
+    return true;
+  }, []);
+
+  /*
+    The first placement, before the first paint — the layout effect runs in the
+    commit that hydrates the dock — lands the blobs where they belong with no
+    motion, so nothing ever slides in from the card's edge. Every later placement
+    animates on the stylesheet's two curves, which is the whole point of the layer.
+  */
+  React.useLayoutEffect(() => {
+    if (readGeometry()) setPlaced(true);
+  }, [readGeometry, pathname, labelWidths]);
+
+  /*
+    And then the row keeps talking: a switch settles over the label's own
+    transition, a tap squeezes the tab, and the Bengali face swaps in after the
+    first paint and re-measures every label. `ResizeObserver` reports those changes
+    on the frame they happen, which is the frame the liquid should follow on.
+  */
+  React.useEffect(() => {
+    const card = cardRef.current;
+    if (!card) return;
+    const follow = () => readGeometry();
+    const observer = new ResizeObserver(follow);
+    observer.observe(card);
+    for (const tab of card.querySelectorAll(".dock-tab")) observer.observe(tab);
+    // A font that arrives after the observer was set up changes every width it is
+    // watching at once; the callbacks cover it, and this covers the same tick.
+    document.fonts?.ready.then(follow).catch(() => {});
+    return () => observer.disconnect();
+  }, [readGeometry]);
 
   /*
     An open tab has to be exactly as wide as its label — an estimate that comes in
@@ -147,43 +244,90 @@ export function MobileDock() {
     document.fonts?.ready.then(measure).catch(() => {});
   }, []);
 
+  // Nothing to mark: the row has not been measured yet, or no tab is current.
+  const liquidIdle = !placed || currentIndex < 0;
+
   return (
     <nav className="dock" aria-label="প্রধান নেভিগেশন">
-      <div className="dock-card">
-        {TABS.map((tab) => {
-          const Icon = tab.icon;
-          const isCurrent = tab.current(pathname);
-          return (
-            <Link
-              key={tab.key}
-              href={tab.href}
-              data-dock={tab.key}
-              aria-current={isCurrent ? "page" : undefined}
-              className={cn("dock-tab", isCurrent && "current")}
-              // The measured width of this tab's own label, in pixels.
-              style={
-                { "--dock-label": `${labelWidths[tab.key] ?? 0}px` } as React.CSSProperties
-              }
+      <div className="dock-card" ref={cardRef}>
+        {/*
+          The goo, as the filter the layer below points at: blur the blobs, then
+          push their alpha back to a hard edge, so wherever two of them overlap the
+          blur bridges the gap and they read as one shape instead of two.
+        */}
+        <svg className="dock-goo-defs" aria-hidden="true" focusable="false">
+          <defs>
+            <filter
+              id={GOO_FILTER_ID}
+              x="-20%"
+              y="-60%"
+              width="140%"
+              height="220%"
+              colorInterpolationFilters="sRGB"
             >
-              {/* The accent pill the reference grows behind the active tab. */}
-              <span className="dock-tint" aria-hidden />
-              <Icon className="dock-icon" size={20} strokeWidth={2.1} aria-hidden />
-              {/*
-                Always rendered, never `display: none`: the label is the link's
-                accessible name at every width, and the stylesheet only collapses
-                its width so it can unfurl.
-              */}
-              <span
-                className="dock-label"
-                ref={(node) => {
-                  labelRefs.current[tab.key] = node;
-                }}
+              <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur" />
+              <feColorMatrix
+                in="blur"
+                mode="matrix"
+                values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7"
+              />
+            </filter>
+          </defs>
+        </svg>
+        {/*
+          The liquid layer: the two blobs and nothing else, filtered as one surface
+          and left behind the words. `data-hidden` covers the states with nothing to
+          mark — before the first measurement, and on a page no tab stands for — and
+          `data-placed` is what tells the stylesheet the first geometry is already
+          down, so only later moves get a transition.
+        */}
+        <div
+          className="dock-goo"
+          ref={gooRef}
+          aria-hidden="true"
+          data-hidden={liquidIdle ? "" : undefined}
+          data-placed={placed ? "" : undefined}
+        >
+          {/* The drop: it snaps to the tab the reader chose. */}
+          <div className="dock-blob dock-lead" ref={leadRef} />
+          {/* And its tail, on the looser curve, which is the stretch. */}
+          <div className="dock-blob dock-trail" ref={trailRef} />
+        </div>
+        {/* The crisp layer: the icons and the words stay out of that filter. */}
+        <div className="dock-row">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isCurrent = tab.current(pathname);
+            return (
+              <Link
+                key={tab.key}
+                href={tab.href}
+                data-dock={tab.key}
+                aria-current={isCurrent ? "page" : undefined}
+                className={cn("dock-tab", isCurrent && "current")}
+                // The measured width of this tab's own label, in pixels.
+                style={
+                  { "--dock-label": `${labelWidths[tab.key] ?? 0}px` } as React.CSSProperties
+                }
               >
-                {tab.label}
-              </span>
-            </Link>
-          );
-        })}
+                <Icon className="dock-icon" size={20} strokeWidth={2.1} aria-hidden />
+                {/*
+                  Always rendered, never `display: none`: the label is the link's
+                  accessible name at every width, and the stylesheet only collapses
+                  its width so it can unfurl.
+                */}
+                <span
+                  className="dock-label"
+                  ref={(node) => {
+                    labelRefs.current[tab.key] = node;
+                  }}
+                >
+                  {tab.label}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );

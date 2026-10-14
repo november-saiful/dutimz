@@ -38,6 +38,10 @@ const ROUTES = [
   '/news/no-such-story/',
   '/category/no-such-section/',
   '/u/nosuchuser/',
+  // The filled profile the preview fixture owns, beside the missing one above:
+  // the band, the overlapping avatar, the strip and the report rows are the
+  // page's widest content at every breakpoint this test drives.
+  '/u/rafia_islam/',
   '/no-such-page/',
 ];
 
@@ -122,19 +126,53 @@ test('every route stays inside the viewport at common widths', async () => {
             failures.push(`${route} at ${width}px: uncaught client error — ${pageErrors[0]}`);
             break;
           }
-          // The homepage is the reference design's home view: the hero with
-          // its orb, the reader links into each story, and both story
-          // carousels are what prove it rendered at this width.
+          // The homepage is the reference design's home view: the connected
+          // deck over the week's reports, the reader links into each story, and
+          // both story carousels are what prove it rendered at this width.
           if (route === '/') {
             const home = await page.evaluate(() => ({
               hero: !!document.querySelector('section[aria-label="প্রধান প্রতিবেদন"]'),
-              orb: !!document.querySelector('.orb'),
+              deck: document.querySelectorAll('[data-offset]').length,
               stories: document.querySelectorAll('a[href^="/news/"]').length,
               carousels: document.querySelectorAll('.carousel').length,
             }));
-            if (!home.hero || !home.orb || home.stories === 0 || home.carousels < 2) {
+            if (!home.hero || home.deck < 3 || home.stories === 0 || home.carousels < 2) {
               failures.push(
-                `${route} at ${width}px: the front page did not render (hero: ${home.hero}, orb: ${home.orb}, stories: ${home.stories}, carousels: ${home.carousels})`,
+                `${route} at ${width}px: the front page did not render (hero: ${home.hero}, deck cards: ${home.deck}, stories: ${home.stories}, carousels: ${home.carousels})`,
+              );
+            }
+          }
+          // A profile page always renders its editorial shell — the band — and then
+          // either a filled profile or the missing one: this build may have a real
+          // database behind it (where the handle is unknown, or is a preview
+          // fixture's) or none at all, and both are correct renders. Both arrive
+          // after the page's own read, so wait for it to settle before measuring:
+          // the loading shell is not a page anyone reads.
+          if (route.startsWith('/u/')) {
+            await page
+              .waitForFunction(
+                () =>
+                  document.querySelector('.pf-band') !== null &&
+                  (document.querySelector('.pf-stat') !== null ||
+                    document.body.textContent.includes('প্রোফাইল পাওয়া যায়নি')),
+                undefined,
+                { timeout: 15000 },
+              )
+              .catch(() => undefined);
+            const profile = await page.evaluate(() => ({
+              band: !!document.querySelector('.pf-band'),
+              head: !!document.querySelector('.pf-head'),
+              stats: document.querySelectorAll('.pf-stat').length,
+              rows: document.querySelectorAll('.pf-entry').length,
+              missing: [
+                ...document.querySelectorAll('.pf-main, .pf-layout'),
+              ].some((node) => node.textContent.includes('প্রোফাইল পাওয়া যায়নি')),
+            }));
+            const filled =
+              profile.head && profile.stats >= 4 && profile.rows > 0;
+            if (!profile.band || !(filled || profile.missing)) {
+              failures.push(
+                `${route} at ${width}px: the profile rendered neither a member nor the missing-profile page (band: ${profile.band}, head: ${profile.head}, stats: ${profile.stats}, rows: ${profile.rows})`,
               );
             }
           }
@@ -155,12 +193,13 @@ test('every route stays inside the viewport at common widths', async () => {
   assert.deepEqual(failures, [], `pages failed to render or overflowed:\n  ${failures.join('\n  ')}`);
 });
 
-test('the account dropdown fits inside a phone viewport', async () => {
-  // The unified menu once carried a সংবাদ বিভাগ submenu that pushed it past a
-  // phone's fold, so the menu itself has to be measured, not just the page under
-  // it. This boots the same production build and opens the menu at the widths and
-  // heights a phone reports. On a genuinely short screen the menu must scroll
-  // internally rather than hang off the bottom.
+test('the site menu fits inside a phone viewport', async () => {
+  // A menu that carried a সংবাদ বিভাগ submenu once pushed itself past a phone's
+  // fold, so the menu itself has to be measured, not just the page under it — and
+  // it matters more now that the one menu holds the desks and the whole account.
+  // This boots the same production build and opens the menu at the widths and
+  // heights a phone reports: it must stay on-screen, and on a screen shorter than
+  // the menu, it must scroll inside itself rather than run past the fold.
   const port = 3198;
   const origin = `http://127.0.0.1:${port}`;
   const server = spawn(
@@ -177,12 +216,11 @@ test('the account dropdown fits inside a phone viewport', async () => {
     const browser = await chromium.launch();
     try {
       for (const viewport of [
-        { width: 390, height: 844, scrolls: false },
-        { width: 390, height: 640, scrolls: false },
-        { width: 360, height: 740, scrolls: false },
+        { width: 390, height: 844 },
+        { width: 390, height: 640 },
+        { width: 360, height: 740 },
         // Shorter than the menu: it must stay on-screen and scroll internally.
-        // The menu is now a short list, so the viewport has to be genuinely tiny.
-        { width: 390, height: 150, scrolls: true },
+        { width: 390, height: 150 },
       ]) {
         const page = await browser.newPage({
           viewport: { width: viewport.width, height: viewport.height },
@@ -191,21 +229,21 @@ test('the account dropdown fits inside a phone viewport', async () => {
         await page.route('**/*', (handler) => (handler.request().url().startsWith(origin) ? handler.continue() : handler.abort()));
         try {
           await page.goto(`${origin}/`, { waitUntil: 'load' });
-          const trigger = page.locator('[aria-haspopup="menu"]');
+          const trigger = page.locator('[data-menu-trigger]');
           await trigger.waitFor({ state: 'visible', timeout: 10000 });
           await trigger.click();
-          await page.locator('[role="menu"]').waitFor({ state: 'visible', timeout: 5000 });
-          // The menu animates open over 150ms; measure it once it has settled.
-          await page.waitForTimeout(250);
+          await page.locator('.menu-panel').waitFor({ state: 'visible', timeout: 5000 });
+          // The panel opens on a 640ms curve with its lines arriving behind it, so
+          // measure it once that wave has settled.
+          await page.waitForTimeout(900);
 
           const measured = await page.evaluate(() => {
-            const menu = document.querySelector('[role="menu"]');
-            if (!menu) return null;
-            const rect = menu.getBoundingClientRect();
-            // The first child is the measured-height scroller inside the content.
-            const scroller = menu.firstElementChild;
+            const panel = document.querySelector('.menu-panel');
+            if (!panel) return null;
+            const rect = panel.getBoundingClientRect();
             const root = document.documentElement;
             return {
+              role: panel.getAttribute('role'),
               top: rect.top,
               left: rect.left,
               right: rect.right,
@@ -213,15 +251,23 @@ test('the account dropdown fits inside a phone viewport', async () => {
               viewportWidth: window.innerWidth,
               viewportHeight: window.innerHeight,
               horizontalOverflow: root.scrollWidth - root.clientWidth,
-              scrollHeight: scroller?.scrollHeight ?? rect.height,
-              clientHeight: scroller?.clientHeight ?? rect.height,
+              // The panel is its own scroller: the content's height against the
+              // height the panel was given by the viewport.
+              scrollHeight: panel.scrollHeight,
+              clientHeight: panel.clientHeight,
+              overflowY: getComputedStyle(panel).overflowY,
             };
           });
 
           const label = `${viewport.width}x${viewport.height}`;
           if (!measured) {
-            failures.push(`${label}: the account menu never opened`);
+            failures.push(`${label}: the site menu never opened`);
             continue;
+          }
+          if (measured.role !== 'dialog') {
+            failures.push(
+              `${label}: the menu is not a dialog to a screen reader (role: ${measured.role})`,
+            );
           }
           const tolerance = 1;
           if (measured.top < -tolerance || measured.left < -tolerance) {
@@ -237,36 +283,31 @@ test('the account dropdown fits inside a phone viewport', async () => {
             failures.push(`${label}: the page overflows horizontally by ${measured.horizontalOverflow}px while the menu is open`);
           }
 
-          // A short viewport is handled by scrolling the menu, never by letting it
-          // hang off the screen; a roomy one must not scroll at all.
+          // A menu taller than the panel is handled by scrolling the panel, never
+          // by clipping an entry or hanging off the fold.
           const scrolls = measured.scrollHeight > measured.clientHeight + tolerance;
-          if (viewport.scrolls && !scrolls) {
+          if (scrolls && measured.overflowY !== 'auto' && measured.overflowY !== 'scroll') {
             failures.push(
-              `${label}: the menu should scroll internally but fits entirely (${measured.scrollHeight}px of content in ${measured.clientHeight}px)`,
-            );
-          }
-          if (!viewport.scrolls && scrolls) {
-            failures.push(
-              `${label}: the menu scrolls internally though it has room to fit (${measured.scrollHeight}px of content in ${measured.clientHeight}px)`,
+              `${label}: the menu is taller than its panel (${measured.scrollHeight}px in ${measured.clientHeight}px) but does not scroll (overflow-y: ${measured.overflowY})`,
             );
           }
 
           if (scrolls) {
-            // Every entry, including the last, has to be reachable by scrolling.
+            // Every line, including the foot of the menu, has to be reachable.
             const reachable = await page.evaluate(() => {
-              const menu = document.querySelector('[role="menu"]');
-              const scroller = menu?.firstElementChild;
-              if (!scroller) return null;
-              scroller.scrollTop = scroller.scrollHeight;
-              const last = scroller.lastElementChild?.getBoundingClientRect();
+              const panel = document.querySelector('.menu-panel');
+              if (!panel) return null;
+              panel.scrollTop = panel.scrollHeight;
+              const last = panel.lastElementChild?.getBoundingClientRect();
+              const box = panel.getBoundingClientRect();
               return {
                 lastBottom: last?.bottom ?? Number.POSITIVE_INFINITY,
-                viewportHeight: window.innerHeight,
+                panelBottom: box.bottom,
               };
             });
-            if (!reachable || reachable.lastBottom > reachable.viewportHeight + tolerance) {
+            if (!reachable || reachable.lastBottom > reachable.panelBottom + tolerance) {
               failures.push(
-                `${label}: the last menu entry is unreachable after scrolling (bottom ${Math.round(reachable?.lastBottom ?? -1)} vs viewport ${reachable?.viewportHeight ?? 0})`,
+                `${label}: the last line of the menu is unreachable after scrolling (bottom ${Math.round(reachable?.lastBottom ?? -1)} vs panel ${Math.round(reachable?.panelBottom ?? 0)})`,
               );
             }
           }
@@ -281,5 +322,5 @@ test('the account dropdown fits inside a phone viewport', async () => {
     server.kill('SIGTERM');
   }
 
-  assert.deepEqual(failures, [], `the account menu did not fit the viewport:\n  ${failures.join('\n  ')}`);
+  assert.deepEqual(failures, [], `the site menu did not fit the viewport:\n  ${failures.join('\n  ')}`);
 });

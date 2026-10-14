@@ -83,8 +83,8 @@ export async function DutimzShell({
       )}
       {/*
         The dock is drawn at every width and reveals itself on a phone, where the
-        top bar has handed the desks to the burger; it covers the five primary
-        destinations to the burger's full desk list.
+        top bar has handed the desks to the menu; it covers the five primary
+        destinations to the menu's full desk list.
       */}
       <MobileDock />
     </>

@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
 import { PublicProfile } from "@/components/profile/public-profile";
-import { Card, CardContent } from "@/components/ui/card";
 
 export async function generateMetadata({
   params,
@@ -17,6 +16,13 @@ export async function generateMetadata({
   };
 }
 
+/*
+  The member's page draws itself: `bare` hands it the viewport so the band can run
+  edge to edge inside the page's own measure, the way the front page and the
+  article view do. That is also why there is no breadcrumb head here — the page
+  carries the member's name as its own h1, and a second heading above it would
+  only push the identity further down.
+*/
 export default async function UserPage({
   params,
 }: {
@@ -31,15 +37,8 @@ export default async function UserPage({
     }
   })();
   return (
-    <DutimzShell
-      title={`@${decoded}`}
-      crumbs={[{ label: "সদস্য" }, { label: `@${decoded}` }]}
-    >
-      <Card>
-        <CardContent className="pt-6">
-          <PublicProfile username={decoded} />
-        </CardContent>
-      </Card>
+    <DutimzShell bare>
+      <PublicProfile username={decoded} />
     </DutimzShell>
   );
 }

@@ -1,21 +1,20 @@
 import Link from "next/link";
 
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
+import { Flag } from "@/components/dashboard/flag";
 import { StoryCarousel } from "@/components/dashboard/story-carousel";
 import {
   BlockHead,
   CarouselCard,
   FeatureCard,
   MiniRow,
-  PreviewItem,
-  StoryMeta,
-  StoryTags,
+  deckItemFromStory,
   pick,
   storyItemFromPreview,
   storyItemFromStory,
-  storyUrl,
   type StoryItem,
 } from "@/components/dashboard/story-blocks";
+import { CalendlyCarousel } from "@/components/ui/connected-carousel";
 import {
   getLatestStories,
   isDemoMode,
@@ -40,23 +39,11 @@ import {
 */
 export const revalidate = 60;
 
-/** The paper's own horizon, for the hero orb's inner ring: pure decoration. */
-function Orb() {
-  return (
-    <div className="orb" aria-hidden>
-      <div className="blob" />
-      <div className="ring" />
-      <div className="ring2" />
-      <div className="shadow" />
-    </div>
-  );
-}
-
 function EmptyDesk() {
   return (
     <section className="block">
       <div className="block-head">
-        <span className="flag">প্রধান প্রতিবেদন</span>
+        <Flag label="প্রধান প্রতিবেদন" />
       </div>
       <div className="py-12 text-center">
         <h2 className="mb-2 text-2xl font-bold">এখনো কোনো প্রতিবেদন প্রকাশিত হয়নি</h2>
@@ -80,68 +67,50 @@ export default async function HomePage() {
     ? previewStories.map(storyItemFromPreview)
     : (await getLatestStories(25)).map(storyItemFromStory);
 
-  const lead = pick(items, 0);
-  const previews = [pick(items, 1), pick(items, 2), pick(items, 3)];
-  const feature = pick(items, 4);
-  const rail = [pick(items, 5), pick(items, 6), pick(items, 7), pick(items, 8)];
-  const latest = [0, 1, 2, 3, 4].map((index) => pick(items, index));
-  const readersChoice = [9, 10, 11, 12, 13, 14].map((index) => pick(items, index));
-  const bestOfMonth = [15, 16, 17, 18, 19, 20].map((index) => pick(items, index));
+  // The lead band is a deck over the week's five newest reports: the design
+  // shows the card in focus plus two neighbours on either side, so five is the
+  // smallest deck that fills the ring without a story appearing twice.
+  const deck = [0, 1, 2, 3, 4]
+    .map((slot) => pick(items, slot))
+    .filter((item): item is StoryItem => item !== null)
+    .map(deckItemFromStory);
+  // Every band below reads on from there, so no story is printed twice on the
+  // front page and no slot is filled twice from one list.
+  const feature = pick(items, 5);
+  const rail = [6, 7, 8, 9].map((slot) => pick(items, slot));
+  const latest = [10, 11, 12, 13, 14].map((slot) => pick(items, slot));
+  const readersChoice = [15, 16, 17, 18, 19].map((slot) => pick(items, slot));
+  const bestOfMonth = [20, 21, 22, 23, 24].map((slot) => pick(items, slot));
 
   return (
     <DutimzShell bare>
-      {items.length === 0 || !lead ? (
+      {items.length === 0 || deck.length === 0 ? (
         <EmptyDesk />
       ) : (
         <>
           {/*
-            The hero: the week's best story beside the recommended rail, with
-            the three previews beneath it. One story fills the lead slot; the
-            orb is the design's decorative anchor behind the copy.
+            The hero: the week's reports as the design's connected deck — one
+            card in focus with its neighbours peeking out either side, every
+            card a way into its own report. The flag names the slot above it.
           */}
-          <section className="hero-grid" aria-label="প্রধান প্রতিবেদন">
-            <div>
-              <div className="hero-copy">
-                <span className="flag">সপ্তাহের সেরা</span>
-                <StoryMeta item={lead} />
-                <h1>
-                  <Link href={storyUrl(lead)}>{lead.title}</Link>
-                </h1>
-                <StoryTags item={lead} />
-                <Link href={storyUrl(lead)} className="btn-read">
-                  প্রতিবেদন পড়ুন{" "}
-                  <span className="circ">
-                    <svg viewBox="0 0 24 24" aria-hidden>
-                      <path d="M5 12h14M13 6l6 6-6 6" />
-                    </svg>
-                  </span>
-                </Link>
-                <Orb />
-              </div>
-              <div className="previews">
-                {previews.map(
-                  (item, index) => item && <PreviewItem key={`${item.slug}-${index}`} item={item} />,
-                )}
-              </div>
+          <section className="block" aria-label="প্রধান প্রতিবেদন">
+            <div className="block-head">
+              <Flag label="সপ্তাহের সেরা" />
             </div>
+            <CalendlyCarousel items={deck} autoPlayInterval={7000} pauseOnHover />
+          </section>
 
-            <aside className="hero-aside">
-              <div className="aside-head">
-                <h3>প্রস্তাবিত</h3>
-                <Link href="/search/" className="viewall">
-                  সব দেখুন
-                  <svg viewBox="0 0 24 24" aria-hidden>
-                    <path d="M5 12h14M13 6l6 6-6 6" />
-                  </svg>
-                </Link>
-              </div>
+          {/* The desk's own recommendations, under the slider. */}
+          <section className="block" aria-label="প্রস্তাবিত প্রতিবেদন">
+            <BlockHead flag="প্রস্তাবিত" moreHref="/search/" />
+            <div className="recommended">
               {feature && <FeatureCard item={feature} />}
-              <div>
+              <div className="recommended-rows">
                 {rail.map(
                   (item, index) => item && <MiniRow key={`${item.slug}-${index}`} item={item} />,
                 )}
               </div>
-            </aside>
+            </div>
           </section>
 
           {/* The newest reports, as the design's full-width thumbnail rows. */}

@@ -19,6 +19,13 @@ const exists = async (path) => {
   await access(new URL(`../${path}`, import.meta.url));
   return true;
 };
+// This stylesheet owns `.block` for the page container (1240px, centred, with the
+// gutter as padding), so Tailwind's `block` utility is a landmine on any surface:
+// it wins the class attribute and silently caps the element at the band's measure.
+// A class *token* is what collides, so `pf-side-block` is fine and a bare `block`
+// is not.
+const usesBlockUtility = (line) =>
+  /(?:^|[\s"'`{])block(?=[\s"'`}]|$)/.test(line);
 
 test('the legacy redirects file contains only supported path redirects', async () => {
   const redirects = await readProjectFile('public/_redirects');
@@ -186,18 +193,19 @@ test('the config endpoint keeps the public shape and never leaks secrets', async
 
 test('the top bar is the reference design\'s bar: mark, section pills, search, account', async () => {
   // The sidebar, the phone dock and the command palette retired with the
-  // redesign: navigation is the design's pill bar fed by the real desks, and
-  // phones get the same pills behind the burger. The account menu stays the
-  // session dropdown.
+  // redesign: navigation is the design's pill bar fed by the real desks. The bar
+  // ends in one menu — not a burger beside a separate account avatar — and that
+  // panel carries the desks and the account together (`SiteMenu`).
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
   assert.match(header, /className="topbar"/);
   assert.match(header, /className="logo"/);
   assert.match(header, /dutimz-text-logo\.svg/, 'the brand lockup leads the bar');
   assert.match(header, /pill\$\{active \? " active" : ""\}/, 'the desks are pills with a real active state');
-  assert.match(header, /id="site-nav"/);
-  assert.match(header, /aria-controls="site-nav"/, 'the burger is a disclosure over the pills');
-  assert.match(header, /aria-expanded=\{menuOpen\}/);
-  assert.match(header, /UserDropdown/);
+  assert.match(header, /<SiteMenu/, 'the bar ends in the one menu');
+  assert.match(header, /sections=\{sections\}/, 'and it draws the live desks, not a fixed list');
+  assert.doesNotMatch(header, /className="burger"/, 'the second menu button is gone');
+  const menu = await readProjectFile('components/dashboard/site-menu.tsx');
+  assert.match(menu, /aria-label="মেনু"/);
   for (const path of [
     'components/dashboard/dutimz-sidebar.tsx',
     'components/dashboard/sidebar-state.tsx',
@@ -241,14 +249,14 @@ test('the shell wraps every page with the top bar and the footer', async () => {
   );
 });
 
-test('the header account menu is the session dropdown with DUTIMZ routes', async () => {
+test('the header account menu is the session menu with DUTIMZ routes', async () => {
   // The header must never show menu entries that go nowhere: there is no presence
   // system, no theming, and no premium tier, so those actions stay hidden and every
   // visible one maps to a real route.
-  const dropdown = await readProjectFile('components/ui/user-dropdown.tsx');
-  assert.match(dropdown, /hiddenActions/);
+  const menu = await readProjectFile('components/dashboard/site-menu.tsx');
+  assert.match(menu, /hiddenActions/);
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
-  assert.match(header, /UserDropdown/);
+  assert.match(header, /SiteMenu/);
   assert.match(header, /supabaseBrowser/);
   assert.match(header, /onAuthStateChange/);
   assert.match(header, /hiddenActions/);
@@ -256,7 +264,7 @@ test('the header account menu is the session dropdown with DUTIMZ routes', async
   // handler cannot drift apart.
   const table = await readProjectFile('lib/account-menu.ts');
   assert.match(header, /@\/lib\/account-menu/, 'the header must route through the shared table');
-  assert.match(dropdown, /@\/lib\/account-menu/, 'the menu must read the shared table');
+  assert.match(menu, /@\/lib\/account-menu/, 'the menu must read the shared table');
   for (const route of ['/account/', '/saved/', '/u/']) {
     assert.ok(table.includes(`"${route}"`), `the account route table must include ${route}`);
   }
@@ -269,28 +277,29 @@ test('the account menu is one menu in both states and signs guests in from it', 
   // and the only differences are the Google button (signed out) and the account
   // group (signed in). A signed-out tap on a session-only row starts the OAuth
   // flow instead of navigating somewhere that would bounce them back.
-  const dropdown = await readProjectFile('components/ui/user-dropdown.tsx');
+  const menu = await readProjectFile('components/dashboard/site-menu.tsx');
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
 
-  assert.match(dropdown, /isGuest/, 'the dropdown must distinguish a signed-out visitor');
+  assert.match(menu, /isGuest/, 'the menu must distinguish a signed-out visitor');
   assert.doesNotMatch(
-    dropdown,
+    menu,
     /guestExplore|guestInfo|MENU_ITEMS\.guest/,
     'the two-shape guest menu is gone',
   );
-  assert.match(dropdown, /<SignInButton/, 'the Google button lives inside the menu');
-  assert.match(dropdown, /isGuest && \(/, 'only the signed-out branch adds it');
-  assert.doesNotMatch(dropdown, /href="\/auth\/sign-in"/, 'there is no sign-in page to link to');
+  assert.match(menu, /<SignInButton/, 'the Google button lives inside the menu');
+  assert.match(menu, /isGuest && \(/, 'only the signed-out branch adds it');
+  assert.doesNotMatch(menu, /href="\/auth\/sign-in"/, 'there is no sign-in page to link to');
 
   // Session-only rows stay visible in both states; a signed-out tap routes to
   // the header's Google action rather than to the row's own destination.
-  assert.match(dropdown, /requiresSession/);
-  assert.match(dropdown, /isGuest && item\.requiresSession \? "sign-in" : item\.action/);
+  assert.match(menu, /requiresSession/);
+  assert.match(menu, /isGuest && item\.requiresSession \? "sign-in" : item\.action/);
 
-  // The header always mounts the menu, passing null when signed out — never a
-  // bare avatar that drops the visitor on a page they cannot use.
-  assert.match(header, /user=\{menuUser\s*\?\s*\{/);
-  assert.match(header, /:\s*null\}/);
+  // The header always mounts the menu with the session it resolved, absent when
+  // signed out — never a bare avatar that drops the visitor on a page they cannot
+  // use, and never an empty panel: no session reads as the guest menu.
+  assert.match(header, /user=\{menuUser\}/);
+  assert.match(menu, /const isGuest = !user/);
   assert.doesNotMatch(header, /<Link href="\/account"/, 'signed-out must not fall back to a bare /account link');
 
   // One shared sender: the menu button and the header's gated actions call it.
@@ -306,10 +315,10 @@ test('every account menu action maps to a route, a hidden id, or an auth action'
   // When a user exists the menu offers the session entries; each one must either
   // route somewhere real, be an entry the header deliberately hides, or be one of
   // the auth actions (sign-in / switch) the header answers with Google.
-  const dropdown = await readProjectFile('components/ui/user-dropdown.tsx');
+  const menu = await readProjectFile('components/dashboard/site-menu.tsx');
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
 
-  const menuActions = [...dropdown.matchAll(/action:\s*"([^"]+)"/g)].map((m) => m[1]);
+  const menuActions = [...menu.matchAll(/action:\s*"([^"]+)"/g)].map((m) => m[1]);
   for (const required of ['dashboard', 'my-profile', 'saved', 'logout']) {
     assert.ok(menuActions.includes(required), `the menu must define ${required}`);
   }
@@ -351,7 +360,7 @@ test('every account menu action maps to a route, a hidden id, or an auth action'
 
   // The signed-in rows (dashboard, my profile, log out) render only with a session.
   assert.match(
-    dropdown,
+    menu,
     /isGuest \? GUEST_ITEMS : ACCOUNT_ITEMS/,
     'the signed-in rows must be gated on a session',
   );
@@ -367,9 +376,9 @@ test('the top bar search sends the reader to the archive page', async () => {
   assert.match(header, /aria-label="খুঁজুন"/);
   assert.doesNotMatch(header, /CommandPalette/);
 
-  // A phone's bar has no room for the field beside the mark, the account menu and
-  // the burger, so it carries a button that raises the same form in the site's own
-  // top sheet. The wide bar keeps the field it has room for, and neither width
+  // A phone's bar has no room for the field beside the mark, the menu and the
+  // search button, so it carries a button that raises the same form in the site's
+  // own top sheet. The wide bar keeps the field it has room for, and neither width
   // wears both.
   assert.match(header, /className="search-toggle"/, 'the phone carries a search button');
   assert.match(header, /<SheetTrigger asChild>/, 'and it is the popup trigger');
@@ -421,7 +430,11 @@ test('the phone search popup opens above the top bar it drops from', async () =>
   assert.match(sheet, /<SheetOverlay className=\{overlayClassName\} \/>/);
   const css = await readProjectFile('app/globals.css');
   assert.match(css, /\.topbar \{[\s\S]*?z-index: 60;/, 'the bar the popup must clear is at 60');
-  assert.match(css, /\.nav \{[\s\S]*?z-index: 70;/, 'and the phone drawer at 70');
+  // The menu is the header's other overlay and maps the stack above the bar: its
+  // scrim at 100 and its panel at 110, with the search popup's 80 between them.
+  // The phone's desks used to be a drawer at 70; they are rows in that panel now.
+  assert.match(css, /\.menu-backdrop \{[\s\S]{0,120}?z-index: 100;/, 'the menu scrim clears the bar');
+  assert.match(css, /\.menu-panel \{[\s\S]{0,200}?z-index: 110;/, 'and its panel sits over the scrim');
 });
 
 test('every accent is the brand purple, not the reference design\'s blue', async () => {
@@ -452,6 +465,32 @@ test('every accent is the brand purple, not the reference design\'s blue', async
   assert.doesNotMatch(alerts, /emerald/);
 });
 
+test('a desk flag carries the desk\'s own mark, not a colour block', async () => {
+  // The ported design marked a section with a gradient rectangle, which said
+  // nothing and looked the same on every desk. A flag now draws the desk's own
+  // icon — one table, keyed by the label, in the brand's colour — and every
+  // surface renders it through that one component.
+  for (const path of [
+    'app/page.tsx',
+    'app/news/[slug]/page.tsx',
+    'components/dashboard/story-blocks.tsx',
+  ]) {
+    const source = await readProjectFile(path);
+    assert.doesNotMatch(source, /className="flag"/, `${path} must render the desk flag through the Flag component`);
+    assert.match(source, /@\/components\/dashboard\/flag/, `${path} must import it`);
+  }
+  const flag = await readProjectFile('components/dashboard/flag.tsx');
+  assert.match(flag, /FLAG_ICONS\[label\.trim\(\)\] \?\? FALLBACK_ICON/, 'the mark follows the label, with a fallback for a desk the table has not met');
+  assert.match(flag, /aria-hidden/, 'the mark is decoration: the label beside it is the text');
+  assert.match(flag, /from "lucide-react"/, 'marks are bundled, never fetched at runtime');
+  const css = await readProjectFile('app/globals.css');
+  assert.doesNotMatch(css, /\.flag::before/, 'the colour block must not come back');
+  assert.match(css, /\.flag-icon[\s\S]{0,120}color: var\(--flag-ink, var\(--purple\)\)/, 'the mark takes the brand colour');
+  // Nothing wears a flag on top of a picture any more: the lead band is the
+  // deck, whose cards carry their desk as a badge of their own.
+  assert.doesNotMatch(css, /--flag-ink: #d7bcd4/, 'the on-photo tint is retired with the slider');
+});
+
 test('saved content moved out of the header into the account menu', async () => {
   // The top bar used to carry a bookmark button that opened a saved-reports
   // popover. Saved content is now an entry in the account menu instead, and the
@@ -459,8 +498,8 @@ test('saved content moved out of the header into the account menu', async () => 
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
   assert.doesNotMatch(header, /SavedPopover/, 'the header must not render a saved popover');
   assert.doesNotMatch(header, /Bookmark/, 'the bookmark button is gone');
-  const dropdown = await readProjectFile('components/ui/user-dropdown.tsx');
-  assert.match(dropdown, /সংরক্ষিত কনটেন্ট/);
+  const menu = await readProjectFile('components/dashboard/site-menu.tsx');
+  assert.match(menu, /সংরক্ষিত কনটেন্ট/);
   await assert.rejects(
     () => exists('components/dashboard/saved-popover.tsx'),
     'the saved popover component must be removed',
@@ -509,26 +548,53 @@ test('every form renders through the shared field primitives', async () => {
 });
 
 test('the homepage is the reference design\'s home view over the real archive', async () => {
-  // The front page is the design's composition — hero with the orb, the three
-  // previews, the recommended rail, the latest rows and the two carousels —
-  // and every slot is filled from the archive read. An approved story still
-  // has to appear at once: the route is cached and the desk invalidates it,
-  // rather than every reader's request paying for a render (Cloudflare 1102).
+  // The front page is the design's composition — the connected deck over the
+  // week's reports, the recommended band under it, the latest rows and the two
+  // carousels — and every slot is filled from the archive read. An approved
+  // story still has to appear at once: the route is cached and the desk
+  // invalidates it, rather than every reader's request paying for a render
+  // (Cloudflare 1102).
   const page = await readProjectFile('app/page.tsx');
   assert.doesNotMatch(page, /force-dynamic/);
   assert.match(page, /export const revalidate = \d+/);
   assert.match(page, /<DutimzShell bare>/);
-  assert.match(page, /hero-grid/);
-  assert.match(page, /aria-label="প্রধান প্রতিবেদন"/);
-  assert.match(page, /সপ্তাহের সেরা/, 'the hero keeps the design\'s flag');
-  assert.match(page, /<Orb \/>/, 'the hero carries the design\'s orb');
-  assert.match(page, /className="previews"/);
-  assert.match(page, /hero-aside/);
+  assert.match(page, /aria-label="প্রধান প্রতিবেদন"/, 'the deck sits in the hero slot');
+  assert.match(page, /<CalendlyCarousel items=\{deck\} autoPlayInterval=\{7000\} pauseOnHover \/>/);
+  assert.match(page, /<Flag label="সপ্তাহের সেরা" \/>/, 'the hero keeps the design\'s flag');
+  assert.match(page, /className="recommended"/, 'the recommended band follows the deck');
+  assert.match(page, /aria-label="প্রস্তাবিত প্রতিবেদন"/);
   assert.match(page, /প্রস্তাবিত/);
   assert.match(page, /সর্বশেষ খবর/);
   assert.match(page, /পাঠকের পছন্দ/);
   assert.match(page, /মাসের সেরা/);
   assert.match(page, /<StoryCarousel/);
+  // The deck itself is the design's connected carousel, dressed by the site:
+  // the story's own art and the reader's way into the report on the card in
+  // focus, a stop for the reader who asked their system for less motion, and no
+  // frame loop repainting the deck sixty times a second.
+  const deck = await readProjectFile('components/ui/connected-carousel.tsx');
+  assert.match(deck, /aria-roledescription="carousel"/);
+  assert.match(deck, /StoryArt/, "the cards wear the story's own picture");
+  assert.match(deck, /<Link[\s\S]{0,400}item\.stat/, 'the card in focus links its own report');
+  assert.match(deck, /prefers-reduced-motion: reduce/, 'the deck stands still when motion is unwelcome');
+  assert.match(deck, /window\.setTimeout/, 'one wait per card, restarted per card');
+  assert.doesNotMatch(deck, /requestAnimationFrame/, 'never a sixty-times-a-second re-render');
+  // The registry's progress fill is gone on purpose: the dot row says where the
+  // reader is and the timer turns the deck, with nothing painting the wait down.
+  assert.doesNotMatch(deck, /animation|keyframes|bg-blue/, 'no countdown is painted on the dots');
+  // This site's own stylesheet owns `.block` (the band's max-width and padding),
+  // so Tailwind's `block` utility is a landmine here: on the deck's dot and on
+  // its connecting notches it inflates the element to the band's 72px minimum and
+  // drags the shape out of place. The utility is banned inside the deck.
+  const classLines = deck.split('\n').filter((line) => line.includes('className'));
+  assert.ok(
+    classLines.every((line) => !usesBlockUtility(line)),
+    'the deck never uses the Tailwind block utility',
+  );
+  assert.doesNotMatch(deck, /21st\.dev/, "never the registry demo's fixture art");
+  const css = await readProjectFile('app/globals.css');
+  assert.doesNotMatch(css, /@keyframes dutimz-carousel-progress/, 'and the fill is gone from the stylesheet too');
+  assert.match(css, /\.flag-icon/, 'and the desk marks are the stylesheet\'s');
   // Demo and empty states come from the preview fixture, never a blank page.
   assert.match(page, /previewStories/);
   assert.match(page, /<EmptyDesk/);
@@ -540,8 +606,14 @@ test('the homepage is the reference design\'s home view over the real archive', 
   assert.match(blocks, /\/news\/\$\{encodeURIComponent\(item\.slug\)\}\//);
   assert.match(blocks, /storyCredit/);
   assert.match(blocks, /mediaUrlFor\(story\.hero_media_key\)/);
-  // The retired deck and reel stay gone — component, section and all.
-  assert.doesNotMatch(page, /CalendlyCarousel/);
+  // The image slider that briefly led this band is retired — component, styles
+  // and all — and the reel stays gone with it. The connected deck is not
+  // retired: it is the hero again, in the site's own dress.
+  assert.doesNotMatch(page, /HeroSlider/);
+  await assert.rejects(
+    () => exists('components/dashboard/hero-slider.tsx'),
+    'the retired image slider must not come back',
+  );
   assert.doesNotMatch(page, /HaloReel/);
   for (const path of [
     'components/ruixen/halo-reel.tsx',
@@ -552,15 +624,124 @@ test('the homepage is the reference design\'s home view over the real archive', 
       `${path} belonged to the retired reel and must not come back`,
     );
   }
-  // The preview fixtures fall back to Unsplash art, which next.config allows.
+  // The preview fixtures fall back to Unsplash art, which next.config allows. The
+  // fixtures themselves now live in their own module — a client component reads
+  // them, and `lib/stories.ts` reaches for the server-side Supabase client — so
+  // the URLs are checked where they are and the re-export where the front page
+  // imports them from.
   const stories = await readProjectFile('lib/stories.ts');
-  assert.match(stories, /images\.unsplash\.com/);
+  assert.match(stories, /from "\.\/preview"/, 'the front page still imports the fixtures from here');
+  const preview = await readProjectFile('lib/preview.ts');
+  assert.match(preview, /images\.unsplash\.com/);
+  assert.doesNotMatch(preview, /^import /m, 'the fixture module must import nothing: a browser reads it');
   const config = await readProjectFile('next.config.ts');
   assert.match(config, /images\.unsplash\.com/);
 
   const pkg = JSON.parse(await readProjectFile('package.json'));
   assert.ok(pkg.dependencies['framer-motion'], 'animated-file-tree still needs framer-motion');
   assert.ok(!pkg.dependencies.motion, "the reel's own motion package must be gone");
+});
+
+test('both profile pages are one editorial profile in the site\'s own purple', async () => {
+  // `/u/<handle>/` and `/account/` are the same page in the reference design's
+  // shape — a band, the identity over its foot, a hairline row of facts, a strip
+  // of real numbers, report rows beside blocks — so they are built from one set
+  // of pieces rather than two hand-rolled copies that drift, and one stylesheet
+  // section owns every rule they need.
+  const pieces = await readProjectFile('components/profile/profile-pieces.tsx');
+  for (const piece of [
+    'ProfileBand',
+    'ProfileKicker',
+    'ProfileMeta',
+    'ProfileStats',
+    'ProfileSectionHead',
+    'ProfileEntry',
+    'ProfileSideBlock',
+    'ProfileTip',
+  ]) {
+    assert.match(
+      pieces,
+      new RegExp(`export function ${piece}\\b`),
+      `${piece} must be one piece both pages share`,
+    );
+  }
+  // The headline is the row's link, and a row's own button sits outside it: a
+  // button inside an anchor is neither valid HTML nor reachable.
+  assert.match(pieces, /href \? \(\s*<Link className="pf-title"/);
+  assert.doesNotMatch(pieces, /<a[^>]*>[\s\S]{0,200}<button/);
+
+  const publicProfile = await readProjectFile(
+    'components/profile/public-profile.tsx',
+  );
+  assert.match(publicProfile, /@\/components\/profile\/profile-pieces/, 'the public page is built from the shared pieces');
+  assert.match(publicProfile, /get_public_profile/, 'the read only returns what the member made public');
+  assert.match(publicProfile, /count: "exact"/, 'the strip prints a real total, not the page of rows');
+  assert.match(publicProfile, /StoryArt/, "a row wears the story's own picture");
+  assert.match(publicProfile, /previewMember/, 'a build with no credentials shows the preview member');
+  assert.match(
+    publicProfile,
+    /username !== previewMember\.username/,
+    'and only that one handle — every other address still reads as missing',
+  );
+  assert.doesNotMatch(publicProfile, /@\/components\/ui\/card/, 'the profile is a page, not a card');
+
+  const dashboard = await readProjectFile(
+    'components/account/account-dashboard.tsx',
+  );
+  assert.match(dashboard, /@\/components\/profile\/profile-pieces/, 'the dashboard is built from the same pieces');
+  for (const kept of [
+    'get_my_articles',
+    'get_my_wallet',
+    'get_my_profile_completion',
+    'spotlight_posts',
+    'ContentEditDialog',
+    'ProfileEditDialog',
+    'PublicProfileSettings',
+    'isMissingSession',
+  ]) {
+    assert.ok(dashboard.includes(kept), `the dashboard keeps ${kept}`);
+  }
+  // An edit from here is still a request the desk reviews, never a write.
+  assert.doesNotMatch(dashboard, /\.update\(|\.insert\(|\.delete\(/);
+  assert.match(dashboard, /previewMember/, 'the preview member stands in when there is no session');
+
+  const css = await readProjectFile('app/globals.css');
+  for (const rule of [
+    '.pf-page {',
+    '.pf-band {',
+    '.pf-head {',
+    '.pf-stats {',
+    '.pf-layout {',
+    '.pf-chips {',
+    '.pf-entry-link {',
+    '.pf-thumb {',
+    '.pf-side-block {',
+    '.pf-tip {',
+    '.pf-status {',
+  ]) {
+    assert.ok(css.includes(rule), `globals.css must own ${rule}`);
+  }
+  // `pf-` and nothing else, for the reason the deck's own guard gives: this
+  // stylesheet already owns `.block`, and a Tailwind utility that happens to
+  // spell one of its names runs into it.
+  const profileLines = [
+    ...publicProfile.split('\n'),
+    ...dashboard.split('\n'),
+    ...pieces.split('\n'),
+  ].filter((line) => line.includes('className'));
+  assert.ok(
+    profileLines.every((line) => !usesBlockUtility(line)),
+    'no Tailwind block utility in the profile surfaces',
+  );
+
+  // Both pages draw themselves under the bare shell, and the fixture owns exactly
+  // one handle, so the missing-profile state keeps its layout.
+  const profilePage = await readProjectFile('app/u/[username]/page.tsx');
+  assert.match(profilePage, /<DutimzShell bare>/);
+  const accountPage = await readProjectFile('app/account/page.tsx');
+  assert.match(accountPage, /<DutimzShell bare>/);
+  const preview = await readProjectFile('lib/preview.ts');
+  assert.match(preview, /username: "rafia_islam"/, 'the fixture answers to one handle');
 });
 
 test('the front page serves every slot from one archive read', async () => {
@@ -571,8 +752,19 @@ test('the front page serves every slot from one archive read', async () => {
   assert.match(page, /getLatestStories\(25\)/);
   const reads = page.match(/getLatestStories\(/g) ?? [];
   assert.equal(reads.length, 1, 'the front page must take one read, not one per slot');
-  assert.match(page, /pick\(items, 0\)/, 'the lead slot comes from that list');
-  assert.match(page, /pick\(items, 4\)/, 'the recommended rail comes from that list');
+  // Every band reads its own slice of that one list, in order: the deck takes
+  // the first five, the recommended band the next five, and so on to the end.
+  // A story printed twice on one page is what a shared slot would look like.
+  for (const slots of [
+    '[0, 1, 2, 3, 4]',
+    '[6, 7, 8, 9]',
+    '[10, 11, 12, 13, 14]',
+    '[15, 16, 17, 18, 19]',
+    '[20, 21, 22, 23, 24]',
+  ]) {
+    assert.ok(page.includes(slots), `the front page's slots must stay disjoint and ordered (missing ${slots})`);
+  }
+  assert.match(page, /const feature = pick\(items, 5\)/, 'the recommended band takes the slot after the deck');
 });
 
 test('a shared story carries its own picture, not the site logo', async () => {
@@ -667,10 +859,18 @@ test('the site paints without a blocking font and keeps motion on CSS', async ()
   assert.match(css, /--font-ui: var\(--font-bengali\)/, 'and it leads the default stack');
   assert.doesNotMatch(css, /--font-inter/, 'the retired face is gone from the stack too');
   assert.match(css, /prefers-reduced-motion: reduce/, 'a global reduced-motion reset');
-  // Glass is a dose-capped accent: only the sticky bars may blur — the top bar,
-  // the article bar, and the phone dock's floating card.
+  // Glass is a dose-capped accent: the sticky bars may blur — the top bar, the
+  // article bar, and the phone dock's floating card — and so may the scrim behind
+  // the menu. Four rules and no more: a fifth means a surface grew its own glass
+  // instead of sharing. The menu panel is deliberately not one of them: it holds a
+  // page's worth of the reader's own text, so it paints solid paper over the dimmed
+  // page rather than showing it through itself.
   const blur = css.match(/^\s*backdrop-filter: blur/gm) ?? [];
-  assert.ok(blur.length <= 3, 'backdrop blur belongs to the sticky bars alone');
+  assert.ok(blur.length <= 4, 'backdrop blur belongs to the sticky bars and the menu scrim');
+  const panelRule = css.slice(css.indexOf('.menu-panel {'), css.indexOf('.menu-panel[data-state="closed"]'));
+  assert.doesNotMatch(panelRule, /backdrop-filter/, 'the menu panel is solid paper, not glass');
+  assert.match(panelRule, /background: #ffffff;/, 'and it paints its own surface');
+  assert.match(css, /\.menu-backdrop \{[\s\S]{0,120}?backdrop-filter: blur/, 'with a blurred scrim behind it');
   const page = await readProjectFile('app/page.tsx');
   assert.doesNotMatch(page, /requestAnimationFrame/, 'no frame loop re-renders the page');
   // recharts stays out of the initial bundle: the homepage imports no chart,
@@ -679,8 +879,8 @@ test('the site paints without a blocking font and keeps motion on CSS', async ()
   const lazy = await readProjectFile('components/dashboard/throughput-chart-lazy.tsx');
   assert.match(lazy, /next\/dynamic/);
   assert.match(lazy, /ssr: false/);
-  const dropdown = await readProjectFile('components/ui/user-dropdown.tsx');
-  assert.doesNotMatch(dropdown, /@iconify\/react/, 'no runtime icon fetch');
+  const menu = await readProjectFile('components/dashboard/site-menu.tsx');
+  assert.doesNotMatch(menu, /@iconify\/react/, 'no runtime icon fetch');
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
   assert.doesNotMatch(header, /backdrop-blur/, 'the blur lives in the stylesheet, on the bars alone');
 });
@@ -710,8 +910,10 @@ test('articles are submitted through the audited RPC, never a direct insert', as
   assert.match(questionnaire, /get_active_article_questionnaire|QuestionnaireVersion/);
   assert.match(questionnaire, /condition/);
   const gallery = await readProjectFile('components/account/gallery-uploader.tsx');
-  assert.match(gallery, /\/upload/);
+  assert.match(gallery, /uploadImage\(file, scope\)/, 'the gallery uploads through the one shared contract');
   assert.match(gallery, /HEIC/);
+  const upload = await readProjectFile('lib/media-upload.ts');
+  assert.match(upload, /article: "\/upload"/, 'the news endpoint is declared once, for every uploader');
   const application = await readProjectFile('components/account/reporter-application.tsx');
   assert.match(application, /rpc\(['"]apply_reporter['"]/);
 });
@@ -975,15 +1177,29 @@ test('Supabase failures use safe Bengali fallbacks and never render exception te
   assert.ok(saved.includes('সংরক্ষিত প্রতিবেদন লোড করা যায়নি'));
 });
 
-test('the phone menu shows the same desks behind the burger', async () => {
-  // Phones get the design's burger: a disclosure over the same section pills
-  // the desktop bar shows, so a reader on a phone loses no destination.
+test('the phone menu shows the same desks and the account behind one button', async () => {
+  // The bar hands its desks to the menu: the same live sections the wide bar
+  // shows as pills, listed in the panel the right-hand button opens, so a reader
+  // on a phone loses no destination — and the account is in that same panel, not
+  // behind a second control beside it.
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
-  assert.match(header, /className="burger"/);
-  assert.match(header, /id="site-nav"/);
-  assert.match(header, /menuOpen \? " open" : ""/, 'the nav opens through the design\'s own class');
-  assert.match(header, /aria-expanded=\{menuOpen\}/);
-  assert.match(header, /aria-label="মেনু"/);
+  assert.match(header, /<SiteMenu/, 'the bar has one menu');
+  assert.doesNotMatch(header, /className="burger"/, 'and no second disclosure beside it');
+  const menu = await readProjectFile('components/dashboard/site-menu.tsx');
+  assert.match(menu, /aria-label="মেনু"/);
+  assert.match(menu, /sections\.map/, 'every live desk is a row in the menu');
+  assert.match(menu, /aria-current=\{current \? "page" : undefined\}/, 'the desk the reader is on says so');
+  const css = await readProjectFile('app/globals.css');
+  const phone = css.slice(
+    css.indexOf('/* ============ RESPONSIVE'),
+    css.indexOf('@media (max-width: 600px)'),
+  );
+  assert.match(phone, /\.nav \{\s*display: none;/, 'the pills leave the phone bar for the panel');
+  assert.match(
+    phone,
+    /\.menu-panel \{[\s\S]*?top: calc\(var\(--topbar\) \+ 10px\)/,
+    'and the panel goes full-bleed under the bar it opened from',
+  );
   const shell = await readProjectFile('components/dashboard/dutimz-shell.tsx');
   assert.doesNotMatch(shell, /MobileBottomNav/, 'the retired phone dock stays gone');
 });
@@ -991,7 +1207,7 @@ test('the phone menu shows the same desks behind the burger', async () => {
 test('the phone dock carries the five primary destinations, and only on a phone', async () => {
   // A phone gets a floating dock over the foot of the page: the five places a
   // reader moves between, drawn from the reference deck's morphing tab bar. It is
-  // a different surface from the retired rail dock — the burger still holds every
+  // a different surface from the retired rail dock — the menu still holds every
   // desk — and only the five primary destinations live on it.
   const dock = await readProjectFile('components/dashboard/mobile-dock.tsx');
   assert.match(dock, /^"use client";/m, 'the dock is the island that reads the address');
@@ -1038,9 +1254,9 @@ test('the phone dock carries the five primary destinations, and only on a phone'
   );
   assert.match(phone, /var\(--dock-ease\)/, 'the tab, its pill and its label all move on it');
   // Phone-only: it reveals itself at the breakpoint where the top bar hands its
-  // desks to the burger, and it reserves the room it floats over.
+  // desks to the menu, and it reserves the room it floats over.
   assert.match(phone, /@media \(max-width: 860px\)/, 'the dock is a phone surface');
-  assert.match(phone, /visibility: visible/, 'it reveals itself at the burger breakpoint');
+  assert.match(phone, /visibility: visible/, 'it reveals itself at the menu breakpoint');
   assert.match(phone, /padding-bottom: var\(--dock\)/, 'the page reserves the dock its room');
   const reels = await readProjectFile('components/flipps/flipps-reels.tsx');
   assert.match(
@@ -1048,6 +1264,68 @@ test('the phone dock carries the five primary destinations, and only on a phone'
     /100svh-var\(--topbar\)-var\(--dock\)-1\.5rem\)/,
     'the reel deck ends above the dock instead of under it',
   );
+});
+
+test('the phone dock marks the current tab with a liquid drop, not a sliding pill', async () => {
+  // The indicator is the reference deck's metaball, carried to the web: two blobs
+  // chasing the tab the reader chose, both inside one inline SVG goo filter, so
+  // the lagging pair stretches across the gap as a single drop and settles back
+  // into a pill. The words stay outside that filter — a blur over them would make
+  // the dock unreadable — which is why the row is a layer of its own.
+  const dock = await readProjectFile('components/dashboard/mobile-dock.tsx');
+  // The physics are the stylesheet's, so the shell pulls no animation library for
+  // a surface every page draws.
+  assert.doesNotMatch(dock, /framer-motion|motion\/react/, 'the shell pulls no animation library for the dock');
+  assert.doesNotMatch(dock, /dock-tint/, 'the sliding accent tint is gone');
+
+  // Two blobs, and the goo that merges them: blur the shapes, then push the
+  // blurred alpha back to a hard edge, which is what bridges the gap between them.
+  assert.equal(
+    (dock.match(/className="dock-blob dock-(lead|trail)"/g) ?? []).length,
+    2,
+    'a drop and its tail, on their own curves',
+  );
+  assert.match(dock, /feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur" \/>/);
+  assert.match(dock, /feColorMatrix/);
+  assert.match(dock, /0 0 0 18 -7/, 'the alpha contrast that makes the merge hard-edged');
+  assert.ok(
+    dock.indexOf('className="dock-goo"') < dock.indexOf('className="dock-row"'),
+    'the filter layer comes first, so the words are never blurred with it',
+  );
+
+  // The geometry is read from the row: the tabs are content-sized flex children
+  // that redistribute as one of them opens, so which pixels the current one
+  // occupies is the browser's answer, and the liquid follows it frame by frame.
+  assert.match(dock, /ResizeObserver/, 'the drop follows the row while it settles');
+  assert.match(dock, /\.dock-tab\[aria-current="page"\]/, 'it is read from the tab the reader is on');
+  assert.match(dock, /getBoundingClientRect/, 'measured, not assumed');
+  assert.match(dock, /useLayoutEffect/, 'the first placement lands before the first paint');
+  assert.match(dock, /data-placed=\{placed \? "" : undefined\}/, 'and only then does the liquid start moving');
+
+  const css = await readProjectFile('app/globals.css');
+  // The physics are two curves on the stylesheet, fitted frame by frame to the
+  // spring pair the reference effect runs (400/30 leading, 200/20 trailing): a
+  // stiff snap and a looser tail. A curve is a token here, like the dock's morph
+  // curve, and the tail is the slower of the two — which is the stretch.
+  assert.match(css, /--dock-lead-ease: cubic-bezier\(0\.27, 0\.22, 0\.21, 1\.24\);/, 'the drop snaps');
+  assert.match(css, /--dock-trail-ease: cubic-bezier\(0\.47, 0\.25, 0\.35, 1\.27\);/, 'and the tail trails');
+  assert.match(
+    css,
+    /transition-duration: 0\.01ms !important/,
+    'and needs no opt-in: the site\'s one reduced-motion reset collapses its durations like every transition',
+  );
+  const phone = css.slice(css.indexOf('.dock {'), css.indexOf('/* ============ RESPONSIVE'));
+  assert.match(phone, /\.dock-goo \{/, 'the liquid layer has a surface of its own');
+  assert.match(phone, /filter: url\(#dock-goo\)/, 'and points it at the inline SVG');
+  assert.match(phone, /\.dock-goo\[data-hidden\]/, 'with nothing marked there is nothing drawn');
+  assert.match(phone, /\.dock-row \{[\s\S]*?z-index: 1;/, 'the words sit above it');
+  assert.match(phone, /\.dock-goo\[data-placed\] \.dock-lead \{[\s\S]*?transform 0\.32s var\(--dock-lead-ease\)/, 'the drop moves on its own curve');
+  assert.match(phone, /\.dock-goo\[data-placed\] \.dock-trail \{[\s\S]*?transform 0\.52s var\(--dock-trail-ease\)/, 'the tail on the slower one');
+  assert.match(phone, /width 0\.32s var\(--dock-lead-ease\)/, 'the width follows the position, on the drop');
+  assert.match(phone, /width 0\.52s var\(--dock-trail-ease\)/, 'and on its tail');
+  assert.match(phone, /\.dock-blob \{[\s\S]*?background: var\(--blue\)/, 'the drop is the brand colour');
+  assert.match(phone, /\.dock-tab\.current \{\r?\n  color: #fff;/, 'and the open tab reads on it in paper');
+  assert.doesNotMatch(phone, /\.dock-tint/, 'the sliding tint is gone from the surface too');
 });
 
 test('spotlight authors remove their own posts; the desk hides or removes any', async () => {
@@ -1096,8 +1374,10 @@ test('the uploader sends the shared browser session, not a private client', asyn
   // key on every upload. That bypasses `@supabase/ssr`: the session lives in the ssr cookie
   // store, so the private client read localStorage, found no session, and threw "sign in with
   // Google" at a reporter who was already signed in. The memoized `supabaseBrowser()` is the
-  // only client that shares the app's session.
-  const uploader = await readProjectFile('components/account/gallery-uploader.tsx');
+  // only client that shares the app's session, and `lib/media-upload.ts` is the one module that
+  // sends an upload — a second caller with its own fetch would be a second place to get this
+  // wrong, which is why the gallery is checked for sending nothing itself.
+  const uploader = await readProjectFile('lib/media-upload.ts');
   assert.match(
     uploader,
     /import \{ freshAccessToken \} from "@\/lib\/supabase"/,
@@ -1109,6 +1389,8 @@ test('the uploader sends the shared browser session, not a private client', asyn
     'the uploader must not build its own supabase-js client',
   );
   assert.match(uploader, /freshAccessToken\(\)/, 'the uploader asks for a usable token');
+  const gallery = await readProjectFile('components/account/gallery-uploader.tsx');
+  assert.doesNotMatch(gallery, /fetch\(/, 'the gallery sends nothing itself: one module owns the request');
 });
 
 test('an upload never sends an expired access token', async () => {
@@ -1120,7 +1402,7 @@ test('an upload never sends an expired access token', async () => {
   const body = source.slice(source.indexOf('export async function freshAccessToken'));
   assert.match(body, /refreshSession\(\)/, 'an expired session must be refreshed');
   assert.match(body, /expires_at/, 'the decision must be based on the token expiry');
-  const uploader = await readProjectFile('components/account/gallery-uploader.tsx');
+  const uploader = await readProjectFile('lib/media-upload.ts');
   assert.match(uploader, /Bearer \$\{token\}/, 'the upload must send the checked token');
 });
 
@@ -1442,4 +1724,218 @@ test('the rich text migrations are atomic and share one reference extractor', as
   assert.match(third, /moderate_article_edit/, 'the desk judges through an audited RPC');
   assert.match(third, /delete from public\.article_media am\s+where am\.article_id = request\.article_id and not am\.is_gallery/, 'approval removes only inline-only attachments and retains galleries');
   assert.match(third, /where am\.article_id = request\.article_id and am\.is_inline/, 'approval resets prior inline state before reconciling the proposal');
+});
+
+test('a profile link previews as the member\'s own card, not the site banner', async () => {
+  const card = await readProjectFile('app/u/[username]/opengraph-image.tsx');
+  assert.match(card, /import \{ ImageResponse \} from "next\/og"/, 'the card is drawn, not linked');
+  assert.match(card, /export const size = \{ width: 1200, height: 630 \}/, 'the large-image dimensions');
+  assert.match(card, /export const contentType = "image\/png"/);
+  assert.match(card, /ogProfile\(handle\)/, 'the card asks who the handle is');
+  assert.match(card, /ogFonts\(\)/, 'Satori only draws Bengali with the TTFs handed to it');
+  const og = await readProjectFile('lib/og-card.ts');
+  assert.match(og, /export const BAND_GRADIENT/, 'the card reuses the page\'s band rather than inventing a picture');
+  // The card and the page must draw the same band, so the gradient the module holds is
+  // checked stop for stop against the one the stylesheet paints.
+  const stylesheet = await readProjectFile('app/globals.css');
+  const band = stylesheet.slice(stylesheet.indexOf('.pf-band {'), stylesheet.indexOf('.pf-band::after'));
+  const stops = [...og.match(/BAND_GRADIENT =[\s\S]*?"([^"]+)"/)[1].matchAll(/#[0-9a-f]{6}/g)].map(([hex]) => hex);
+  assert.equal(stops.length, 4, 'the band still has its four stops');
+  for (const stop of stops) {
+    assert.ok(band.includes(stop), `the stylesheet's band still uses ${stop}`);
+  }
+  // The eyebrow introduces the member by the desk's role, not as an anonymous
+  // "member": the same word the page uses, from the same table.
+  assert.match(card, /const eyebrow = profile \? `DUTIMZ \$\{roleTitle\(profile\.role\)\}` : "DUTIMZ"/, 'the card names the role');
+  const site = await readProjectFile('lib/site.ts');
+  assert.match(site, /reporter: "Reporter"/, 'the role titles are named once for the card and the page');
+  assert.match(site, /reader: "Member"/, 'a reader is a member, not a rank they do not hold');
+  assert.match(og, /role: asString\(row\.role\)/, 'the role comes from the same public read as the name');
+  const publicPage = await readProjectFile('components/profile/public-profile.tsx');
+  assert.match(publicPage, /<ProfileKicker>\{`DUTIMZ \$\{roleTitle\(profile\.role\)\}`\}<\/ProfileKicker>/, 'the page introduces the member the way its card does');
+  const images = await readProjectFile('supabase/migrations/202610140001_profile_images.sql');
+  assert.match(images, /from public\.user_roles r where r\.user_id = profile\.id/, 'the role is read through the public door, and user_roles stays closed');
+  assert.match(og, /noto-serif-bengali-\$\{weight\}\.ttf/, 'the card ships its own TTF subsets');
+  assert.ok(await exists('public/fonts/noto-serif-bengali-400.ttf'));
+  assert.ok(await exists('public/fonts/noto-serif-bengali-700.ttf'));
+  // The root layout sets `twitter.images`, which keeps winning over a generated one: a
+  // route that does not answer in that namespace itself previews as the banner on X.
+  const twitter = await readProjectFile('app/u/[username]/twitter-image.tsx');
+  assert.match(twitter, /export \{ alt, size, contentType, default \} from "\.\/opengraph-image"/, 'one drawing answers both scrapers');
+});
+
+test('every member uploads their own face and banner from the profile editor', async () => {
+  const dialog = await readProjectFile('components/profile/profile-edit-dialog.tsx');
+  assert.match(dialog, /type Images = \{ avatar_url: string \| null; cover_url: string \| null \}/);
+  assert.match(dialog, /onPick=\{\(file\) => void pickImage\("avatar_url", file\)\}/, 'the face is chosen in the editor');
+  assert.match(dialog, /onPick=\{\(file\) => void pickImage\("cover_url", file\)\}/, 'so is the banner');
+  assert.match(dialog, /onRemove=\{\(\) => void saveImage\("cover_url", null\)\}/, 'and a banner can be taken down again');
+  assert.match(dialog, /uploadImage\(file, "profile"\)/, 'both go through the profile scope of the media Worker');
+  // Where a picture is written: the member's own row, one column at a time.
+  assert.match(dialog, /\.from\("profiles"\)[\s\S]*?\.update\(\{ \[column\]: url \}\)/);
+  const upload = await readProjectFile('lib/media-upload.ts');
+  assert.match(upload, /profile: "\/profile\/upload"/);
+  const worker = await readProjectFile('worker/src/index.ts');
+  assert.match(worker, /profile: \{ table: 'profile_media_assets', prefix: 'profiles'/, 'profile media is its own scope, not a news asset');
+  assert.match(worker, /url\.pathname === '\/profile\/upload'/, 'this scope carries no role gate: every signed-in member has a face');
+  // The two band pages read the banner with the rest of the identity, and draw it into
+  // the band rather than pasting it over one.
+  const dashboard = await readProjectFile('components/account/account-dashboard.tsx');
+  assert.match(dashboard, /select\("username,display_name,avatar_url,cover_url"\)/);
+  const pieces = await readProjectFile('components/profile/profile-pieces.tsx');
+  assert.match(pieces, /className="pf-band-cover"/, 'the band draws the member\'s own cover');
+  assert.match(stylesheetBandCover(await readProjectFile('app/globals.css')), /object-fit: cover;/, 'a cover fills the band instead of stretching');
+  // The columns, the gate and the public read the two pictures need.
+  const migration = await readProjectFile('supabase/migrations/202610140001_profile_images.sql');
+  assert.match(migration, /add column cover_url text/);
+  assert.match(migration, /grant update \(cover_url\) on public\.profiles to authenticated/, 'the member owns their own banner');
+  assert.match(migration, /create table public\.profile_media_assets/);
+  assert.match(migration, /revoke all on public\.profile_media_assets from anon, authenticated/, 'the object keys stay server-side');
+  assert.match(migration, /create or replace function public\.get_profile_media/);
+  assert.match(migration, /grant execute on function public\.get_profile_media\(uuid\) to anon, authenticated/, 'a picture is public identity, even signed out');
+  assert.match(migration, /profile\.cover_url,/, 'the public read hands the banner out with the identity');
+});
+
+test('the share card draws both scripts from its own font', async () => {
+  // The renderer behind `ImageResponse` silently asks Google for any glyph the fonts it was
+  // handed do not have, so a font that covers only one script still produces a card — from a
+  // third party, inside every preview a scraper makes. This reads the shipped cmap instead:
+  // the eyebrow is Latin ("DUTIMZ Reporter") and a member's name is Bengali, so both have to
+  // be in the bytes the deployment carries.
+  for (const weight of [400, 700]) {
+    const font = await readFile(
+      new URL(`../public/fonts/noto-serif-bengali-${weight}.ttf`, import.meta.url),
+    );
+    const glyph = cmapReader(font);
+    const probes = [
+      ['Latin', 0x41],
+      ['the Bengali ka', 0x995],
+      ['the o-kar every second Bengali word carries', 0x9cb],
+      ['the i-kar', 0x9bf],
+      ['the conjunct joiner', 0x9cd],
+    ];
+    for (const [label, codepoint] of probes) {
+      assert.ok(
+        glyph(codepoint) > 0,
+        `noto-serif-bengali-${weight}.ttf cannot draw ${label} (U+${codepoint.toString(16).toUpperCase()})`,
+      );
+    }
+  }
+});
+
+/**
+ * A minimal cmap reader: the glyph id a codepoint maps to, or 0. Enough to prove a font
+ * carries a script without shipping a font library for one assertion.
+ */
+function cmapReader(font) {
+  const tableCount = font.readUInt16BE(4);
+  let cmap = 0;
+  for (let i = 0; i < tableCount; i++) {
+    const entry = 12 + i * 16;
+    if (font.toString('ascii', entry, entry + 4) === 'cmap') {
+      cmap = font.readUInt32BE(entry + 8);
+    }
+  }
+  return (codepoint) => {
+    const subtables = font.readUInt16BE(cmap + 2);
+    for (let i = 0; i < subtables; i++) {
+      const record = cmap + 4 + i * 8;
+      const platform = font.readUInt16BE(record);
+      if (platform !== 0 && platform !== 3) continue;
+      const offset = cmap + font.readUInt32BE(record + 4);
+      const format = font.readUInt16BE(offset);
+      if (format === 12) {
+        const groups = font.readUInt32BE(offset + 12);
+        for (let g = 0; g < groups; g++) {
+          const group = offset + 16 + g * 12;
+          const start = font.readUInt32BE(group);
+          const end = font.readUInt32BE(group + 4);
+          if (codepoint >= start && codepoint <= end) {
+            return font.readUInt32BE(group + 8) + (codepoint - start);
+          }
+        }
+      } else if (format === 4) {
+        const segments = font.readUInt16BE(offset + 6);
+        const ends = offset + 14;
+        const starts = ends + segments + 2;
+        const deltas = starts + segments;
+        const ranges = deltas + segments;
+        for (let s = 0; s * 2 < segments; s++) {
+          const start = font.readUInt16BE(starts + s * 2);
+          const end = font.readUInt16BE(ends + s * 2);
+          if (codepoint < start || codepoint > end) continue;
+          const delta = font.readInt16BE(deltas + s * 2);
+          const range = font.readUInt16BE(ranges + s * 2);
+          if (range === 0) return (codepoint + delta) & 0xffff;
+          const at = ranges + s * 2 + range + (codepoint - start) * 2;
+          const id = font.readUInt16BE(at);
+          return id === 0 ? 0 : (id + delta) & 0xffff;
+        }
+      }
+    }
+    return 0;
+  };
+}
+
+/** The `.pf-band-cover` rule, so the assertion cannot be satisfied by another block. */
+function stylesheetBandCover(css) {
+  const start = css.indexOf('.pf-band-cover {');
+  return start === -1 ? '' : css.slice(start, css.indexOf('}', start));
+}
+
+test('the menu button wears the search button\'s own styling', async () => {
+  // Both buttons share the bar — on a phone they are neighbours — so a raised,
+  // bordered one beside a flat one reads as two kinds of control. The menu button
+  // takes the search toggle's surface, size, radius and hover outright, rather than
+  // a second set of numbers that can drift from it.
+  const css = await readProjectFile('app/globals.css');
+  const block = (from, to) => css.slice(css.indexOf(from), css.indexOf(to));
+  const declaration = (cssBlock, property) =>
+    new RegExp(`${property}:\\s*([^;]+);`).exec(cssBlock)?.[1].trim();
+  const toggle = block('.search-toggle {', '.search-toggle:hover');
+  const button = block('.menu-btn {', '.menu-btn:hover');
+  assert.equal(declaration(button, 'background'), declaration(toggle, 'background'), 'the same flat surface');
+  assert.equal(declaration(button, 'border-radius'), declaration(toggle, 'border-radius'), 'the same corner');
+  for (const side of ['width', 'height']) {
+    assert.equal(declaration(button, side), declaration(toggle, side), `the same ${side}`);
+  }
+  assert.ok(declaration(button, 'border') === '0', 'neither button draws a border');
+  assert.doesNotMatch(button, /box-shadow/, 'a bar button does not sit on a shadow');
+  const hover = declaration(block('.search-toggle:hover', '.search-toggle svg'), 'background');
+  assert.equal(
+    declaration(block('.menu-btn:hover', '.menu-btn:active'), 'background'),
+    hover,
+    'and it answers a pointer the same way',
+  );
+  // Open is a state, not a lift: the brand's colour and a ring of it, no elevation.
+  const open = block('.menu-btn[aria-expanded="true"] {', '.menu-bars {');
+  assert.match(open, /color: var\(--blue\)/);
+  assert.match(open, /box-shadow: 0 0 0 2px/);
+  assert.doesNotMatch(open, /0 8px|0 12px|0 40px/, 'the open state adds no shadow to lift it');
+});
+
+test('the menu panel is solid paper, not glass', async () => {
+  const css = await readProjectFile('app/globals.css');
+  const panel = css.slice(css.indexOf('.menu-panel {'), css.indexOf('.menu-panel[data-state="closed"]'));
+  assert.match(panel, /background: #ffffff;/, 'the panel paints its own surface');
+  assert.doesNotMatch(panel, /backdrop-filter/, 'and shows nothing through itself');
+  assert.doesNotMatch(
+    panel,
+    /background: rgba\(255, 255, 255, 0\.\d+\)/,
+    'nor is it white glass pretending to be solid',
+  );
+  // The scrim behind it keeps its blur: that is the page dimming, not the panel.
+  assert.match(css.slice(css.indexOf('.menu-backdrop {')), /backdrop-filter: blur/, 'the page behind is still dimmed');
+});
+
+test('the saved stories row is in the menu with or without a session', async () => {
+  const menu = await readProjectFile('components/dashboard/site-menu.tsx');
+  assert.match(menu, /const SAVED_ITEM: MenuItem = \{[\s\S]*?action: "saved"/, 'the row is declared once');
+  const guest = menu.slice(menu.indexOf('const GUEST_ITEMS'), menu.indexOf('const ACCOUNT_ITEMS'));
+  const member = menu.slice(menu.indexOf('const ACCOUNT_ITEMS'), menu.indexOf('export function sectionHref'));
+  assert.match(guest, /\[SAVED_ITEM\]/, 'a visitor sees their bookmarks');
+  assert.match(member, /\[\s*SAVED_ITEM/, 'and a member sees the same row first, so signing in does not move it');
+  assert.match(member, /action: "logout"/, 'log out stays the foot\'s button');
+  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
+  assert.doesNotMatch(header, /"saved"/, 'the header must not hide the row the menu now keeps');
 });
