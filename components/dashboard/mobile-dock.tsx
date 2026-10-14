@@ -7,7 +7,8 @@ import {
   CircleUserRound,
   Clapperboard,
   Home,
-  Search,
+  PenLine,
+  Plus,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -15,8 +16,8 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * The phone dock: the five places a reader moves between on a handset, drawn as a
- * floating card at the foot of the screen.
+ * The phone dock: four destinations plus a central create action on a handset,
+ * drawn as a floating card at the foot of the screen.
  *
  * It is the reference deck's morphing tab bar (`expo-motion-tabs`) carried to the
  * web. The reference is React Native + Reanimated; the vocabulary is the same. The
@@ -44,7 +45,8 @@ import { cn } from "@/lib/utils";
  *
  * Phones only, and only below the width where the top bar has already handed its
  * desks to the menu, so no width has two competing navigations: the dock carries
- * the five primary destinations, the menu keeps every desk.
+ * four destinations plus a create action, the menu keeps every desk including
+ * search.
  *
  * The entries are the reader-facing ones the top bar and the footer already
  * publish. The account tab stands for the member's own surfaces — the dashboard,
@@ -81,13 +83,6 @@ const TABS: DockTab[] = [
     current: (pathname) => pathname.startsWith("/flipps"),
   },
   {
-    key: "search",
-    href: "/search/",
-    label: "খুঁজুন",
-    icon: Search,
-    current: (pathname) => pathname.startsWith("/search"),
-  },
-  {
     key: "spotlight",
     href: "/spotlight/",
     label: "স্পটলাইট",
@@ -103,6 +98,23 @@ const TABS: DockTab[] = [
       pathname.startsWith("/account") ||
       pathname.startsWith("/saved") ||
       pathname.startsWith("/u/"),
+  },
+];
+
+const CREATE_OPTIONS: { key: string; href: string; title: string; sub: string; icon: LucideIcon }[] = [
+  {
+    key: "news",
+    href: "/account/write/",
+    title: "নিউজ প্রকাশ করুন",
+    sub: "প্রতিবেদন লিখুন",
+    icon: PenLine,
+  },
+  {
+    key: "issue",
+    href: "/spotlight/",
+    title: "ইস্যু প্রকাশ করুন",
+    sub: "স্পটলাইটে লিখুন",
+    icon: Sparkles,
   },
 ];
 
@@ -246,9 +258,68 @@ export function MobileDock() {
 
   // Nothing to mark: the row has not been measured yet, or no tab is current.
   const liquidIdle = !placed || currentIndex < 0;
+  const [createOpen, setCreateOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!createOpen) return;
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setCreateOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [createOpen]);
+
+  function renderTab(tab: DockTab) {
+    const Icon = tab.icon;
+    const isCurrent = tab.current(pathname);
+    return (
+      <Link
+        key={tab.key}
+        href={tab.href}
+        data-dock={tab.key}
+        aria-current={isCurrent ? "page" : undefined}
+        className={cn("dock-tab", isCurrent && "current")}
+        style={{ "--dock-label": `${labelWidths[tab.key] ?? 0}px` } as React.CSSProperties}
+      >
+        <Icon className="dock-icon" size={20} strokeWidth={2.1} aria-hidden />
+        <span
+          className="dock-label"
+          ref={(node) => {
+            labelRefs.current[tab.key] = node;
+          }}
+        >
+          {tab.label}
+        </span>
+      </Link>
+    );
+  }
 
   return (
     <nav className="dock" aria-label="প্রধান নেভিগেশন">
+      {createOpen ? (
+        <div className="dock-create-scrim" onClick={() => setCreateOpen(false)} aria-hidden />
+      ) : null}
+      {createOpen ? (
+        <div className="dock-create-pop" role="dialog" aria-modal="true" aria-label="প্রকাশ করুন">
+          <p className="dock-create-title">প্রকাশ করুন</p>
+          <ul className="dock-create-list">
+            {CREATE_OPTIONS.map((option) => {
+              const OptionIcon = option.icon;
+              return (
+                <li key={option.key}>
+                  <Link className="dock-create-link" href={option.href} onClick={() => setCreateOpen(false)}>
+                    <OptionIcon aria-hidden />
+                    <span className="dock-create-text">
+                      <span className="dock-create-name">{option.title}</span>
+                      <span className="dock-create-sub">{option.sub}</span>
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
       <div className="dock-card" ref={cardRef}>
         {/*
           The goo, as the filter the layer below points at: blur the blobs, then
@@ -295,38 +366,19 @@ export function MobileDock() {
         </div>
         {/* The crisp layer: the icons and the words stay out of that filter. */}
         <div className="dock-row">
-          {TABS.map((tab) => {
-            const Icon = tab.icon;
-            const isCurrent = tab.current(pathname);
-            return (
-              <Link
-                key={tab.key}
-                href={tab.href}
-                data-dock={tab.key}
-                aria-current={isCurrent ? "page" : undefined}
-                className={cn("dock-tab", isCurrent && "current")}
-                // The measured width of this tab's own label, in pixels.
-                style={
-                  { "--dock-label": `${labelWidths[tab.key] ?? 0}px` } as React.CSSProperties
-                }
-              >
-                <Icon className="dock-icon" size={20} strokeWidth={2.1} aria-hidden />
-                {/*
-                  Always rendered, never `display: none`: the label is the link's
-                  accessible name at every width, and the stylesheet only collapses
-                  its width so it can unfurl.
-                */}
-                <span
-                  className="dock-label"
-                  ref={(node) => {
-                    labelRefs.current[tab.key] = node;
-                  }}
-                >
-                  {tab.label}
-                </span>
-              </Link>
-            );
-          })}
+          {TABS.slice(0, 2).map(renderTab)}
+          <button
+            type="button"
+            data-dock="create"
+            aria-label="তৈরি করুন"
+            aria-haspopup="dialog"
+            aria-expanded={createOpen}
+            onClick={() => setCreateOpen((open) => !open)}
+            className={cn("dock-tab dock-create", createOpen && "current")}
+          >
+            <Plus className="dock-icon" size={22} strokeWidth={2.4} aria-hidden />
+          </button>
+          {TABS.slice(2).map(renderTab)}
         </div>
       </div>
     </nav>

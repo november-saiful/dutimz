@@ -669,6 +669,24 @@ export function AccountDashboard() {
         </div>
       </header>
 
+      <ProfileSideBlock icon={Sparkles} label="আমার সরঞ্জাম">
+        <ul className="pf-links">
+          {actions
+            .filter((action) => action.show)
+            .map((action) => (
+              <li key={action.href}>
+                <Link className="pf-link" href={action.href}>
+                  <action.icon aria-hidden />
+                  <span className="pf-link-text">
+                    <span className="pf-link-title">{action.title}</span>
+                    <span className="pf-link-sub">{action.subtitle}</span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+        </ul>
+      </ProfileSideBlock>
+
       <ProfileStats
         stats={[
           { value: bn(articleCounts.published), label: "প্রকাশিত সংবাদ" },
@@ -917,24 +935,6 @@ export function AccountDashboard() {
                 আয়ের বিস্তারিত
               </Link>
             </div>
-          </ProfileSideBlock>
-
-          <ProfileSideBlock icon={Sparkles} label="আমার সরঞ্জাম">
-            <ul className="pf-links">
-              {actions
-                .filter((action) => action.show)
-                .map((action) => (
-                  <li key={action.href}>
-                    <Link className="pf-link" href={action.href}>
-                      <action.icon aria-hidden />
-                      <span className="pf-link-text">
-                        <span className="pf-link-title">{action.title}</span>
-                        <span className="pf-link-sub">{action.subtitle}</span>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-            </ul>
           </ProfileSideBlock>
 
           <ProfileTip

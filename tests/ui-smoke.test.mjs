@@ -1217,11 +1217,11 @@ test('the phone menu shows the same desks and the account behind one button', as
   assert.doesNotMatch(shell, /MobileBottomNav/, 'the retired phone dock stays gone');
 });
 
-test('the phone dock carries the five primary destinations, and only on a phone', async () => {
-  // A phone gets a floating dock over the foot of the page: the five places a
-  // reader moves between, drawn from the reference deck's morphing tab bar. It is
-  // a different surface from the retired rail dock — the menu still holds every
-  // desk — and only the five primary destinations live on it.
+test('the phone dock carries the four destinations plus a create action, and only on a phone', async () => {
+  // A phone gets a floating dock over the foot of the page: four destinations
+  // plus a central create action, drawn from the reference deck's morphing tab
+  // bar. It is a different surface from the retired rail dock — the menu still
+  // holds every desk including search — and only these live on it.
   const dock = await readProjectFile('components/dashboard/mobile-dock.tsx');
   assert.match(dock, /^"use client";/m, 'the dock is the island that reads the address');
   assert.match(dock, /usePathname/, 'the current tab follows the address');
@@ -1230,11 +1230,10 @@ test('the phone dock carries the five primary destinations, and only on a phone'
   const shell = await readProjectFile('components/dashboard/dutimz-shell.tsx');
   assert.match(shell, /<MobileDock \/>/, 'every page draws the dock');
 
-  // The five entries, each on the address the rest of the site already publishes.
+  // The four entries, each on the address the rest of the site already publishes.
   for (const [key, href] of [
     ['home', '"/"'],
     ['flipps', '"/flipps/"'],
-    ['search', '"/search/"'],
     ['spotlight', '"/spotlight/"'],
     ['account', '"/account/"'],
   ]) {
@@ -1244,6 +1243,12 @@ test('the phone dock carries the five primary destinations, and only on a phone'
       `the dock must carry ${key} to ${href}`,
     );
   }
+  assert.doesNotMatch(dock, /key: "search"/, 'search lives in the menu, not the dock');
+  assert.match(dock, /data-dock="create"/, 'the dock carries a central create action');
+  assert.match(dock, /aria-haspopup="dialog"/, 'the create action opens a dialog');
+  assert.match(dock, /\/account\/write\//, 'the create dialog offers news writing');
+  assert.match(dock, /নিউজ প্রকাশ করুন/, 'the news option is labelled');
+  assert.match(dock, /ইস্যু প্রকাশ করুন/, 'the issue option is labelled');
 
   // The morph is the stylesheet's job, on the reference's own curve: the open tab
   // is exactly as wide as its word, and a collapsed label still reports that width

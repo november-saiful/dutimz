@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, Pencil, Wallet } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, CalendarClock, Pencil, Wallet } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -199,6 +199,9 @@ export function AdminDashboard() {
   const [withdrawals, setWithdrawals] = React.useState<Withdrawal[]>([]);
   const [spotlight, setSpotlight] = React.useState<SpotlightPost[]>([]);
   const [spotlightReasons, setSpotlightReasons] = React.useState<Record<string, string>>({});
+  const [dating, setDating] = React.useState<SpotlightPost | null>(null);
+  const [datingDate, setDatingDate] = React.useState("");
+  const [datingReason, setDatingReason] = React.useState("");
   const [reasons, setReasons] = React.useState<Record<string, string>>({});
   const [adjustTarget, setAdjustTarget] = React.useState<Member | null>(null);
   const [adjustAmount, setAdjustAmount] = React.useState("");
@@ -445,6 +448,48 @@ export function AdminDashboard() {
       await loadSpotlight();
     } catch (err) {
       setError(errorMessage("spotlight moderation", err, "সিদ্ধান্ত নথিভুক্ত করা যায়নি। আবার চেষ্টা করুন।"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function openDating(post: SpotlightPost) {
+    setDating(post);
+    setDatingDate(new Date(post.created_at).toISOString().slice(0, 16));
+    setDatingReason("");
+  }
+
+  async function saveDating() {
+    if (!dating) return;
+    setError("");
+    setNotice("");
+    if (!datingDate) {
+      setError("তারিখ নির্ধারণ করুন।");
+      return;
+    }
+    if (datingReason.trim().length < 3) {
+      setError("তারিখ পরিবর্তনের কারণ লিখুন (অন্তত ৩ অক্ষর)।");
+      return;
+    }
+    setBusy(`spotlight-date-${dating.id}`);
+    try {
+      const { error } = await supabaseBrowser().rpc("admin_set_spotlight_date", {
+        p_post_id: dating.id,
+        p_created_at: new Date(datingDate).toISOString(),
+        p_reason: datingReason.trim(),
+      });
+      if (error) {
+        setError(
+          errorMessage("spotlight date", error, "তারিখ সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।"),
+        );
+        return;
+      }
+      void revalidateReaders();
+      setNotice("স্পটলাইট পোস্টের তারিখ সংরক্ষিত হয়েছে।");
+      setDating(null);
+      await loadSpotlight();
+    } catch (err) {
+      setError(errorMessage("spotlight date", err, "তারিখ সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।"));
     } finally {
       setBusy(null);
     }
@@ -1196,6 +1241,17 @@ export function AdminDashboard() {
                       >
                         মুছে ফেলুন
                       </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busy === `spotlight-date-${post.id}`}
+                        onClick={() => openDating(post)}
+                        aria-label={`${post.title} তারিখ পরিবর্তন`}
+                        title="তারিখ পরিবর্তন"
+                      >
+                        <CalendarClock className="size-4" aria-hidden />
+                        তারিখ
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -1204,6 +1260,45 @@ export function AdminDashboard() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={dating !== null} onOpenChange={(open) => !open && setDating(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>স্পটলাইট তারিখ পরিবর্তন</DialogTitle>
+            <DialogDescription>
+              {dating && <>“{dating.title}” — বর্তমান {formatDateBn(dating.created_at)}।</>}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <Field label="তারিখ ও সময়" htmlFor="spotlight-date">
+              <Input
+                id="spotlight-date"
+                type="datetime-local"
+                value={datingDate}
+                onChange={(e) => setDatingDate(e.target.value)}
+              />
+            </Field>
+            <Field label="কারণ (আবশ্যক)" htmlFor="spotlight-date-reason" hint="কারণ অডিট লগে সংরক্ষিত হয়।">
+              <Textarea
+                id="spotlight-date-reason"
+                value={datingReason}
+                onChange={(e) => setDatingReason(e.target.value)}
+                rows={2}
+                minLength={3}
+                maxLength={500}
+              />
+            </Field>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDating(null)}>
+              বাতিল
+            </Button>
+            <Button onClick={() => void saveDating()} disabled={busy !== null}>
+              {busy?.startsWith("spotlight-date-") ? "সংরক্ষণ হচ্ছে…" : "তারিখ সংরক্ষণ করুন"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {tab === "finance" && (
         <div className="flex flex-col gap-4">
