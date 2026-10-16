@@ -37,6 +37,12 @@ test('middleware redirects www to the apex', async () => {
   assert.match(middleware, /www\.dutimz\.com/);
   assert.match(middleware, /dutimz\.com/);
   assert.match(middleware, /301/);
+  // The cache queue revalidates through the Worker's self reference with the original host,
+  // www included. Redirecting that internal call fails the revalidation, and the queue keys
+  // the failure without the host — one www visit then suppresses the apex revalidation too
+  // and the page stays STALE until a deploy. So the redirect must let it through.
+  assert.match(middleware, /x-isr/);
+  assert.match(middleware, /x-prerender-revalidate/);
 });
 
 test('worker-rendered responses carry the headers _headers only applies to assets', async () => {
@@ -752,18 +758,18 @@ test('the front page serves every slot from one archive read', async () => {
   assert.match(page, /getLatestStories\(25\)/);
   const reads = page.match(/getLatestStories\(/g) ?? [];
   assert.equal(reads.length, 1, 'the front page must take one read, not one per slot');
-  // Every band reads its own slice of that one list, in order: the deck takes
-  // the first five, the recommended band the next five, and so on to the end.
-  // A story printed twice on one page is what a shared slot would look like.
+  // The deck and the latest rows share the top of the list on purpose: a new
+  // story has to appear in সর্বশেষ too, not only in the hero. Every band below
+  // them reads its own slice from slot 5 on, so nothing is printed a third time.
   for (const slots of [
     '[0, 1, 2, 3, 4]',
     '[6, 7, 8, 9]',
-    '[10, 11, 12, 13, 14]',
     '[15, 16, 17, 18, 19]',
     '[20, 21, 22, 23, 24]',
   ]) {
-    assert.ok(page.includes(slots), `the front page's slots must stay disjoint and ordered (missing ${slots})`);
+    assert.ok(page.includes(slots), `the front page's slots must stay ordered (missing ${slots})`);
   }
+  assert.match(page, /const latest = \[0, 1, 2, 3, 4\]/, 'সর্বশেষ খবর mirrors the five newest, like the deck');
   assert.match(page, /const feature = pick\(items, 5\)/, 'the recommended band takes the slot after the deck');
 });
 

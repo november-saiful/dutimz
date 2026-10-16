@@ -74,11 +74,12 @@ export default async function HomePage() {
     .map((slot) => pick(items, slot))
     .filter((item): item is StoryItem => item !== null)
     .map(deckItemFromStory);
-  // Every band below reads on from there, so no story is printed twice on the
-  // front page and no slot is filled twice from one list.
+  // The latest rows mirror the deck's five newest on purpose: a new story has
+  // to appear in সর্বশেষ too, not only in the hero. Every band below them reads
+  // on from slot 5, so nothing below is printed a third time.
   const feature = pick(items, 5);
   const rail = [6, 7, 8, 9].map((slot) => pick(items, slot));
-  const latest = [10, 11, 12, 13, 14].map((slot) => pick(items, slot));
+  const latest = [0, 1, 2, 3, 4].map((slot) => pick(items, slot));
   const readersChoice = [15, 16, 17, 18, 19].map((slot) => pick(items, slot));
   const bestOfMonth = [20, 21, 22, 23, 24].map((slot) => pick(items, slot));
 
