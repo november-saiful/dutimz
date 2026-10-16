@@ -14,11 +14,24 @@ type ArticleActionsProps = {
   articleUrl?: string;
   correctionSubject: string;
   /**
-   * "chips" (default) is the reading bar's row of counters — likes, saves and
+   * "chips" (default) is the reading bar's row of counters — votes, saves and
    * the jump to the comments. "socials" is the share row beside the tags.
    */
   variant?: "chips" | "socials";
 };
+
+type Vote = "up" | "down" | null;
+
+/**
+ * Any legacy reaction (`like`, `insightful`, `support`) counts as an upvote:
+ * the migration folds them into `up`, but a database it has not reached yet
+ * still reports them.
+ */
+function reactionToVote(reaction: string | null | undefined): Vote {
+  if (reaction === "down") return "down";
+  if (!reaction) return null;
+  return "up";
+}
 
 export function ArticleActions({
   articleId,
@@ -27,9 +40,9 @@ export function ArticleActions({
   correctionSubject,
   variant = "chips",
 }: ArticleActionsProps) {
-  const [likes, setLikes] = React.useState<number | null>(null);
+  const [score, setScore] = React.useState<number | null>(null);
   const [comments, setComments] = React.useState<number | null>(null);
-  const [reacted, setReacted] = React.useState(false);
+  const [myVote, setMyVote] = React.useState<Vote>(null);
   const [bookmarked, setBookmarked] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [notice, setNotice] = React.useState("");
@@ -43,15 +56,19 @@ export function ArticleActions({
           p_article_id: articleId,
         });
         if (statsError) {
-          setNotice(errorMessage("article stats", statsError, "পছন্দের সংখ্যা লোড করা যায়নি।"));
+          setNotice(errorMessage("article stats", statsError, "ভোটের সংখ্যা লোড করা যায়নি।"));
         }
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError) {
           setNotice(errorMessage("article actions session", authError, "অ্যাকাউন্ট যাচাই করা যায়নি। আবার চেষ্টা করুন।"));
         }
         if (cancelled) return;
-        const likesCount = (stats as { likes?: number } | null)?.likes ?? 0;
-        setLikes(likesCount);
+        const typed = stats as { score?: number; upvotes?: number; downvotes?: number; likes?: number } | null;
+        const resolved =
+          typeof typed?.score === "number"
+            ? typed.score
+            : (typed?.upvotes ?? typed?.likes ?? 0) - (typed?.downvotes ?? 0);
+        setScore(resolved);
         setComments((stats as { comments?: number } | null)?.comments ?? 0);
         if (authError || !user) return;
         const { data: reactions, error: reactionsError } = await supabase
@@ -60,10 +77,11 @@ export function ArticleActions({
           .eq("article_id", articleId)
           .eq("user_id", user.id);
         if (reactionsError) {
-          setNotice(errorMessage("article reaction state", reactionsError, "আপনার প্রতিক্রিয়া লোড করা যায়নি।"));
+          setNotice(errorMessage("article reaction state", reactionsError, "আপনার ভোট লোড করা যায়নি।"));
           return;
         }
-        if (!cancelled) setReacted(Boolean(reactions?.length));
+        const votes = (reactions ?? []).map((row) => reactionToVote((row as { reaction?: string }).reaction));
+        if (!cancelled) setMyVote(votes.includes("up") ? "up" : votes.includes("down") ? "down" : null);
         const { data: saved, error: savedError } = await supabase
           .from("bookmarks")
           .select("article_id")
@@ -77,7 +95,7 @@ export function ArticleActions({
         if (!cancelled) setBookmarked(Boolean(saved));
       } catch (err) {
         reportError("article actions", err);
-        if (!cancelled) setLikes(0);
+        if (!cancelled) setScore(0);
       }
     })();
     return () => {
@@ -93,7 +111,7 @@ export function ArticleActions({
       // No sign-in page: the gated action starts the Google flow immediately and
       // returns the reader to this article afterwards.
       rememberReturnPath();
-      setNotice("এই সুবিধাটি ব্যবহার করতে গুগল দিয়ে প্রবেশ করুন।");
+      setNotice("ভোট দিতে গুগল দিয়ে প্রবেশ করুন।");
       const { error: oauthError } = await signInWithGoogle();
       if (oauthError) throw oauthError;
       return null;
@@ -101,39 +119,57 @@ export function ArticleActions({
     return { supabase, user };
   }
 
-  async function toggleReaction() {
+  async function vote(target: "up" | "down") {
     if (busy) return;
     setBusy(true);
     try {
       const session = await requireUser();
       if (!session) return;
       const { supabase, user } = session;
-      const result = reacted
-        ? await supabase
-            .from("reactions")
-            .delete()
-            .eq("article_id", articleId)
-            .eq("user_id", user.id)
-            .eq("reaction", "like")
-        : await supabase.from("reactions").insert({
-            article_id: articleId,
-            user_id: user.id,
-            reaction: "like",
-          });
-      if (result.error) {
+      const previous = myVote;
+      // One vote per reader: clear every row for this article first. This also
+      // sweeps away legacy duplicate reactions from before the vote migration.
+      const cleared = await supabase
+        .from("reactions")
+        .delete()
+        .eq("article_id", articleId)
+        .eq("user_id", user.id);
+      if (cleared.error) {
         setNotice(
           errorMessage(
-            "reaction",
-            result.error,
-            "প্রতিক্রিয়া সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
+            "vote",
+            cleared.error,
+            "ভোট সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
           ),
         );
         return;
       }
-      setReacted(!reacted);
-      setLikes((count) => Math.max(0, (count ?? 0) + (reacted ? -1 : 1)));
+      if (previous !== target) {
+        const inserted = await supabase.from("reactions").insert({
+          article_id: articleId,
+          user_id: user.id,
+          reaction: target,
+        });
+        if (inserted.error) {
+          setNotice(
+            errorMessage(
+              "vote",
+              inserted.error,
+              "ভোট সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।",
+            ),
+          );
+          return;
+        }
+      }
+      const next: Vote = previous === target ? null : target;
+      setMyVote(next);
+      // The cleared state is neutral (0 from this reader), so the delta is just
+      // the new vote's value minus the old vote's value.
+      const valueOf = (voteState: Vote) => (voteState === "up" ? 1 : voteState === "down" ? -1 : 0);
+      setScore((count) => (count ?? 0) + (valueOf(next) - valueOf(previous)));
+      setNotice("");
     } catch (err) {
-      setNotice(errorMessage("reaction", err, "প্রতিক্রিয়া সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।"));
+      setNotice(errorMessage("vote", err, "ভোট সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।"));
     } finally {
       setBusy(false);
     }
@@ -242,19 +278,39 @@ export function ArticleActions({
 
   return (
     <div className="bar-chips">
-      <button
-        type="button"
-        className={cn("chip", reacted && "liked")}
-        onClick={toggleReaction}
-        disabled={busy}
-        aria-pressed={reacted}
-        aria-label="ভালো লেগেছে"
+      <div
+        className={cn("vote-cluster", myVote === "up" && "voted-up", myVote === "down" && "voted-down")}
+        role="group"
+        aria-label="প্রতিবেদনে ভোট দিন"
       >
-        <svg viewBox="0 0 24 24" aria-hidden>
-          <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" />
-        </svg>
-        <b>{countLabel(likes)}</b>
-      </button>
+        <button
+          type="button"
+          className="vote-btn"
+          onClick={() => vote("up")}
+          disabled={busy}
+          aria-pressed={myVote === "up"}
+          aria-label={myVote === "up" ? "আপভোট সরান" : "আপভোট দিন"}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden>
+            <path d="M6 14l6-6 6 6" />
+          </svg>
+        </button>
+        <b className="vote-score" aria-live="polite" aria-label={`${countLabel(score)} স্কোর`}>
+          {countLabel(score)}
+        </b>
+        <button
+          type="button"
+          className="vote-btn"
+          onClick={() => vote("down")}
+          disabled={busy}
+          aria-pressed={myVote === "down"}
+          aria-label={myVote === "down" ? "ডাউনভোট সরান" : "ডাউনভোট দিন"}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden>
+            <path d="M6 10l6 6 6-6" />
+          </svg>
+        </button>
+      </div>
       <button
         type="button"
         className={cn("chip", bookmarked && "liked")}

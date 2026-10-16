@@ -1575,6 +1575,285 @@
 .c-actions span {
   color: var(--muted);
 }
+/*
+  Reddit-style votes and threads, drawn from the brand palette only: the deep
+  purple carries upvotes, the theme destructive carries downvotes, and every
+  surface is the same flat card the rest of the article uses.
+*/
+.vote-cluster {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--card);
+  border-radius: 12px;
+  padding: 4px 6px;
+}
+.vote-btn {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.vote-btn svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+.vote-btn:hover {
+  background: rgba(95, 35, 103, 0.08);
+  color: var(--blue);
+}
+.vote-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.vote-cluster.voted-up .vote-btn:first-child {
+  color: var(--blue);
+  background: rgba(95, 35, 103, 0.12);
+}
+.vote-cluster.voted-down .vote-btn:last-child {
+  color: var(--color-destructive);
+  background: rgba(211, 59, 78, 0.1);
+}
+.vote-score {
+  min-width: 30px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+.vote-cluster.voted-up .vote-score {
+  color: var(--blue);
+}
+.vote-cluster.voted-down .vote-score {
+  color: var(--color-destructive);
+}
+.rc-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.rc-count {
+  font-size: 14px;
+  font-weight: 700;
+}
+.rc-sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.rc-sort-control {
+  display: inline-block;
+  width: 9.5rem;
+}
+.rc-composer {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.rc-composer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.rc-gate {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 22px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+.rc-gate p {
+  color: var(--body);
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+.rc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rc-empty {
+  background: var(--card);
+  border-radius: 16px;
+  padding: 22px;
+}
+.rc-empty p {
+  color: var(--body);
+  font-size: 14px;
+  margin-top: 6px;
+}
+.rc-item {
+  display: flex;
+  gap: 8px;
+  background: var(--card);
+  border-radius: 16px;
+  padding: 12px 14px;
+  min-width: 0;
+}
+.rc-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  width: 32px;
+}
+.rc-vote {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.rc-vote svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+.rc-vote:hover {
+  background: rgba(95, 35, 103, 0.08);
+  color: var(--blue);
+}
+.rc-vote:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.rc-vote.voted-up {
+  color: var(--blue);
+  background: rgba(95, 35, 103, 0.12);
+}
+.rc-vote.voted-down {
+  color: var(--color-destructive);
+  background: rgba(211, 59, 78, 0.1);
+}
+.rc-score {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.rc-score.voted-up {
+  color: var(--blue);
+}
+.rc-score.voted-down {
+  color: var(--color-destructive);
+}
+.rc-body {
+  flex: 1;
+  min-width: 0;
+}
+.rc-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+.rc-author {
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+}
+.rc-author:hover {
+  color: var(--blue);
+}
+.rc-collapse {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 0;
+}
+.rc-collapse:hover {
+  color: var(--blue);
+}
+.rc-text {
+  color: var(--body);
+  font-size: 14px;
+  line-height: 1.65;
+  margin: 6px 0 4px;
+}
+.rc-actions {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+.rc-actions button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 4px 0;
+}
+.rc-actions button:hover {
+  color: var(--blue);
+}
+.rc-actions svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+.rc-reply {
+  margin-top: 8px;
+}
+.rc-reply-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.rc-login {
+  font-size: 13px;
+  color: var(--muted);
+}
+.rc-login button {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--blue);
+}
+.rc-children {
+  margin-top: 10px;
+  padding-left: 14px;
+  border-left: 2px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rc-children .rc-item {
+  background: none;
+  border-radius: 0;
+  padding: 4px 0 0;
+}
 .pn {
   display: grid;
   grid-template-columns: 1fr 1fr;
