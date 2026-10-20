@@ -54,16 +54,22 @@ function readStored(): { token: string | null; topics: PushTopic[] } {
 export function PushBell() {
   const { toast } = useToast();
   const [open, setOpen] = React.useState(false);
-  const [supported] = React.useState(() => isPushSupported());
+  // False until the effect below proves otherwise: the server has no
+  // window/Notification, so reading support during render would hydrate
+  // a bell the server never sent (React #418 on every page).
+  const [supported, setSupported] = React.useState(false);
   const [blocked, setBlocked] = React.useState(false);
   const [subscribed, setSubscribed] = React.useState(false);
   const [topics, setTopics] = React.useState<PushTopic[]>([]);
   const [saving, setSaving] = React.useState(false);
 
+  // Runs after hydration only, so the server and the first client render
+  // agree (null bell) and the stored subscription fills in a tick later.
   // The bell reflects the device's stored subscription without asking the
   // server: the token in localStorage is the subscription record.
   React.useEffect(() => {
-    if (!supported) return;
+    if (!isPushSupported()) return;
+    setSupported(true);
     if (Notification.permission === "denied") {
       setBlocked(true);
       return;
@@ -73,7 +79,7 @@ export function PushBell() {
       setSubscribed(true);
       setTopics(stored);
     }
-  }, [supported]);
+  }, []);
 
   function toggle(topic: PushTopic) {
     setTopics((current) =>
