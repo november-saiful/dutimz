@@ -87,3 +87,39 @@ export async function listenForeground(
   });
   return unsubscribe;
 }
+
+/** Bengali labels for the topic picker, in PUSH_TOPICS order. */
+export const PUSH_TOPIC_LABELS: Record<PushTopic, string> = {
+  announcements: "ঘোষণা",
+  breaking: "ব্রেকিং নিউজ",
+  sports: "খেলাধুলা",
+  technology: "প্রযুক্তি",
+};
+
+const WELCOME_TITLE = "🎉 অভিনন্দন! বিজ্ঞপ্তি চালু হয়েছে";
+const WELCOME_BODY =
+  "বাছাই করা বিষয়ে নতুন খবর এলেই আপনি জানতে পারবেন।";
+
+/**
+ * The first-run sample notification, shown locally the moment a reader
+ * subscribes: it proves the channel works while teaching what it is for.
+ * Goes through the registered service worker so it looks exactly like a
+ * real push (same icon, same tap-to-open behaviour).
+ */
+export async function showWelcomeNotification(): Promise<boolean> {
+  try {
+    if (!isPushSupported() || Notification.permission !== "granted") {
+      return false;
+    }
+    const registration = await navigator.serviceWorker.ready;
+    await registration.showNotification(WELCOME_TITLE, {
+      body: WELCOME_BODY,
+      icon: "/favicon.svg",
+      badge: "/favicon.svg",
+      data: { link: "/" },
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
