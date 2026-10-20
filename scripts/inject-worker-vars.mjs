@@ -18,6 +18,18 @@ import { writeFileSync } from 'node:fs';
 
 const REQUIRED = ['NEXT_PUBLIC_SUPABASE_URL', 'NEXT_PUBLIC_SUPABASE_ANON_KEY'];
 
+// Public Firebase web config for browser push (FCM). Optional: the site builds
+// and serves fine without push, so absent values warn instead of failing.
+// When present they are inlined into the client bundle (NEXT_PUBLIC_*).
+const OPTIONAL = [
+  'NEXT_PUBLIC_FIREBASE_API_KEY',
+  'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+  'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
+  'NEXT_PUBLIC_FIREBASE_APP_ID',
+  'NEXT_PUBLIC_FIREBASE_VAPID_KEY',
+];
+
 if (!process.env.CI && !process.argv.includes('--force')) {
   console.error(
     'Refusing to write credentials into an env file outside CI.\n' +
@@ -48,8 +60,18 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
+const present = OPTIONAL.filter((name) => process.env[name]);
+if (present.length > 0 && present.length < OPTIONAL.length) {
+  console.error(
+    'Incomplete Firebase web config: have ' + present.join(', ') + ' but missing ' +
+      OPTIONAL.filter((name) => !process.env[name]).join(', ') + '. Push subscribe will fail; ' +
+      'set all six as GitHub repository variables or none.',
+  );
+  process.exit(1);
+}
+
 const target = preview ? '.env.preview' : '.env.production';
-const lines = REQUIRED.map((name) => `${name}=${process.env[name]}`);
+const lines = [...REQUIRED, ...present].map((name) => `${name}=${process.env[name]}`);
 writeFileSync(target, `${lines.join('\n')}\n`);
 
-console.log(`Wrote ${REQUIRED.join(', ')} to ${target} for this deployment only.`);
+console.log(`Wrote ${[...REQUIRED, ...present].join(', ')} to ${target} for this deployment only.`);
