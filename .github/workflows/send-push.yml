@@ -1,35 +1,32 @@
 # Manual push sender — 100% free (FCM no-cost + Actions free quota).
 # Run: GitHub repo > Actions > "Send push notification" > Run workflow.
+# Audience: devices that ticked the topic in the top-bar bell popup, plus
+# legacy devices that never picked topics (they get everything). Dead tokens
+# are pruned automatically on every send.
 # Secrets required (repo Settings > Secrets and variables > Actions):
 #   FIREBASE_SERVICE_ACCOUNT_JSON — Firebase service-account JSON (private key stays here, never in code)
-#   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY — only needed for the `sync` action
+#   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY — read topic prefs + prune dead tokens
 name: Send push notification
 
 on:
   workflow_dispatch:
     inputs:
-      action:
-        description: "send = push to topic | sync = subscribe all stored tokens to topic"
-        required: true
-        default: "send"
-        type: choice
-        options: [send, sync]
       topic:
-        description: "Topic (must match PUSH_TOPICS in firebase-client.ts)"
+        description: "Topic (must match the bell popup checkboxes)"
         required: true
         default: "breaking"
         type: choice
         options: [announcements, breaking, sports, technology]
       title:
-        description: "Notification title (send only)"
+        description: "Notification title"
         required: false
         default: "Dutimz update"
       body:
-        description: "Notification body (send only)"
+        description: "Notification body"
         required: false
         default: ""
       link:
-        description: "Click-through path, e.g. /news/my-slug (send only)"
+        description: "Click-through path, e.g. /news/my-slug"
         required: false
         default: "/"
 
@@ -42,7 +39,7 @@ jobs:
         with:
           node-version: 20
       - run: npm install --no-save --no-package-lock firebase-admin
-      - run: node scripts/send-push.mjs "${{ inputs.action }}" --topic "${{ inputs.topic }}" --title "${{ inputs.title }}" --body "${{ inputs.body }}" --link "${{ inputs.link }}"
+      - run: node scripts/send-push.mjs "send" --topic "${{ inputs.topic }}" --title "${{ inputs.title }}" --body "${{ inputs.body }}" --link "${{ inputs.link }}"
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

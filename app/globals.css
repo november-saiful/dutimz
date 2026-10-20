@@ -381,6 +381,45 @@
   fill: none;
   stroke-width: 2;
 }
+/*
+  The push bell: same footprint as the search toggle so the bar keeps its
+  rhythm, but always visible (unlike search-toggle, which only appears where
+  the inline field cannot fit). The dot marks a subscribed device.
+*/
+.bell-toggle {
+  display: grid;
+  place-items: center;
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border: 0;
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.bell-toggle:hover {
+  background: #e6e1ea;
+}
+.bell-toggle svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+}
+.bell-dot {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #1a73e8;
+  border: 2px solid var(--card);
+}
 /* ============ SITE MENU ============ */
 /*
   The bar's one menu, in the reference design's shape: a rounded button whose

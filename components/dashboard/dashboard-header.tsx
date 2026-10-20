@@ -14,6 +14,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { SiteMenu, isCurrentSection, sectionHref } from "@/components/dashboard/site-menu";
+import { PushBell } from "@/components/push/PushBell";
 import {
   ACCOUNT_HIDDEN_ACTIONS,
   ACCOUNT_ROUTES,
@@ -377,6 +378,8 @@ export function DashboardHeader({
             inside it instead of a bare avatar that dropped them on a page they
             could not use.
           */}
+          {/* Push opt-in bell: topic picker + welcome sample, works signed-out. */}
+          <PushBell />
           <SiteMenu
             sections={sections}
             user={menuUser}
