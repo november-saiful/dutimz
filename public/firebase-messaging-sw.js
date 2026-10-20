@@ -3,7 +3,7 @@
 // in sync with the `firebase` version in package.json (v11.x).
 // Docs: https://firebase.google.com/docs/cloud-messaging/web/receive-messages
 //
-// SETUP: replace each __FIREBASE_*__ token below with your Firebase web
+// SETUP: the release workflow inlines each FIREBASE placeholder below
 // config (same values as NEXT_PUBLIC_FIREBASE_* in .env.local). Static SW
 // files cannot read process.env at runtime, so the values are inlined.
 // The GitHub sender workflow never touches this file.
