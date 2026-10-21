@@ -1550,10 +1550,43 @@
   font-size: 14.5px;
   line-height: 1.75;
   color: var(--body);
-}
-.article-main .article-body blockquote {
+}.article-main .article-body blockquote {
   color: var(--ink);
 }
+
+/*
+  The composer's visual editor draws authored Markdown in a ProseMirror canvas, and the same
+  .article-body geometry above styles it. Only the editor-specific states need rules here: the
+  placeholder speaks where the story has not begun, and selection tints show what a destructive
+  toolbar action is about to take.
+*/
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--muted);
+}
+/* An empty paragraph parked at the cursor is no invitation to type the placeholder everywhere. */
+.ProseMirror p.is-empty:not(.is-editor-empty)::before {
+  content: none;
+}
+.ProseMirror .selectedCell {
+  position: relative;
+}
+.ProseMirror .selectedCell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--purple2) 12%, transparent);
+  pointer-events: none;
+}
+.ProseMirror .ProseMirror-selectednode {
+  outline: 2px solid var(--purple);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 .comments {
   margin-top: 36px;
 }

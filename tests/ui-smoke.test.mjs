@@ -1703,11 +1703,12 @@ test('an inline picture is not repeated in the gallery and is fetched with a tok
 
 test('the composer keeps pasted formatting and can place a picture between paragraphs', async () => {
   const editor = await readProjectFile('components/ui/rich-text-editor.tsx');
-  // Turndown is loaded on the first formatted paste, never at module scope: the same component is
-  // pre-rendered on the server, where its browser build has no DOM to parse with.
-  assert.match(editor, /import\("turndown"\)/, 'pasted HTML is converted to Markdown');
-  assert.match(editor, /import\("turndown-plugin-gfm"\)/, 'a pasted table arrives as a table');
-  assert.match(editor, /getData\("text\/html"\)/, 'the rich flavour of the clipboard is what is read');
+  // The composer edits visually (TipTap) but the Markdown column stays the stored truth: the
+  // markdown extension covers both ends, so what goes in and what comes out is the same format
+  // the database extraction and the reader's renderer already understand.
+  assert.match(editor, /Markdown/, 'the composer round-trips Markdown through its editor');
+  assert.match(editor, /contentType: "markdown"/, 'content arrives and leaves as Markdown');
+  assert.match(editor, /transformPastedHTML/, 'the rich flavour of the clipboard is what is parsed');
   assert.match(editor, /insertAtCaret/, 'a picture can be placed at the caret');
   assert.doesNotMatch(editor, /dangerouslySetInnerHTML/, 'the composer never injects HTML');
 
