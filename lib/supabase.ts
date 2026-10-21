@@ -142,6 +142,7 @@ export type Story = {
   is_anonymous: boolean;
   published_at: string;
   hero_media_key: string | null;
+  interview_kind?: string | null;
   article_media?: { media_id: string; position: number }[] | null;
   category: DbCategory | DbCategory[] | null;
   profiles: DbProfile | DbProfile[] | null;

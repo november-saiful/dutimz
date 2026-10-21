@@ -16,7 +16,7 @@ export function isDemoMode(): boolean {
 }
 
 const STORY_SELECT =
-  "id,slug,title,excerpt,author_id,is_anonymous,published_at,hero_media_key,category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url)";
+  "id,slug,title,excerpt,author_id,is_anonymous,published_at,hero_media_key,interview_kind,category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url)";
 
 /**
  * The picture a share carries: the story's hero, else its first gallery image, else the site
@@ -68,7 +68,7 @@ export async function getStoryBySlug(
     const { data, error } = await supabase
       .from("articles")
       .select(
-        "id,slug,title,excerpt,body,author_id,is_anonymous,hero_media_key,published_at,article_media(media_id,position),category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url)",
+        "id,slug,title,excerpt,body,author_id,is_anonymous,hero_media_key,interview_kind,published_at,article_media(media_id,position),category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url)",
       )
       .eq("status", "published")
       .eq("slug", slug)
@@ -173,7 +173,7 @@ export async function getCategoryStories(slug: string): Promise<{
     const { data, error: articlesError } = await supabase
       .from("articles")
       .select(
-        "id,slug,title,excerpt,published_at,is_anonymous,hero_media_key,category:categories!inner(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name)",
+        "id,slug,title,excerpt,published_at,is_anonymous,hero_media_key,interview_kind,category:categories!inner(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name)",
       )
       .eq("category.slug", slug)
       .eq("status", "published")

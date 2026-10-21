@@ -36,7 +36,7 @@ import { rememberReturnPath, signInWithGoogle } from "@/lib/auth-client";
 import { errorMessage, reportError } from "@/lib/errors";
 import { mediaMarkdownFor } from "@/lib/richtext";
 import { supabaseBrowser } from "@/lib/supabase";
-import { CATEGORIES, SITE_URL } from "@/lib/site";
+import { CATEGORIES, INTERVIEW_SECTIONS, SITE_URL } from "@/lib/site";
 
 const PUBLISHING_ROLES = ["reporter", "moderator", "admin"];
 
@@ -50,6 +50,7 @@ const DRAFT_KEY = "dutimz-write-draft";
 type WriteDraft = {
   title: string;
   category: string;
+  interviewKind: string;
   body: string;
   answers: Record<string, unknown>;
   /** The questionnaire version the answers were given against. */
@@ -64,6 +65,7 @@ function readDraft(): WriteDraft | null {
     return {
       title: typeof parsed.title === "string" ? parsed.title : "",
       category: typeof parsed.category === "string" ? parsed.category : "",
+      interviewKind: typeof parsed.interviewKind === "string" ? parsed.interviewKind : "",
       body: typeof parsed.body === "string" ? parsed.body : "",
       answers:
         parsed.answers && typeof parsed.answers === "object" && !Array.isArray(parsed.answers)
@@ -119,6 +121,9 @@ export function WriterForm() {
   );
   const [title, setTitle] = React.useState(initialDraft?.title ?? "");
   const [categorySlug, setCategorySlug] = React.useState(initialDraft?.category ?? "");
+  // The interview desk's second step: virtual vs in-person. Chosen only when the desk is
+  // `interview` — the select itself only renders then — and cleared when the desk changes.
+  const [interviewKind, setInterviewKind] = React.useState(initialDraft?.interviewKind ?? "");
   const [draftDismissed, setDraftDismissed] = React.useState(false);
   const [answers, setAnswers] = React.useState<Record<string, unknown>>(
     initialDraft?.answers ?? {},
@@ -146,13 +151,14 @@ export function WriterForm() {
   React.useEffect(() => {
     const frame = window.setTimeout(() => {
       try {
-        if (!title && !categorySlug && !bodyDraft && Object.keys(answers).length === 0) {
+        if (!title && !categorySlug && !interviewKind && !bodyDraft && Object.keys(answers).length === 0) {
           window.localStorage.removeItem(DRAFT_KEY);
           return;
         }
         const draft: WriteDraft = {
           title,
           category: categorySlug,
+          interviewKind,
           body: bodyDraft,
           answers,
           qv: questionnaire?.id ?? initialDraft?.qv ?? null,
@@ -163,7 +169,7 @@ export function WriterForm() {
       }
     }, 600);
     return () => window.clearTimeout(frame);
-  }, [title, categorySlug, bodyDraft, answers, questionnaire, initialDraft]);
+  }, [title, categorySlug, interviewKind, bodyDraft, answers, questionnaire, initialDraft]);
 
   function clearDraft() {
     try {
@@ -173,6 +179,7 @@ export function WriterForm() {
     }
     setTitle("");
     setCategorySlug("");
+    setInterviewKind("");
     setBodyDraft("");
     setAnswers({});
   }
@@ -263,8 +270,13 @@ export function WriterForm() {
     const title = String(data.get("title") ?? "").trim();
     const body = String(data.get("body") ?? "").trim();
     const categorySlug = String(data.get("category_slug") ?? "");
+    const interviewKindValue = String(data.get("interview_kind") ?? "");
     if (!title || !body || !categorySlug) {
       fail("শিরোনাম, প্রতিবেদন ও বিভাগ আবশ্যক।");
+      return;
+    }
+    if (categorySlug === "interview" && !interviewKindValue) {
+      fail("সাক্ষাৎকারের ধরন (ভার্চুয়াল / ইন-পার্সন) নির্বাচন করুন।");
       return;
     }
     if (body.length < 100) {
@@ -306,6 +318,7 @@ export function WriterForm() {
       // find the function" — a valid-looking report that never reached the database.
       const result = await supabase.rpc("submit_article", {
         p_category_slug: categorySlug,
+        p_interview_kind: categorySlug === "interview" ? interviewKindValue : null,
         p_title: title,
         p_excerpt: null,
         p_body: body,
@@ -334,6 +347,7 @@ export function WriterForm() {
       form.reset();
       setTitle("");
       setCategorySlug("");
+      setInterviewKind("");
       setBodyDraft("");
       setAnswers({});
       try {
@@ -422,6 +436,7 @@ export function WriterForm() {
     initialDraft &&
       (initialDraft.title ||
         initialDraft.category ||
+        initialDraft.interviewKind ||
         initialDraft.body ||
         Object.keys(initialDraft.answers).length > 0),
   );
@@ -487,7 +502,10 @@ export function WriterForm() {
                   id="write-category"
                   name="category_slug"
                   value={categorySlug}
-                  onChange={(event) => setCategorySlug(event.target.value)}
+                  onChange={(event) => {
+                    setCategorySlug(event.target.value);
+                    if (event.target.value !== "interview") setInterviewKind("");
+                  }}
                   required
                 >
                   <option value="" disabled>
@@ -500,6 +518,26 @@ export function WriterForm() {
                   ))}
                 </Select>
               </Field>
+              {categorySlug === "interview" && (
+                <Field label="সাক্ষাৎকারের ধরন" htmlFor="write-interview-kind">
+                  <Select
+                    id="write-interview-kind"
+                    name="interview_kind"
+                    value={interviewKind}
+                    onChange={(event) => setInterviewKind(event.target.value)}
+                    required
+                  >
+                    <option value="" disabled>
+                      ধরন বেছে নিন
+                    </option>
+                    {INTERVIEW_SECTIONS.map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              )}
               <Field
                 label="প্রতিবেদনের ঠিকানা"
                 hint="জমা দেওয়ার পর প্রকৃত ইংরেজি ঠিকানা তৈরি হয়; তখনই লিংক কপি করা যাবে।"

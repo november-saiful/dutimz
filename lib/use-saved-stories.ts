@@ -52,7 +52,7 @@ export function useSavedStories(limit = 60) {
         const result = await supabase
           .from("bookmarks")
           .select(
-            "articles:articles!bookmarks_article_id_fkey(id,slug,title,excerpt,published_at,is_anonymous,hero_media_key,category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url))",
+            "articles:articles!bookmarks_article_id_fkey(id,slug,title,excerpt,published_at,is_anonymous,hero_media_key,interview_kind,category:categories(slug,title_bn),profiles:profiles!articles_author_id_fkey(username,display_name,avatar_url))",
           )
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })

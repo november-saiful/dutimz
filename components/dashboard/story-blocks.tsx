@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Flag } from "@/components/dashboard/flag";
 import { StoryArt } from "@/components/dashboard/story-card";
 import type { CarouselItem } from "@/components/ui/connected-carousel";
-import { mediaUrlFor, relativeTimeBn } from "@/lib/site";
+import { interviewSectionLabel, mediaUrlFor, relativeTimeBn } from "@/lib/site";
 import type { PreviewStory } from "@/lib/stories";
 import { storyCategory, storyCredit, type Story } from "@/lib/supabase";
 
@@ -19,6 +19,8 @@ export type StoryItem = {
   excerpt: string;
   section: string;
   sectionSlug: string;
+  /** The interview desk's second step (ভার্চুয়াল / ইন-পার্সন), else null. */
+  interviewSection: string | null;
   byline: string;
   bylineHref: string;
   when: string;
@@ -35,6 +37,10 @@ export function storyItemFromStory(story: Story): StoryItem {
     excerpt: story.excerpt,
     section: category.title_bn,
     sectionSlug: category.slug,
+    interviewSection:
+      category.slug === "interview"
+        ? interviewSectionLabel(story.interview_kind ?? null)
+        : null,
     byline: credit.name,
     bylineHref: credit.href,
     when: relativeTimeBn(story.published_at),
@@ -50,6 +56,7 @@ export function storyItemFromPreview(story: PreviewStory): StoryItem {
     excerpt: story.excerpt,
     section: story.category,
     sectionSlug: story.categorySlug,
+    interviewSection: null,
     byline: story.author,
     bylineHref: "",
     when: story.time,
@@ -100,6 +107,7 @@ export function StoryTags({ item }: { item: StoryItem }) {
   return (
     <div className="tags">
       <span>#{item.section}</span>
+      {item.interviewSection && <span>#{item.interviewSection}</span>}
     </div>
   );
 }

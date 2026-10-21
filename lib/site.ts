@@ -24,7 +24,24 @@ export const CATEGORIES: Category[] = [
   { label: "সংস্কৃতি", slug: "culture" },
   { label: "মতামত", slug: "opinion" },
   { label: "ক্রীড়া", slug: "sports" },
+  { label: "সাক্ষাৎকার", slug: "interview" },
 ];
+
+/**
+ * The interview desk's two sections. A story filed under `interview` always names
+ * one of these; no other desk may. Stored on the article as `interview_kind`.
+ */
+export const INTERVIEW_SECTIONS = [
+  { value: "virtual", label: "ভার্চুয়াল" },
+  { value: "in-person", label: "ইন-পার্সন" },
+] as const;
+
+export type InterviewKind = (typeof INTERVIEW_SECTIONS)[number]["value"];
+
+export function interviewSectionLabel(kind: string | null | undefined): string | null {
+  if (!kind) return null;
+  return INTERVIEW_SECTIONS.find((s) => s.value === kind)?.label ?? null;
+}
 
 export const CATEGORY_NAMES: Record<string, string> = Object.fromEntries(
   CATEGORIES.filter((c) => c.slug !== "all").map((c) => [c.slug, c.label]),

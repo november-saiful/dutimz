@@ -25,6 +25,7 @@ import {
   SITE_URL,
   bn,
   formatDateBn,
+  interviewSectionLabel,
   mediaUrlFor,
 } from "@/lib/site";
 import { inlineMediaIds } from "@/lib/richtext";
@@ -136,6 +137,11 @@ export default async function ArticlePage({
 
   const category = storyCategory(article);
   const credit = storyCredit(article);
+  // The interview desk's second step: virtual vs in-person, shown beside the desk tag.
+  const interviewSection =
+    category.slug === "interview"
+      ? interviewSectionLabel(article.interview_kind ?? null)
+      : null;
   // A picture placed in the text is drawn by the body itself, so the gallery strip must not show
   // it a second time. `inlineMediaIds` is the same rule the database applies when it decides which
   // of these pictures the media host is allowed to serve, so the two can never disagree about
@@ -232,6 +238,7 @@ export default async function ArticlePage({
           <div className="a-row">
             <div className="tags">
               <span>#{category.title_bn}</span>
+              {interviewSection && <span>#{interviewSection}</span>}
             </div>
             <ArticleActions
               variant="socials"
