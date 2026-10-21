@@ -69,7 +69,7 @@ export function StoryArt({
 export function StoryCard({ story }: { story: Story }) {
   const category = storyCategory(story);
   const credit = storyCredit(story);
-  const url = `/news/${encodeURIComponent(story.slug)}`;
+  const url = `/news/${encodeURIComponent(story.slug)}/`;
   return (
     <Card className="overflow-hidden">
       <Link href={url} aria-label={`পড়ুন: ${story.title}`}>
@@ -161,7 +161,7 @@ export function PreviewStoryCard({
 
 export function RecommendedItem({ story }: { story: Story }) {
   const category = storyCategory(story);
-  const url = `/news/${encodeURIComponent(story.slug)}`;
+  const url = `/news/${encodeURIComponent(story.slug)}/`;
   const profile = one(story.profiles);
   void profile;
   return (
