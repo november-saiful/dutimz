@@ -51,7 +51,7 @@ jobs:
         # This is the only step that proves the deploy path compiles. `deploy` on its own
         # merely reports that the build never ran, so without this a missing
         # open-next.config.ts reaches main and only surfaces during a release.
-        run: npx @opennextjs/cloudflare build
+        run: npx @opennextjs/cloudflare build --dangerouslyUseUnsupportedNextVersion
       - name: Install the Chromium used by the layout checks
         run: npx playwright install --with-deps chromium
       - name: Run interface and layout tests
@@ -251,7 +251,7 @@ jobs:
         # understands it. `opennextjs-cloudflare deploy` later reuses this output — it does
         # not build.
         id: build
-        run: npx @opennextjs/cloudflare build
+        run: npx @opennextjs/cloudflare build --dangerouslyUseUnsupportedNextVersion
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
