@@ -16,6 +16,7 @@ import {
 import { RichTextContent } from "@/components/ui/rich-text-content";
 import { reportError } from "@/lib/errors";
 import { inlineMediaIds } from "@/lib/richtext";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { formatDateBn, relativeTimeBn, spotlightMediaUrlFor } from "@/lib/site";
 import { isSupabaseConfigured, one, supabaseServer } from "@/lib/supabase";
 
@@ -253,12 +254,11 @@ export default async function SpotlightIssuePage({
             {issue.status !== "visible" && (
               <Badge variant="secondary">লুকানো</Badge>
             )}
-            <time
-              dateTime={issue.created_at}
+            <RelativeTime
+              value={issue.created_at}
+              fallback={relativeTimeBn(issue.created_at)}
               className="text-xs text-muted-foreground"
-            >
-              {relativeTimeBn(issue.created_at)}
-            </time>
+            />
           </div>
           <CardTitle className="text-2xl leading-snug sm:text-3xl sm:leading-tight">
             {issue.title}

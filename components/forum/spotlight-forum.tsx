@@ -14,6 +14,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -598,7 +599,10 @@ export function SpotlightForum() {
                         <span className="text-sm font-medium">{name}</span>
                       )}
                       <p className="text-xs text-muted-foreground">
-                        {relativeTimeBn(post.created_at)}
+                        <RelativeTime
+                          value={post.created_at}
+                          fallback={relativeTimeBn(post.created_at)}
+                        />
                       </p>
                     </div>
                   </div>

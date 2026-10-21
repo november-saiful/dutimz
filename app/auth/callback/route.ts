@@ -63,6 +63,8 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  const destination = next.startsWith("/") ? next : "/";
+  // A protocol-relative `//evil.com` also starts with a slash, and `new URL` would
+  // follow it off-site. Same-origin paths only.
+  const destination = next.startsWith("/") && !next.startsWith("//") ? next : "/";
   return NextResponse.redirect(new URL(destination, request.url));
 }

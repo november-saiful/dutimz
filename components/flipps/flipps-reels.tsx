@@ -8,6 +8,7 @@ import type { FlippsItem } from "@/components/flipps/flipps-data";
 import { ShareStory } from "@/components/dashboard/share-story";
 import { StoryArt } from "@/components/dashboard/story-card";
 import { Button } from "@/components/ui/button";
+import { RelativeTime } from "@/components/ui/relative-time";
 import {
   Sheet,
   SheetContent,
@@ -64,7 +65,7 @@ function Dateline({
       <i className="not-italic opacity-60" aria-hidden>
         •
       </i>
-      <time dateTime={item.publishedAt ?? undefined}>{item.when}</time>
+      <RelativeTime value={item.publishedAt} fallback={item.when} />
       {showDate && item.date && (
         <>
           <i className="not-italic opacity-60" aria-hidden>

@@ -1640,6 +1640,26 @@ test('campus and university are one desk', async () => {
   assert.match(page, /permanentRedirect\("\/category\/campus\/"\)/, 'the old address redirects instead of rendering empty');
 });
 
+test('the interview desk files virtual and in-person sections', async () => {
+  // A seventh desk with a cascading second step: picking সাক্ষাৎকার reveals a
+  // required ধরন select, the choice is stored on the article, and every card
+  // and the article itself show it as a second hashtag.
+  const site = await readProjectFile('lib/site.ts');
+  assert.match(site, /\{ label: "সাক্ষাৎকার", slug: "interview" \}/, 'interview joins the configured desks');
+  assert.match(site, /INTERVIEW_SECTIONS/, 'the two sections live beside the desks');
+  const form = await readProjectFile('components/account/writer-form.tsx');
+  assert.match(form, /INTERVIEW_SECTIONS/, 'the writer form knows the sections');
+  assert.match(form, /name="interview_kind"/, 'the cascading select submits under its own name');
+  assert.match(form, /p_interview_kind/, 'the submission carries the section to the audited RPC');
+  const cards = await readProjectFile('components/dashboard/story-blocks.tsx');
+  assert.match(cards, /interviewSection/, 'cards carry the filed section to every rail');
+  const migration = await readProjectFile('supabase/migrations/202610210001_interview_category.sql');
+  assert.match(migration, /interview_kind/, 'the section is a validated column, not a tag');
+  assert.match(migration, /সাক্ষাৎকারের ধরন/, 'the desk validates its own section in Bangla');
+  const drop = await readProjectFile('supabase/migrations/202610210002_drop_old_submit_article.sql');
+  assert.match(drop, /drop function if exists public\.submit_article/, 'the superseded overload is dropped, not left ambiguous');
+});
+
 test('the site mark ships with the bar and the footer', async () => {
   assert.ok(await exists('public/brand-icon.svg'), 'public/brand-icon.svg must exist');
   assert.ok(await exists('public/dutimz-text-logo.svg'), 'the lockup the bar draws from must exist');

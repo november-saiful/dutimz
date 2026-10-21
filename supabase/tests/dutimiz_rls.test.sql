@@ -1,5 +1,5 @@
 begin;
-select plan(277);
+select plan(281);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -380,6 +380,33 @@ select results_eq(
   $$select count(*) from public.get_article_questionnaire_responses(10)$$,
   $$values (1::bigint)$$,
   'Administrators can read submitted questionnaire details'
+);
+reset role;
+select set_config('request.jwt.claim.sub', '', true);
+
+-- Interview desk. The kind of conversation (virtual / in-person) is chosen once at
+-- submission: required for the interview desk, rejected everywhere else.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select throws_ok(
+  $$select public.submit_article('interview', 'ধরন ছাড়া সাক্ষাৎকার', 'ধরন ছাড়া সাক্ষাৎকারের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active))$$,
+  'P0001', null,
+  'An interview without its virtual or in-person section is refused'
+);
+select throws_ok(
+  $$select public.submit_article('porikkha', 'ভুল বিভাগে সাক্ষাৎকারের ধরন', 'ভুল বিভাগে ধরনের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active), false, null, null, 'virtual')$$,
+  'P0001', null,
+  'A non-interview desk refuses an interview section'
+);
+select lives_ok(
+  $$select public.submit_article('interview', 'ভার্চুয়াল সাক্ষাৎকার', 'ভার্চুয়াল সাক্ষাৎকারের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active), false, null, null, 'virtual')$$,
+  'A reporter files an interview with its section'
+);
+select results_eq(
+  $$select interview_kind from public.articles where title = 'ভার্চুয়াল সাক্ষাৎকার'$$,
+  $$values ('virtual')$$,
+  'The filed interview records its section'
 );
 reset role;
 select set_config('request.jwt.claim.sub', '', true);

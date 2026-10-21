@@ -13,6 +13,7 @@ import { Field, FormMessage } from "@/components/ui/field";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { rememberReturnPath, signInWithGoogle } from "@/lib/auth-client";
 import { errorMessage, reportError } from "@/lib/errors";
 import { one, supabaseBrowser } from "@/lib/supabase";
@@ -442,7 +443,10 @@ export function Comments({ articleId }: { articleId: string }) {
               {name}
             </Link>
             <span aria-hidden>•</span>
-            <time dateTime={comment.created_at}>{relativeTimeBn(comment.created_at)}</time>
+            <RelativeTime
+              value={comment.created_at}
+              fallback={relativeTimeBn(comment.created_at)}
+            />
             {node.children.length > 0 && (
               <button type="button" className="rc-collapse" onClick={() => toggleCollapse(comment.id)}>
                 {isCollapsed ? `[+] ${bn(replyCount)}টি জবাব` : "[–] লুকান"}

@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { RelativeTime } from "@/components/ui/relative-time";
 import {
   mediaUrlFor,
   relativeTimeBn,
@@ -90,9 +91,10 @@ export function StoryCard({ story }: { story: Story }) {
             {category.title_bn}
           </Link>
           <span aria-hidden>·</span>
-          <time dateTime={story.published_at}>
-            {relativeTimeBn(story.published_at)}
-          </time>
+          <RelativeTime
+            value={story.published_at}
+            fallback={relativeTimeBn(story.published_at)}
+          />
         </div>
         <h3 className="text-base font-semibold leading-snug">
           <Link href={url} className="hover:underline">
@@ -168,7 +170,10 @@ export function RecommendedItem({ story }: { story: Story }) {
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
           <span>{category.title_bn}</span>
           <span aria-hidden>·</span>
-          <time>{relativeTimeBn(story.published_at)}</time>
+          <RelativeTime
+            value={story.published_at}
+            fallback={relativeTimeBn(story.published_at)}
+          />
         </div>
         <h3 className="line-clamp-2 text-sm font-medium leading-snug">
           <Link href={url} className="hover:underline">

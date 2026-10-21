@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Flag } from "@/components/dashboard/flag";
 import { StoryArt } from "@/components/dashboard/story-card";
 import type { CarouselItem } from "@/components/ui/connected-carousel";
+import { RelativeTime } from "@/components/ui/relative-time";
 import { interviewSectionLabel, mediaUrlFor, relativeTimeBn } from "@/lib/site";
 import type { PreviewStory } from "@/lib/stories";
 import { storyCategory, storyCredit, type Story } from "@/lib/supabase";
@@ -97,7 +98,7 @@ export function StoryMeta({ item }: { item: StoryItem }) {
     <span className="meta">
       <span className="ml">{item.section}</span>
       <i aria-hidden>•</i>
-      <time dateTime={item.publishedAt ?? undefined}>{item.when}</time>
+      <RelativeTime value={item.publishedAt} fallback={item.when} />
     </span>
   );
 }
