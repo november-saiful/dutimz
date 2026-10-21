@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
+import { ArrowBigDown, ArrowBigUp } from "lucide-react";
 
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { rememberReturnPath, signInWithGoogle } from "@/lib/auth-client";
 import { errorMessage, reportError } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
@@ -46,6 +48,13 @@ export function ArticleActions({
   const [bookmarked, setBookmarked] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [notice, setNotice] = React.useState("");
+  /*
+   * A signed-out press on a vote button opens the sign-in popover instead of
+   * sending the reader to Google unannounced. `target` keeps which direction
+   * was pressed — it is still wanted once the reader returns from signing in.
+   */
+  const [gateOpen, setGateOpen] = React.useState(false);
+  const gateTarget = React.useRef<"up" | "down">("up");
 
   React.useEffect(() => {
     let cancelled = false;
@@ -103,29 +112,35 @@ export function ArticleActions({
     };
   }, [articleId]);
 
-  async function requireUser() {
+  /** A vote has one precondition: a reader. A signed-out press opens the prompt. */
+  async function vote(target: "up" | "down") {
+    if (busy) return;
     const supabase = supabaseBrowser();
-    const { data: { user }, error } = await supabase.auth.getUser();
-    if (error) throw error;
-    if (!user) {
-      // No sign-in page: the gated action starts the Google flow immediately and
-      // returns the reader to this article afterwards.
-      rememberReturnPath();
-      setNotice("ভোট দিতে গুগল দিয়ে প্রবেশ করুন।");
-      const { error: oauthError } = await signInWithGoogle();
-      if (oauthError) throw oauthError;
-      return null;
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      if (!user) {
+        // Reopening the popover on every press is smoother than a toast the
+        // reader has to hunt for; the press is remembered for the later attempt.
+        rememberReturnPath();
+        gateTarget.current = target;
+        setGateOpen(true);
+        return;
+      }
+      await proceedWithVote(supabase, user.id, target);
+    } catch (err) {
+      setNotice(errorMessage("vote", err, "ভোট সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।"));
     }
-    return { supabase, user };
   }
 
-  async function vote(target: "up" | "down") {
+  async function proceedWithVote(
+    supabase: ReturnType<typeof supabaseBrowser>,
+    userId: string,
+    target: "up" | "down",
+  ) {
     if (busy) return;
     setBusy(true);
     try {
-      const session = await requireUser();
-      if (!session) return;
-      const { supabase, user } = session;
       const previous = myVote;
       // One vote per reader: clear every row for this article first. This also
       // sweeps away legacy duplicate reactions from before the vote migration.
@@ -133,7 +148,7 @@ export function ArticleActions({
         .from("reactions")
         .delete()
         .eq("article_id", articleId)
-        .eq("user_id", user.id);
+        .eq("user_id", userId);
       if (cleared.error) {
         setNotice(
           errorMessage(
@@ -147,7 +162,7 @@ export function ArticleActions({
       if (previous !== target) {
         const inserted = await supabase.from("reactions").insert({
           article_id: articleId,
-          user_id: user.id,
+          user_id: userId,
           reaction: target,
         });
         if (inserted.error) {
@@ -175,13 +190,33 @@ export function ArticleActions({
     }
   }
 
+  async function signInFromGate() {
+    try {
+      const { error } = await signInWithGoogle();
+      if (error) {
+        setNotice(errorMessage("vote sign-in", error, "প্রবেশ করা যায়নি। আবার চেষ্টা করুন।"));
+        setGateOpen(false);
+      }
+      // On success the browser leaves for Google; no cleanup here.
+    } catch (err) {
+      reportError("vote sign-in", err);
+      setNotice(errorMessage("vote sign-in", err, "প্রবেশ করা যায়নি। আবার চেষ্টা করুন।"));
+      setGateOpen(false);
+    }
+  }
+
   async function toggleBookmark() {
     if (busy) return;
     setBusy(true);
     try {
-      const session = await requireUser();
-      if (!session) return;
-      const { supabase, user } = session;
+      const supabase = supabaseBrowser();
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      if (!user) {
+        rememberReturnPath();
+        setGateOpen(true);
+        return;
+      }
       const result = bookmarked
         ? await supabase
             .from("bookmarks")
@@ -291,9 +326,7 @@ export function ArticleActions({
           aria-pressed={myVote === "up"}
           aria-label={myVote === "up" ? "আপভোট সরান" : "আপভোট দিন"}
         >
-          <svg viewBox="0 0 24 24" aria-hidden>
-            <path d="M6 14l6-6 6 6" />
-          </svg>
+          <ArrowBigUp className="size-5" />
         </button>
         <b className="vote-score" aria-live="polite" aria-label={`${countLabel(score)} স্কোর`}>
           {countLabel(score)}
@@ -306,10 +339,24 @@ export function ArticleActions({
           aria-pressed={myVote === "down"}
           aria-label={myVote === "down" ? "ডাউনভোট সরান" : "ডাউনভোট দিন"}
         >
-          <svg viewBox="0 0 24 24" aria-hidden>
-            <path d="M6 10l6 6 6-6" />
-          </svg>
+          <ArrowBigDown className="size-5" />
         </button>
+        <Popover open={gateOpen} onOpenChange={setGateOpen}>
+          <PopoverTrigger className="sr-only" aria-hidden tabIndex={-1} />
+          <PopoverContent className="w-64 border-border text-popover-foreground">
+            <p className="text-sm font-medium">ভোট দিতে প্রথমে প্রবেশ করুন</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              গুগল দিয়ে প্রবেশ করলে আপনার ভোটই এই প্রতিবেদনে গোনা হবে।
+            </p>
+            <button
+              type="button"
+              onClick={() => void signInFromGate()}
+              className="mt-3 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            >
+              গুগল দিয়ে প্রবেশ করুন
+            </button>
+          </PopoverContent>
+        </Popover>
       </div>
       <button
         type="button"

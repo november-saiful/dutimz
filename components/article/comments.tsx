@@ -2,6 +2,9 @@
 
 import Link from "next/link";
 import * as React from "react";
+import { ArrowBigDown, ArrowBigUp } from "lucide-react";
+
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 /** The only reader identity comments need: the author's own id. */
 type SessionUser = { id: string };
@@ -111,6 +114,9 @@ export function Comments({ articleId }: { articleId: string }) {
   const [replyDraft, setReplyDraft] = React.useState("");
   const [replyBusy, setReplyBusy] = React.useState(false);
   const [voting, setVoting] = React.useState<string | null>(null);
+  /* A signed-out press opens the sign-in popover by the comment itself; this
+   * is the comment it is anchored to, or null when no prompt is showing. */
+  const [gateComment, setGateComment] = React.useState<string | null>(null);
 
   const load = React.useCallback(async () => {
     try {
@@ -290,10 +296,17 @@ export function Comments({ articleId }: { articleId: string }) {
 
   async function voteComment(commentId: string, target: 1 | -1) {
     if (voting) return;
+    // Deciding who may vote needs no round-trip: the session is already in
+    // state from the list load. A signed-out press is answered here with the
+    // sign-in popover, not a detour to Google the reader did not ask for.
+    if (!user) {
+      rememberReturnPath();
+      setGateComment(commentId);
+      return;
+    }
     setVoting(commentId);
     try {
-      const current = await requireUser();
-      if (!current) return;
+      const current = user;
       const supabase = supabaseBrowser();
       const previous = myVotes[commentId] ?? null;
       if (previous === target) {
@@ -379,9 +392,7 @@ export function Comments({ articleId }: { articleId: string }) {
             aria-pressed={mine === 1}
             aria-label={mine === 1 ? "আপভোট সরান" : "আপভোট দিন"}
           >
-            <svg viewBox="0 0 24 24" aria-hidden>
-              <path d="M6 14l6-6 6 6" />
-            </svg>
+            <ArrowBigUp className="size-5" />
           </button>
           <span
             className={cn(
@@ -401,10 +412,29 @@ export function Comments({ articleId }: { articleId: string }) {
             aria-pressed={mine === -1}
             aria-label={mine === -1 ? "ডাউনভোট সরান" : "ডাউনভোট দিন"}
           >
-            <svg viewBox="0 0 24 24" aria-hidden>
-              <path d="M6 10l6 6 6-6" />
-            </svg>
+            <ArrowBigDown className="size-5" />
           </button>
+          <Popover
+            open={gateComment === comment.id}
+            onOpenChange={(open) => {
+              if (!open) setGateComment(null);
+            }}
+          >
+            <PopoverTrigger className="sr-only" aria-hidden tabIndex={-1} />
+            <PopoverContent className="w-72 text-popover-foreground">
+              <p className="text-sm font-medium">ভোট দিতে প্রথমে প্রবেশ করুন</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                গুগল দিয়ে প্রবেশ করলে আপনার ভোটই এই মন্তব্যে গোনা হবে।
+              </p>
+              <button
+                type="button"
+                onClick={() => void signIn()}
+                className="mt-3 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                গুগল দিয়ে প্রবেশ করুন
+              </button>
+            </PopoverContent>
+          </Popover>
         </div>
         <div className="rc-body">
           <div className="rc-meta">
