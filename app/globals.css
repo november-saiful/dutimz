@@ -25,7 +25,7 @@
   --color-border: #e3dfe7;
   --color-input: #e3dfe7;
   --color-ring: #5f2367;
-  --color-background: #f7f5f8;
+  --color-background: #ffffff;
   --color-foreground: #1a1220;
 
   --color-primary: #5f2367;
@@ -131,7 +131,7 @@
 @layer base {
   :root {
     /* The reference design's own variables, kept verbatim for the ported CSS. */
-    --shell: #f7f5f8;
+    --shell: #ffffff;
     --card: #ece9f0;
     --line: #e3dfe7;
     --ink: #1a1220;
@@ -225,7 +225,7 @@
   position: sticky;
   top: 0;
   z-index: 60;
-  background: rgba(247, 245, 248, 0.92);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
@@ -833,13 +833,9 @@
 .menu-rule {
   height: 1px;
   margin: 16px 4px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(26, 18, 32, 0.1) 20%,
-    rgba(26, 18, 32, 0.1) 80%,
-    transparent
-  );
+  /* Stronger than the card hairlines: on the pure-white page `--line` alone
+     reads as no line at all, so the rule carries 16% ink instead. */
+  background: rgba(26, 18, 32, 0.16);
 }
 /* The signed-out reader's one way in, at the width of the rows it sits over. */
 .menu-signin {
@@ -956,6 +952,18 @@
 @media (prefers-reduced-motion: reduce) {
   .menu-anim {
     animation-delay: 0s !important;
+  }
+}
+/*
+  Phone-only rows in the menu popup (desks, site pages): the wide bar already
+  carries the desks as pills, so these rows hide where the pills show. This
+  lives here — not as a Tailwind `hidden` utility — because the unlayered
+  `.menu-list { display: flex }` above outranks layered utilities, so the
+  utility never hid the lists. Same 861px cut as the 860px rule below.
+*/
+@media (min-width: 861px) {
+  .menu-mobile-only {
+    display: none;
   }
 }
 
@@ -1261,7 +1269,7 @@
   position: sticky;
   top: var(--topbar);
   z-index: 50;
-  background: rgba(247, 245, 248, 0.96);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-top: 1px solid var(--line);
@@ -2182,7 +2190,7 @@ footer.site-footer {
   padding: var(--dock-pad);
   border: 1px solid rgba(60, 20, 60, 0.08);
   border-radius: 28px;
-  background: rgba(247, 245, 248, 0.9);
+  background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   box-shadow:
@@ -3263,7 +3271,7 @@ footer.site-footer {
   margin: 0 0 20px;
   font-size: 13.5px;
   line-height: 1.7;
-  color: rgba(247, 245, 248, 0.66);
+  color: rgba(255, 255, 255, 0.66);
 }
 .pf-tip .pf-btn {
   width: 100%;

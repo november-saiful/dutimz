@@ -48,7 +48,7 @@ export default function RootLayout({
   return (
     <html lang="bn" className={notoSerifBengali.variable}>
       <head>
-        <meta name="theme-color" content="#f7f5f8" />
+        <meta name="theme-color" content="#ffffff" />
         <meta name="color-scheme" content="light" />
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="apple-touch-icon" href="/brand-icon.svg" />

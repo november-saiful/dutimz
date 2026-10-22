@@ -3,46 +3,37 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import * as React from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
+  BadgeCheck,
+  BarChart3,
+  BookOpen,
   Bookmark,
   CircleUserRound,
+  Clapperboard,
+  Info,
   LayoutDashboard,
   LogOut,
-  X,
+  MessagesSquare,
   type LucideIcon,
 } from "lucide-react";
 
 import { SignInButton } from "@/components/auth/sign-in-button";
 import { flagIconFor } from "@/components/dashboard/flag";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import {
-  Sheet,
-  SheetClose,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
 import { type AccountMenuActionId } from "@/lib/account-menu";
 
 /*
-  The site's one menu: the button at the right of the top bar opens a panel that
-  carries the desks, the account and the reader's saved stories together — in both
-  session states, because bookmarks are content rather than an account surface.
+  The site's one menu: the button at the right of the top bar opens an anchored
+  popup that carries the account and the reader's saved stories together — in
+  both session states, because bookmarks are content rather than an account
+  surface.
 
-  It was two controls — a burger that disclosed the section pills on a phone and
-  a separate avatar dropdown for the member's own surfaces — so a reader had to
-  know which of the two held what they wanted, and "সংরক্ষিত কনটেন্ট" was drawn
-  twice in two vocabularies.  They are one menu now, in the reference design's shape: a solid panel over a dimmed
-  page, the desks under their own label, the account under its own, and whoever is
-  reading at its foot — the member with
-  their sign-out, a visitor with the one way in.
-
-  The panel is the site's own `Sheet`, so its accessibility is the primitive's:
-  focus stays inside, Escape and a backdrop tap close it, the page behind it
-  stops scrolling, and it is a dialog with a name to a screen reader. What is
-  ours is the look and the motion, and `app/globals.css` owns every `menu-` rule
-  that draws it.
+  Like the push bell beside it, this is a small panel growing from its button
+  (one spring on opacity/scale/y, GPU only), not a full-height sheet. The
+  account leads at the top in both layouts; the desks follow below it on phones
+  only, where the bar's pills are hidden — on the wide bar the pills already
+  carry the desks, so the menu does not repeat them.
 */
 
 export type SiteMenuUser = {
@@ -107,6 +98,21 @@ const ACCOUNT_ITEMS: MenuItem[] = [
   },
 ];
 
+/**
+ * The site's own pages the menu carries in both layouts: the wide bar shows
+ * the desks as pills (so the desks stay phone-only rows), but these
+ * destinations are behind no bar control — hence their own titled section
+ * under a divider, on web and on phones alike.
+ */
+const PAGES: { label: string; href: string; icon: LucideIcon }[] = [
+  { label: "ফ্লিপস", href: "/flipps/", icon: Clapperboard },
+  { label: "স্পটলাইট", href: "/spotlight/", icon: MessagesSquare },
+  { label: "পরিসংখ্যান", href: "/statistics/", icon: BarChart3 },
+  { label: "সংশোধন ও তথ্য যাচাই", href: "/corrections/", icon: BadgeCheck },
+  { label: "আমাদের পরিচয়", href: "/about/", icon: Info },
+  { label: "সম্পাদকীয় নীতিমালা", href: "/guidelines/", icon: BookOpen },
+];
+
 /** Where a desk lives. The bar's pills and this panel's rows share it. */
 export function sectionHref(slug: string) {
   return slug === "all" ? "/" : `/category/${slug}/`;
@@ -153,24 +159,35 @@ export function SiteMenu({
 }) {
   const pathname = usePathname() ?? "/";
   const [open, setOpen] = React.useState(false);
+  const wrapRef = React.useRef<HTMLDivElement>(null);
+  const shouldReduceMotion = useReducedMotion();
   const isGuest = !user;
   const activeUser = user ?? GUEST_USER;
   const hidden = new Set(hiddenActions);
 
-  /*
-    Every line takes its place in the open animation as it is built, so the panel
-    arrives from its head down instead of as one slab. `line` counts in the order
-    the tree below is constructed, and the stylesheet turns each number into that
-    line's own delay.
-  */
-  let line = 0;
-  const at = () => ({ "--i": line++ }) as React.CSSProperties;
-
-  // The reader's own pages are a dialog's business: a navigation closes it, and
-  // so does the browser's back button.
+  // The reader's own pages are a popup's business: a navigation closes it, and
+  // so does an outside tap or Escape.
   React.useEffect(() => {
     setOpen(false);
   }, [pathname]);
+
+  React.useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open ]);
 
   const items = isGuest ? GUEST_ITEMS : ACCOUNT_ITEMS;
   const rows = items.filter(
@@ -184,134 +201,217 @@ export function SiteMenu({
   const runAction = (item: MenuItem) => {
     // A signed-out reader tapping a session-only row signs in rather than
     // landing on a page that would only bounce them back.
+    setOpen(false);
     onAction(isGuest && item.requiresSession ? "sign-in" : item.action);
   };
 
+  const panelMotion = shouldReduceMotion
+    ? { initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 } }
+    : {
+        initial: { opacity: 0, scale: 0.96, y: -6 },
+        animate: { opacity: 1, scale: 1, y: 0 },
+        exit: { opacity: 0, scale: 0.97, y: -4 },
+      };
+
+  const listVariants = shouldReduceMotion
+    ? { hidden: { opacity: 0 }, visible: { opacity: 1 } }
+    : {
+        hidden: { opacity: 0 },
+        visible: {
+          opacity: 1,
+          transition: { staggerChildren: 0.035, delayChildren: 0.05 },
+        },
+      };
+
+  const itemVariants = shouldReduceMotion
+    ? { hidden: { opacity: 0 }, visible: { opacity: 1 } }
+    : {
+        hidden: { opacity: 0, y: 8 },
+        visible: { opacity: 1, y: 0, transition: { duration: 0.18 } },
+      };
+
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <button
-          type="button"
-          className="menu-btn"
-          aria-label="মেনু"
-          data-menu-trigger
-        >
-          {/* The reference's mark: three bars that become the X it opens to. */}
-          <span className="menu-bars" aria-hidden>
-            <span />
-            <span />
-            <span />
-          </span>
-        </button>
-      </SheetTrigger>
-
-      <SheetContent
-        side="right"
-        // The head carries this panel's own close control, in the site's voice.
-        hideClose
-        className="menu-panel"
-        overlayClassName="menu-backdrop"
+    <div ref={wrapRef} className="relative">
+      <motion.button
+        type="button"
+        className="menu-btn"
+        aria-label="মেনু"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        data-menu-trigger
+        onClick={() => setOpen((v) => !v)}
+        whileTap={{ scale: 0.92 }}
+        transition={{ type: "spring", stiffness: 500, damping: 28 }}
       >
-        <div className="menu-head menu-anim" style={at()}>
-          <div>
-            <SheetDescription className="menu-eyebrow">
-              ডেস্ক ও অ্যাকাউন্ট
-            </SheetDescription>
-            <SheetTitle className="menu-title">মেনু</SheetTitle>
-          </div>
-          <SheetClose asChild>
-            <button
-              type="button"
-              className="menu-close"
-              aria-label="মেনু বন্ধ করুন"
-            >
-              <X aria-hidden />
-            </button>
-          </SheetClose>
-        </div>
+        {/* The reference's mark: three bars that become the X it opens to. */}
+        <span className="menu-bars" aria-hidden>
+          <span />
+          <span />
+          <span />
+        </span>
+      </motion.button>
 
-        {sections.length > 0 && (
-          <>
-            <p className="menu-section menu-anim" style={at()}>
-              বিভাগ
-            </p>
-            <nav className="menu-list" aria-label="বিভাগ">
-              {sections.map((section) => {
-                const Icon = flagIconFor(section.label);
-                const current = isCurrentSection(section.slug, pathname);
-                return (
-                  <Link
-                    key={section.slug}
-                    href={sectionHref(section.slug)}
-                    className="menu-item menu-anim"
-                    style={at()}
-                    aria-current={current ? "page" : undefined}
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            key="site-menu-popup"
+            role="dialog"
+            aria-label="মেনু"
+            className="absolute right-0 top-[calc(100%+10px)] z-[70] max-h-[calc(100dvh-80px)] w-[min(360px,calc(100vw-36px))] origin-top-right overflow-y-auto rounded-3xl border bg-white p-5 shadow-[0_24px_60px_-20px_rgba(26,18,32,0.35),0_8px_20px_-10px_rgba(26,18,32,0.18)] max-sm:fixed max-sm:left-4 max-sm:right-4 max-sm:top-[calc(var(--topbar)+8px)] max-sm:max-h-[calc(100dvh-var(--topbar)-20px)] max-sm:w-auto max-sm:origin-top-center"
+            style={{ willChange: "transform, opacity" }}
+            initial={panelMotion.initial}
+            animate={panelMotion.animate}
+            exit={panelMotion.exit}
+            transition={
+              shouldReduceMotion
+                ? { duration: 0.12 }
+                : { type: "spring", stiffness: 400, damping: 30 }
+            }
+          >
+            <motion.div
+              variants={listVariants}
+              initial="hidden"
+              animate="visible"
+              className="flex flex-col"
+            >
+              <motion.div variants={itemVariants} className="menu-head">
+                <div>
+                  <p className="menu-eyebrow">ডেস্ক ও অ্যাকাউন্ট</p>
+                  <p className="menu-title">মেনু</p>
+                </div>
+              </motion.div>
+
+              {/* Account leads: the wide bar already carries the desks as pills,
+                  so the menu opens with the reader's own pages everywhere. */}
+              <motion.p variants={itemVariants} className="menu-section">
+                অ্যাকাউন্ট
+              </motion.p>
+
+              {/* Signed out, the menu leads with the one way in: Google. */}
+              {isGuest && (
+                <motion.div variants={itemVariants} className="menu-signin">
+                  <SignInButton />
+                </motion.div>
+              )}
+
+              {rows.length > 0 && (
+                <motion.div variants={itemVariants} className="menu-list">
+                  {rows.map((item) => (
+                    <button
+                      key={item.action}
+                      type="button"
+                      className="menu-item"
+                      onClick={() => runAction(item)}
+                    >
+                      <item.icon className="menu-icon" aria-hidden />
+                      <span className="menu-text">{item.label}</span>
+                      <MenuArrow />
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+
+              <motion.div
+                variants={itemVariants}
+                className="menu-rule"
+                aria-hidden
+              />
+              <motion.div variants={itemVariants} className="menu-profile">
+                <Avatar className="menu-avatar">
+                  {activeUser.avatar ? (
+                    <AvatarImage src={activeUser.avatar} alt={activeUser.name} />
+                  ) : null}
+                  <AvatarFallback>{activeUser.initials}</AvatarFallback>
+                </Avatar>
+                <div className="menu-profile-info">
+                  <p className="menu-profile-name">{activeUser.name}</p>
+                  <p className="menu-profile-role">{activeUser.username}</p>
+                </div>
+                {logout && (
+                  <button
+                    type="button"
+                    className="menu-logout"
+                    aria-label={logout.label}
+                    title={logout.label}
+                    onClick={() => runAction(logout)}
                   >
-                    <Icon className="menu-icon" aria-hidden />
-                    <span className="menu-text">{section.label}</span>
-                    <MenuArrow />
-                  </Link>
-                );
-              })}
-            </nav>
-          </>
+                    <logout.icon aria-hidden />
+                  </button>
+                )}
+              </motion.div>
+
+              {/* Desks live here on phones only, where the bar's pills are
+                  hidden (see the 860px rule in globals.css): on the wide bar
+                  the pills already carry them, so the menu does not repeat
+                  them. menu-mobile-only mirrors that breakpoint. */}
+              {sections.length > 0 && (
+                <>
+                  <motion.div
+                    variants={itemVariants}
+                    className="menu-rule menu-mobile-only"
+                    aria-hidden
+                  />
+
+                  <motion.p
+                    variants={itemVariants}
+                    className="menu-section menu-mobile-only"
+                  >
+                    বিভাগ
+                  </motion.p>
+                  <motion.nav
+                    variants={itemVariants}
+                    className="menu-list menu-mobile-only"
+                    aria-label="বিভাগ"
+                  >
+                    {sections.map((section) => {
+                      const Icon = flagIconFor(section.label);
+                      const current = isCurrentSection(section.slug, pathname);
+                      return (
+                        <Link
+                          key={section.slug}
+                          href={sectionHref(section.slug)}
+                          className="menu-item"
+                          aria-current={current ? "page" : undefined}
+                        >
+                          <Icon className="menu-icon" aria-hidden />
+                          <span className="menu-text">{section.label}</span>
+                          <MenuArrow />
+                        </Link>
+                      );
+                    })}
+                  </motion.nav>
+                </>
+              )}
+              <>
+                <motion.div
+                  variants={itemVariants}
+                  className="menu-rule"
+                  aria-hidden
+                />
+                <motion.p
+                  variants={itemVariants}
+                  className="menu-section"
+                >
+                  পাতা
+                  </motion.p>
+                  <motion.nav
+                    variants={itemVariants}
+                    className="menu-list"
+                    aria-label="পাতা"
+                  >
+                    {PAGES.map((page) => (
+                      <Link key={page.href} href={page.href} className="menu-item">
+                        <page.icon className="menu-icon" aria-hidden />
+                        <span className="menu-text">{page.label}</span>
+                        <MenuArrow />
+                      </Link>
+                    ))}
+                  </motion.nav>
+              </>
+            </motion.div>
+          </motion.div>
         )}
-
-        <div className="menu-rule menu-anim" style={at()} aria-hidden />
-
-        <p className="menu-section menu-anim" style={at()}>
-          অ্যাকাউন্ট
-        </p>
-
-        {/* Signed out, the menu leads with the one way in: Google. */}
-        {isGuest && (
-          <div className="menu-signin menu-anim" style={at()}>
-            <SignInButton />
-          </div>
-        )}
-
-        {rows.length > 0 && (
-          <div className="menu-list">
-            {rows.map((item) => (
-              <button
-                key={item.action}
-                type="button"
-                className="menu-item menu-anim"
-                style={at()}
-                onClick={() => runAction(item)}
-              >
-                <item.icon className="menu-icon" aria-hidden />
-                <span className="menu-text">{item.label}</span>
-                <MenuArrow />
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="menu-profile menu-anim" style={at()}>
-          <Avatar className="menu-avatar">
-            {activeUser.avatar ? (
-              <AvatarImage src={activeUser.avatar} alt={activeUser.name} />
-            ) : null}
-            <AvatarFallback>{activeUser.initials}</AvatarFallback>
-          </Avatar>
-          <div className="menu-profile-info">
-            <p className="menu-profile-name">{activeUser.name}</p>
-            <p className="menu-profile-role">{activeUser.username}</p>
-          </div>
-          {logout && (
-            <button
-              type="button"
-              className="menu-logout"
-              aria-label={logout.label}
-              title={logout.label}
-              onClick={() => runAction(logout)}
-            >
-              <logout.icon aria-hidden />
-            </button>
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
+      </AnimatePresence>
+    </div>
   );
 }

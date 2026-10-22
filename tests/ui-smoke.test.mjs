@@ -456,7 +456,7 @@ test('every accent is the brand purple, not the reference design\'s blue', async
   assert.doesNotMatch(css, /#4d7dc0|#8b7cf0|#b06ef2/i, 'none of the template blues survive');
   assert.match(css, /--chart-1: 292 47% 27%;/, 'and the chart ramp is drawn in the brand hue');
   const layout = await readProjectFile('app/layout.tsx');
-  assert.match(layout, /content="#f7f5f8"/, 'the browser chrome takes the shell colour too');
+  assert.match(layout, /content="#ffffff"/, 'the browser chrome takes the shell colour too');
 
   // Two components had grown their own accent: a selected topic in Tailwind's
   // emerald and the live-alert switch in the same green. Both are brand states,

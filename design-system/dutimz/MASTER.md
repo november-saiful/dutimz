@@ -37,7 +37,7 @@ Skill match: `color` → news-media-platform (breaking red `dc2626`, link blue
 |---|---|---|
 | `--blue` / primary | `#5f2367` | brand, CTAs, dock liquid (10.9:1 white-on-brand) |
 | `--purple` | `#7a3d7f` | flags, accents (6.9:1 on shell) |
-| `--shell` | `#f7f5f8` | page background |
+| `--shell` | `#ffffff` | page background |
 | `--card` | `#ece9f0` | surfaces |
 | `--ink` | `#1a1220` | primary text (16.8:1) |
 | `--body` | `#453c4a` | body text (9.7:1) |
