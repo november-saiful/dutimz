@@ -2022,6 +2022,29 @@ test('the saved stories row is in the menu with or without a session', async () 
   assert.doesNotMatch(header, /"saved"/, 'the header must not hide the row the menu now keeps');
 });
 
+test('the desk pages past sixty stories and edits their addresses', async () => {
+  const articles = await readProjectFile('components/account/admin-articles.tsx');
+  // The list stopped at the first page: range paging with a way forward.
+  assert.match(articles, /\.range\(/, 'the story list pages instead of stopping at one cap');
+  assert.match(articles, /আরও দেখুন/, 'the desk can ask for the next page');
+  assert.doesNotMatch(articles, /\.limit\(60\)/, 'no single fixed cap may hide the rest of the archive');
+  // The desk edit renames the address beside the text.
+  assert.match(articles, /id="edit-slug"/, 'the desk edit has an address field');
+  assert.match(articles, /p_slug/, 'the renamed address reaches admin_update_article');
+  const migration = await readProjectFile('supabase/migrations/202610220002_editable_slug_on_edit.sql');
+  assert.match(migration, /function public\.admin_update_article\([\s\S]*?p_slug/, 'the desk edit accepts an address');
+  assert.match(migration, /function public\.submit_article_edit\([\s\S]*?p_slug/, 'a correction may propose an address');
+  assert.match(migration, /slug = coalesce\(slug_candidate, slug\)/, 'approving moves the approved address');
+  // The author's correction proposes an address the same way, and the reviewer sees it.
+  const dialog = await readProjectFile('components/account/content-edit-dialog.tsx');
+  assert.match(dialog, /id="edit-request-slug"/, 'a correction carries an address field');
+  assert.match(dialog, /p_slug: slug/, 'the proposed address reaches the request');
+  const dashboard = await readProjectFile('components/account/account-dashboard.tsx');
+  assert.match(dashboard, /select\("id,title,excerpt,body,slug"\)/, 'the correction starts from the live address');
+  const pending = await readProjectFile('components/account/pending-edits.tsx');
+  assert.match(pending, /ঠিকানা:/, 'the reviewer sees a proposed address beside the live one');
+});
+
 test('the write form proposes the slug from the title and lets the writer edit it', async () => {
   const form = await readProjectFile('components/account/writer-form.tsx');
   // Editable field wired to state, with the title transliteration as the proposal.

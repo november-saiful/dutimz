@@ -69,6 +69,10 @@ const STATUS_FILTERS = [
   ["rejected", "প্রত্যাখ্যাত"],
 ] as const;
 
+// One page of the desk's story list. The table used to stop at the first page with no way
+// forward, so anything past sixty stories was unreachable from the panel.
+const PAGE_SIZE = 60;
+
 const BYLINE_LABELS: Record<string, string> = {
   keep: "অপরিবর্তিত",
   author: "লেখকের নামে",
@@ -94,10 +98,15 @@ export function AdminArticles() {
   const [error, setError] = React.useState("");
   const [notice, setNotice] = React.useState("");
   const [busy, setBusy] = React.useState<string | null>(null);
+  // Offset of the next page, and whether the last fetch filled its page.
+  const [offset, setOffset] = React.useState(0);
+  const [hasMore, setHasMore] = React.useState(false);
+  const [loadingMore, setLoadingMore] = React.useState(false);
 
   // The edit dialog holds the whole body, so it is its own state rather than a field on the row.
   const [editing, setEditing] = React.useState<Article | null>(null);
   const [editTitle, setEditTitle] = React.useState("");
+  const [editSlug, setEditSlug] = React.useState("");
   const [editExcerpt, setEditExcerpt] = React.useState("");
   const [editBody, setEditBody] = React.useState("");
   const [editReason, setEditReason] = React.useState("");
@@ -131,34 +140,43 @@ export function AdminArticles() {
     ? inlineMediaIds(previewing.body, "article")
     : [];
 
-  const load = React.useCallback(async (nextStatus: string, nextQuery: string) => {
-    try {
-      const supabase = supabaseBrowser();
-      let request = supabase
-        .from("articles")
-        .select(
-          "id,slug,title,excerpt,body,status,is_anonymous,published_at,created_at,hero_media_key,article_media(media_id,position),category:categories(slug,title_bn),author:profiles!articles_author_id_fkey(username,display_name)",
-        )
-        .order("created_at", { ascending: false })
-        .limit(60);
-      // Either filter is optional, and PostgREST lets both narrow the same request.
-      if (nextStatus !== "all") request = request.eq("status", nextStatus);
-      if (nextQuery.trim()) request = request.ilike("title", `%${nextQuery.trim()}%`);
-      const { data, error: loadError } = await request;
-      if (loadError) {
-        setError(
-          errorMessage("admin articles", loadError, "প্রতিবেদনের তালিকা লোড করা যায়নি। আবার চেষ্টা করুন।"),
-        );
-        return;
+  const load = React.useCallback(
+    async (nextStatus: string, nextQuery: string, nextOffset = 0, append = false) => {
+      if (append) setLoadingMore(true);
+      try {
+        const supabase = supabaseBrowser();
+        let request = supabase
+          .from("articles")
+          .select(
+            "id,slug,title,excerpt,body,status,is_anonymous,published_at,created_at,hero_media_key,article_media(media_id,position),category:categories(slug,title_bn),author:profiles!articles_author_id_fkey(username,display_name)",
+          )
+          .order("created_at", { ascending: false })
+          .range(nextOffset, nextOffset + PAGE_SIZE - 1);
+        // Either filter is optional, and PostgREST lets both narrow the same request.
+        if (nextStatus !== "all") request = request.eq("status", nextStatus);
+        if (nextQuery.trim()) request = request.ilike("title", `%${nextQuery.trim()}%`);
+        const { data, error: loadError } = await request;
+        if (loadError) {
+          setError(
+            errorMessage("admin articles", loadError, "প্রতিবেদনের তালিকা লোড করা যায়নি। আবার চেষ্টা করুন।"),
+          );
+          return;
+        }
+        const rows = (data as unknown as Article[]) ?? [];
+        setArticles((prev) => (append ? [...prev, ...rows] : rows));
+        setOffset(nextOffset + rows.length);
+        setHasMore(rows.length === PAGE_SIZE);
+      } catch (err) {
+        setError(errorMessage("admin articles", err, "প্রতিবেদনের তালিকা লোড করা যায়নি। আবার চেষ্টা করুন।"));
+      } finally {
+        if (append) setLoadingMore(false);
       }
-      setArticles((data as unknown as Article[]) ?? []);
-    } catch (err) {
-      setError(errorMessage("admin articles", err, "প্রতিবেদনের তালিকা লোড করা যায়নি। আবার চেষ্টা করুন।"));
-    }
-  }, []);
+    },
+    [],
+  );
 
   React.useEffect(() => {
-    void load(status, query);
+    void load(status, query, 0, false);
     // Re-runs when the filter changes; the search box submits explicitly.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
@@ -166,6 +184,7 @@ export function AdminArticles() {
   function openEditor(article: Article) {
     setEditing(article);
     setEditTitle(article.title);
+    setEditSlug(article.slug);
     setEditExcerpt(article.excerpt);
     setEditBody(article.body);
     setEditReason("");
@@ -187,6 +206,7 @@ export function AdminArticles() {
         p_excerpt: editExcerpt.trim(),
         p_body: editBody,
         p_reason: editReason.trim(),
+        p_slug: editSlug.trim().toLowerCase() || null,
       });
       if (saveError) {
         setError(errorMessage("article edit", saveError, "প্রতিবেদন সম্পাদনা করা যায়নি। আবার চেষ্টা করুন।"));
@@ -197,7 +217,7 @@ export function AdminArticles() {
       void revalidateReaders();
       setNotice("প্রতিবেদন সংরক্ষিত হয়েছে।");
       setEditing(null);
-      await load(status, query);
+      await load(status, query, 0, false);
     } catch (err) {
       setError(errorMessage("article edit", err, "প্রতিবেদন সম্পাদনা করা যায়নি। আবার চেষ্টা করুন।"));
     } finally {
@@ -277,7 +297,7 @@ export function AdminArticles() {
       void revalidateReaders();
       setNotice("বাইলাইন ও প্রকাশের তারিখ সংরক্ষিত হয়েছে।");
       setPublishing(null);
-      await load(status, query);
+      await load(status, query, 0, false);
     } catch (err) {
       setError(errorMessage("article publication", err, "বাইলাইন বা তারিখ সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।"));
     } finally {
@@ -308,7 +328,7 @@ export function AdminArticles() {
       void revalidateReaders();
       setNotice(next === "published" ? "প্রতিবেদন প্রকাশ করা হয়েছে।" : "প্রতিবেদন প্রকাশ থেকে সরানো হয়েছে।");
       setDeciding(null);
-      await load(status, query);
+      await load(status, query, 0, false);
     } catch (err) {
       setError(errorMessage("article status", err, "প্রতিবেদনের অবস্থা বদলানো যায়নি। আবার চেষ্টা করুন।"));
     } finally {
@@ -399,7 +419,7 @@ export function AdminArticles() {
             className="flex items-start gap-2"
             onSubmit={(event) => {
               event.preventDefault();
-              void load(status, query);
+              void load(status, query, 0, false);
             }}
           >
             <Field label="প্রতিবেদন খুঁজুন" htmlFor="article-search" hideLabel className="min-w-0 flex-1">
@@ -521,6 +541,17 @@ export function AdminArticles() {
               })}
             </TableBody>
           </Table>
+          {hasMore && (
+            <div className="flex justify-center pt-1">
+              <Button
+                variant="outline"
+                onClick={() => void load(status, query, offset, true)}
+                disabled={loadingMore}
+              >
+                {loadingMore ? "লোড হচ্ছে…" : `আরও দেখুন (${countLabel(articles.length)}টি দেখানো হচ্ছে)`}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -541,6 +572,21 @@ export function AdminArticles() {
                 value={editTitle}
                 maxLength={180}
                 onChange={(event) => setEditTitle(event.target.value)}
+              />
+            </Field>
+            <Field
+              label="ঠিকানা (slug)"
+              htmlFor="edit-slug"
+              hint="প্রকাশিত ঠিকানা। বদলালে পুরোনো লিংক আর কাজ করবে না।"
+            >
+              <Input
+                id="edit-slug"
+                value={editSlug}
+                maxLength={96}
+                onChange={(event) => setEditSlug(event.target.value)}
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </Field>
             <Field label="সংক্ষিপ্ত পরিচিতি" htmlFor="edit-excerpt" hint="১০–২৮০ অক্ষর।">

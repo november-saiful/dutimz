@@ -48,6 +48,7 @@ export type EditTarget = {
   title: string;
   body: string;
   excerpt?: string | null;
+  slug?: string | null;
 };
 
 export function ContentEditDialog({
@@ -66,6 +67,7 @@ export function ContentEditDialog({
 }) {
   const { toast } = useToast();
   const [title, setTitle] = React.useState("");
+  const [slug, setSlug] = React.useState("");
   const [excerpt, setExcerpt] = React.useState("");
   const [body, setBody] = React.useState("");
   const [reason, setReason] = React.useState("");
@@ -79,6 +81,7 @@ export function ContentEditDialog({
   React.useEffect(() => {
     if (!open || !target) return;
     setTitle(target.title);
+    setSlug(target.slug ?? "");
     setExcerpt(target.excerpt ?? "");
     setBody(target.body);
     setReason("");
@@ -142,6 +145,7 @@ export function ContentEditDialog({
               p_excerpt: excerpt.trim() || null,
               p_body: nextBody,
               p_reason: nextReason,
+              p_slug: slug.trim().toLowerCase() || null,
             })
           : await supabase.rpc("submit_spotlight_edit", {
               p_post_id: target.id,
@@ -204,6 +208,24 @@ export function ContentEditDialog({
               onChange={(event) => setTitle(event.target.value)}
             />
           </Field>
+
+          {kind === "article" && (
+            <Field
+              label="ঠিকানা (slug)"
+              htmlFor="edit-request-slug"
+              hint="প্রকাশিত ঠিকানা। বদলাতে চাইলে নতুনটি লিখুন; খালি রাখলে অপরিবর্তিত থাকবে।"
+            >
+              <Input
+                id="edit-request-slug"
+                value={slug}
+                maxLength={96}
+                onChange={(event) => setSlug(event.target.value)}
+                autoCapitalize="off"
+                autoCorrect="off"
+                spellCheck={false}
+              />
+            </Field>
+          )}
 
           {kind === "article" && (
             <Field

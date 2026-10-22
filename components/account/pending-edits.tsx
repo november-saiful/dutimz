@@ -34,6 +34,7 @@ type ArticleEditRequest = {
   title: string;
   excerpt: string;
   body: string;
+  slug: string | null;
   reason: string;
   created_at: string;
   article: {
@@ -58,7 +59,7 @@ type SpotlightEditRequest = {
 };
 
 const ARTICLE_REQUEST_SELECT =
-  "id,title,excerpt,body,reason,created_at,article:articles!article_edit_requests_article_id_fkey(id,slug,title,excerpt,body,status),editor:profiles!article_edit_requests_editor_id_fkey(username,display_name)";
+  "id,title,excerpt,body,slug,reason,created_at,article:articles!article_edit_requests_article_id_fkey(id,slug,title,excerpt,body,status),editor:profiles!article_edit_requests_editor_id_fkey(username,display_name)";
 
 const SPOTLIGHT_REQUEST_SELECT =
   "id,title,description,reason,created_at,post:spotlight_posts!spotlight_edit_requests_post_id_fkey(id,title,description),editor:profiles!spotlight_edit_requests_editor_id_fkey(username,display_name)";
@@ -345,6 +346,11 @@ export function PendingEdits() {
               {request.article && request.title !== request.article.title && (
                 <p className="mt-1 text-sm">
                   শিরোনাম: “{request.article.title}” → “{request.title}”
+                </p>
+              )}
+              {request.slug && request.article && request.slug !== request.article.slug && (
+                <p className="mt-1 text-sm">
+                  ঠিকানা: /{request.article.slug} → /{request.slug}
                 </p>
               )}
               <p className="mt-2 text-sm text-muted-foreground">

@@ -1,5 +1,5 @@
 begin;
-select plan(286);
+select plan(294);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -1706,6 +1706,71 @@ select results_eq(
   'A refused correction keeps the reason the author has to be told'
 );
 
+-- Editable addresses on the edit paths. The desk renames immediately; an author proposes
+-- and the desk's approval moves the link.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select lives_ok(
+  $$select public.admin_update_article(
+      (select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'),
+      'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত',
+      (select excerpt from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'),
+      (select body from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'),
+      'ঠিকানা বদল পরীক্ষা', 'songshodhito-thikana')$$,
+  'The desk can rename the address while editing'
+);
+select results_eq(
+  $$select slug from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'$$,
+  $$values ('songshodhito-thikana')$$,
+  'The edited story carries the renamed address'
+);
+select lives_ok(
+  $$select public.admin_update_article(
+      (select id from public.articles where title = 'নিজের ঠিকানার প্রতিবেদন'),
+      'নিজের ঠিকানার প্রতিবেদন',
+      (select excerpt from public.articles where title = 'নিজের ঠিকানার প্রতিবেদন'),
+      (select body from public.articles where title = 'নিজের ঠিকানার প্রতিবেদন'),
+      'নেওয়া ঠিকানায় সম্পাদনা', 'songshodhito-thikana')$$,
+  'A taken address on edit takes the next free suffix'
+);
+select results_eq(
+  $$select slug from public.articles where title = 'নিজের ঠিকানার প্রতিবেদন'$$,
+  $$values ('songshodhito-thikana-2')$$,
+  'The second story with the taken address carries the suffixed address'
+);
+select throws_ok(
+  $$select public.admin_update_article(
+      (select id from public.articles where title = 'নিজের ঠিকানার প্রতিবেদন'),
+      'নিজের ঠিকানার প্রতিবেদন',
+      (select excerpt from public.articles where title = 'নিজের ঠিকানার প্রতিবেদন'),
+      (select body from public.articles where title = 'নিজের ঠিকানার প্রতিবেদন'),
+      'ভুল ঠিকানায় সম্পাদনা', '!!!')$$,
+  'P0001', null,
+  'An edited address with no Latin left in it is refused'
+);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select lives_ok(
+  $$select public.submit_article_edit(
+      (select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'),
+      'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত', null,
+      repeat('ঠিকানাসহ সংশোধন। ', 12), 'ঠিকানাসহ সংশোধনের অনুরোধ', 'lekhoker-thikana')$$,
+  'An author can propose a new address with their correction'
+);
+select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
+select lives_ok(
+  $$select public.moderate_article_edit(
+      (select id from public.article_edit_requests where reason = 'ঠিকানাসহ সংশোধনের অনুরোধ'),
+      'approve', 'ঠিকানাসহ সংশোধন অনুমোদন')$$,
+  'Approving applies the proposed address beside the proposed text'
+);
+reset role;
+select results_eq(
+  $$select slug from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'$$,
+  $$values ('lekhoker-thikana')$$,
+  'The live story carries the approved address'
+);
+
 -- `update_own_article` used to publish a correction the moment it was sent. It must not any more:
 -- an old caller still reaches the function, and it now only files a request.
 set local role authenticated;
@@ -1816,11 +1881,11 @@ select results_eq(
 -- The new doors are callable exactly where they should be, and the reference extractor is not a
 -- client's to call at all.
 select ok(
-  not has_function_privilege('anon', 'public.submit_article_edit(uuid, text, text, text, text)', 'execute'),
+  not has_function_privilege('anon', 'public.submit_article_edit(uuid, text, text, text, text, text)', 'execute'),
   'A signed-out visitor cannot request an edit'
 );
 select ok(
-  has_function_privilege('authenticated', 'public.submit_article_edit(uuid, text, text, text, text)', 'execute'),
+  has_function_privilege('authenticated', 'public.submit_article_edit(uuid, text, text, text, text, text)', 'execute'),
   'A signed-in member can request an edit'
 );
 select ok(

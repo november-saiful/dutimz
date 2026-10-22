@@ -386,7 +386,7 @@ export function AccountDashboard() {
     try {
       const { data, error } = await supabaseBrowser()
         .from("articles")
-        .select("id,title,excerpt,body")
+        .select("id,title,excerpt,body,slug")
         .eq("id", article.id)
         .maybeSingle();
       if (error) {
@@ -400,6 +400,7 @@ export function AccountDashboard() {
         title: string;
         excerpt: string | null;
         body: string;
+        slug: string | null;
       } | null;
       if (!row) {
         setArticlesError("প্রতিবেদনটি লোড করা যায়নি।");
@@ -412,6 +413,7 @@ export function AccountDashboard() {
           title: row.title,
           excerpt: row.excerpt,
           body: row.body,
+          slug: row.slug,
         },
       });
     } catch (err) {
