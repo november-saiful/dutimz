@@ -33,6 +33,7 @@ import {
   type ReactNodeViewProps,
 } from "@tiptap/react";
 import type { Editor, ChainedCommands } from "@tiptap/core";
+import type { Fragment, Node as PMNode } from "@tiptap/pm/model";
 import { Markdown } from "@tiptap/markdown";
 import { StarterKit } from "@tiptap/starter-kit";
 import { Image as BaseImage } from "@tiptap/extension-image";
@@ -72,6 +73,30 @@ export type RichTextEditorHandle = {
 
 /* The src an inline picture must carry for a paste to keep it. */
 const OWN_MEDIA_SRC = /^\/(media|spotlight\/media)\//i;
+
+/*
+  Whether any node of the given type overlaps the selection — the lenient cousin of
+  `editor.isActive`, which demands the format cover the whole selection. Used both to light
+  the toolbar buttons and to decide whether a click removes the format or applies it.
+*/
+function touchesNode(
+  editor: Editor,
+  name: string,
+  attrs?: Record<string, unknown>,
+): boolean {
+  const { $from, $to } = editor.state.selection;
+  let found = false;
+  editor.state.doc.nodesBetween($from.pos, $to.pos, (node) => {
+    if (found) return false;
+    if (node.type.name !== name) return;
+    if (attrs && !Object.entries(attrs).every(([key, value]) => node.attrs[key] === value)) {
+      return;
+    }
+    found = true;
+    return false;
+  });
+  return found;
+}
 
 /** The minimum canvas height, from the `rows` the call sites already pass. */
 function rowsToMinHeight(rows: number): string {
@@ -259,11 +284,15 @@ export const RichTextEditor = React.forwardRef<
         bold: active.isActive("bold"),
         italic: active.isActive("italic"),
         code: active.isActive("code"),
-        quote: active.isActive("blockquote"),
-        heading2: active.isActive("heading", { level: 2 }),
-        heading3: active.isActive("heading", { level: 3 }),
-        bulletList: active.isActive("bulletList"),
-        orderedList: active.isActive("orderedList"),
+        quote: active.isActive("blockquote") || touchesNode(active, "blockquote"),
+        heading2:
+          active.isActive("heading", { level: 2 }) ||
+          touchesNode(active, "heading", { level: 2 }),
+        heading3:
+          active.isActive("heading", { level: 3 }) ||
+          touchesNode(active, "heading", { level: 3 }),
+        bulletList: active.isActive("bulletList") || touchesNode(active, "bulletList"),
+        orderedList: active.isActive("orderedList") || touchesNode(active, "orderedList"),
         link: active.isActive("link"),
         inTable: active.can().addRowAfter(),
         canUndo: active.can().undo(),
@@ -275,6 +304,84 @@ export const RichTextEditor = React.forwardRef<
   function run(fn: (chain: ChainedCommands) => boolean) {
     if (!editor) return;
     fn(editor.chain().focus());
+  }
+
+  /*
+    Why the block buttons do not just toggle: TipTap calls a node format "active" only when it
+    covers the *whole* selection. A selection that reaches past the formatted block — select-all
+    with a trailing paragraph, or a quote beside plain text — therefore reads as inactive, and
+    `toggleBlockquote`/`toggleHeading`/`toggleBulletList` *apply* the format instead of removing
+    it: the quote nests, the heading stays, the list grows. Marks do not have this problem, so
+    they keep their plain toggles. For blocks the buttons remove the format wherever the
+    selection touches it, and only apply otherwise — so clicking again always undoes.
+  */
+  /*
+    A list wraps its paragraphs in an extra level, so replacing the list with its own content
+    would strand list items where only blocks belong. Splice in the items' contents instead —
+    item boundaries survive as paragraph breaks, and a nested list rides along with its item.
+  */
+  function unwrappedContent(node: PMNode): Fragment {
+    if (node.type.name !== "bulletList" && node.type.name !== "orderedList") {
+      return node.content;
+    }
+    let flat: Fragment | null = null;
+    node.content.forEach((item) => {
+      flat = flat ? flat.append(item.content) : item.content;
+    });
+    return flat ?? node.content;
+  }
+
+  /*
+    Remove the format node-by-node. The plain lift commands fail when the selection reaches
+    past the formatted blocks — select-all with a trailing paragraph, or a quote beside plain
+    text — because they refuse to touch a range they cannot lift as a whole. Unwrapping each
+    overlapping node from the end backwards keeps every position valid, leaves unformatted
+    blocks alone, and peels one nesting level per click. Returns whether anything unwrapped.
+  */
+  function unwrapFormat(name: string): boolean {
+    if (!editor) return false;
+    let unwrapped = false;
+    editor
+      .chain()
+      .focus()
+      .command(({ tr, dispatch }) => {
+        const { $from, $to } = tr.selection;
+        const hits: { pos: number; end: number; content: Fragment }[] = [];
+        tr.doc.nodesBetween($from.pos, $to.pos, (node, pos) => {
+          if (node.type.name !== name) return;
+          hits.push({ pos, end: pos + node.nodeSize, content: unwrappedContent(node) });
+          return false;
+        });
+        if (!hits.length) return false;
+        if (dispatch) {
+          for (let i = hits.length - 1; i >= 0; i--) {
+            tr.replaceWith(hits[i].pos, hits[i].end, hits[i].content);
+          }
+        }
+        unwrapped = true;
+        return true;
+      })
+      .run();
+    return unwrapped;
+  }
+
+  function toggleBlockFormat(
+    name: string,
+    attrs: Record<string, unknown> | undefined,
+    apply: (chain: ChainedCommands) => boolean,
+    remove: (chain: ChainedCommands) => boolean,
+  ) {
+    if (!editor) return;
+    if (touchesNode(editor, name, attrs)) {
+      // The plain command handles selections the format fully covers; unwrap whatever it
+      // cannot lift, so a wider selection still removes the format instead of doing nothing.
+      const chain = editor.chain().focus();
+      if (!remove(chain)) {
+        unwrapFormat(name);
+      }
+    } else {
+      apply(editor.chain().focus());
+    }
   }
 
   /** The one format the toolbar cannot express by itself: a link address. */
@@ -301,13 +408,25 @@ export const RichTextEditor = React.forwardRef<
       label: "শিরোনাম",
       icon: Heading2,
       active: state?.heading2,
-      run: () => run((chain) => chain.toggleHeading({ level: 2 }).run()),
+      run: () =>
+        toggleBlockFormat(
+          "heading",
+          { level: 2 },
+          (chain) => chain.toggleHeading({ level: 2 }).run(),
+          (chain) => chain.setNode("paragraph").run(),
+        ),
     },
     {
       label: "উপশিরোনাম",
       icon: Heading3,
       active: state?.heading3,
-      run: () => run((chain) => chain.toggleHeading({ level: 3 }).run()),
+      run: () =>
+        toggleBlockFormat(
+          "heading",
+          { level: 3 },
+          (chain) => chain.toggleHeading({ level: 3 }).run(),
+          (chain) => chain.setNode("paragraph").run(),
+        ),
     },
     {
       label: "গাঢ়",
@@ -325,19 +444,37 @@ export const RichTextEditor = React.forwardRef<
       label: "বুলেট তালিকা",
       icon: List,
       active: state?.bulletList,
-      run: () => run((chain) => chain.toggleBulletList().run()),
+      run: () =>
+        toggleBlockFormat(
+          "bulletList",
+          undefined,
+          (chain) => chain.toggleBulletList().run(),
+          (chain) => chain.liftListItem("listItem").run(),
+        ),
     },
     {
       label: "ক্রমিক তালিকা",
       icon: ListOrdered,
       active: state?.orderedList,
-      run: () => run((chain) => chain.toggleOrderedList().run()),
+      run: () =>
+        toggleBlockFormat(
+          "orderedList",
+          undefined,
+          (chain) => chain.toggleOrderedList().run(),
+          (chain) => chain.liftListItem("listItem").run(),
+        ),
     },
     {
       label: "উদ্ধৃতি",
       icon: Quote,
       active: state?.quote,
-      run: () => run((chain) => chain.toggleBlockquote().run()),
+      run: () =>
+        toggleBlockFormat(
+          "blockquote",
+          undefined,
+          (chain) => chain.setBlockquote().run(),
+          (chain) => chain.unsetBlockquote().run(),
+        ),
     },
     {
       label: state?.link ? "সংযোগ সরান" : "সংযোগ",
