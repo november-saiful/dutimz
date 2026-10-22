@@ -49,6 +49,7 @@ const DRAFT_KEY = "dutimz-write-draft";
 
 type WriteDraft = {
   title: string;
+  slug: string;
   category: string;
   interviewKind: string;
   body: string;
@@ -64,6 +65,7 @@ function readDraft(): WriteDraft | null {
     const parsed = JSON.parse(raw) as Partial<WriteDraft>;
     return {
       title: typeof parsed.title === "string" ? parsed.title : "",
+      slug: typeof parsed.slug === "string" ? parsed.slug : "",
       category: typeof parsed.category === "string" ? parsed.category : "",
       interviewKind: typeof parsed.interviewKind === "string" ? parsed.interviewKind : "",
       body: typeof parsed.body === "string" ? parsed.body : "",
@@ -103,7 +105,7 @@ export function WriterForm() {
   // plain reader), which is what decides whether the form is shown at all.
   const [role, setRole] = React.useState<string | null | undefined>(undefined);
   // The article's real link, filled in from the row `submit_article` returns. Before submission
-  // there is no slug to show — the server allocates it — so the field stays a plain hint.
+  // the address field proposes the title's transliteration and stays editable.
   const [createdUrl, setCreatedUrl] = React.useState("");
   const [copied, setCopied] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -120,6 +122,10 @@ export function WriterForm() {
     typeof window === "undefined" ? null : readDraft(),
   );
   const [title, setTitle] = React.useState(initialDraft?.title ?? "");
+  // The Latin address. Auto-filled from the title while the writer has not typed their own;
+  // once edited by hand it stays put until reset. The server still owns shape and uniqueness.
+  const [slug, setSlug] = React.useState(initialDraft?.slug ?? "");
+  const [slugTouched, setSlugTouched] = React.useState(Boolean(initialDraft?.slug));
   const [categorySlug, setCategorySlug] = React.useState(initialDraft?.category ?? "");
   // The interview desk's second step: virtual vs in-person. Chosen only when the desk is
   // `interview` — the select itself only renders then — and cleared when the desk changes.
@@ -151,12 +157,13 @@ export function WriterForm() {
   React.useEffect(() => {
     const frame = window.setTimeout(() => {
       try {
-        if (!title && !categorySlug && !interviewKind && !bodyDraft && Object.keys(answers).length === 0) {
+        if (!title && !slug && !categorySlug && !interviewKind && !bodyDraft && Object.keys(answers).length === 0) {
           window.localStorage.removeItem(DRAFT_KEY);
           return;
         }
         const draft: WriteDraft = {
           title,
+          slug,
           category: categorySlug,
           interviewKind,
           body: bodyDraft,
@@ -169,7 +176,33 @@ export function WriterForm() {
       }
     }, 600);
     return () => window.clearTimeout(frame);
-  }, [title, categorySlug, interviewKind, bodyDraft, answers, questionnaire, initialDraft]);
+  }, [title, slug, categorySlug, interviewKind, bodyDraft, answers, questionnaire, initialDraft]);
+
+  // The address follows the headline until the writer claims it: every title change schedules
+  // one transliteration through the same `slugify_title` the server allocates with, so a
+  // Bengali headline still proposes readable Latin. A hand edit wins from then on.
+  React.useEffect(() => {
+    if (slugTouched) return;
+    const headline = title.trim();
+    if (!headline) {
+      setSlug("");
+      return;
+    }
+    let cancelled = false;
+    const frame = window.setTimeout(async () => {
+      try {
+        const supabase = supabaseBrowser();
+        const { data, error } = await supabase.rpc("slugify_title", { p_title: headline });
+        if (!cancelled && !error && typeof data === "string" && data) setSlug(data);
+      } catch {
+        // A failed suggestion keeps the previous value; submission re-derives server-side.
+      }
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(frame);
+    };
+  }, [title, slugTouched]);
 
   function clearDraft() {
     try {
@@ -178,6 +211,8 @@ export function WriterForm() {
       // See above.
     }
     setTitle("");
+    setSlug("");
+    setSlugTouched(false);
     setCategorySlug("");
     setInterviewKind("");
     setBodyDraft("");
@@ -300,8 +335,8 @@ export function WriterForm() {
         return;
       }
       // Clients hold no direct write grant on articles: the SECURITY DEFINER
-      // RPC allocates the slug, validates the questionnaire, records the
-      // revision, and sets pending/published by reporter tier.
+      // RPC claims the slug (typed or title-derived), validates the questionnaire,
+      // records the revision, and sets pending/published by reporter tier.
       if (!questionnaire) {
         fail("প্রশ্নমালা এখনো প্রস্তুত নয়। পাতা রিফ্রেশ করে আবার চেষ্টা করুন।");
         return;
@@ -316,12 +351,14 @@ export function WriterForm() {
       // so it cannot carry one without making the body optional as well. Omitting it
       // therefore matched no candidate at all and every submission answered 404 "Could not
       // find the function" — a valid-looking report that never reached the database.
+      const slugValue = slug.trim().toLowerCase() || null;
       const result = await supabase.rpc("submit_article", {
         p_category_slug: categorySlug,
         p_interview_kind: categorySlug === "interview" ? interviewKindValue : null,
         p_title: title,
         p_excerpt: null,
         p_body: body,
+        p_slug: slugValue,
         p_media_keys: mediaIds.length ? mediaIds : null,
         p_hero_media_key: mediaIds[0] ?? null,
         p_questionnaire_answers: answers,
@@ -346,6 +383,8 @@ export function WriterForm() {
           : "";
       form.reset();
       setTitle("");
+      setSlug("");
+      setSlugTouched(false);
       setCategorySlug("");
       setInterviewKind("");
       setBodyDraft("");
@@ -435,6 +474,7 @@ export function WriterForm() {
   const hadDraft = Boolean(
     initialDraft &&
       (initialDraft.title ||
+        initialDraft.slug ||
         initialDraft.category ||
         initialDraft.interviewKind ||
         initialDraft.body ||
@@ -539,13 +579,43 @@ export function WriterForm() {
                 </Field>
               )}
               <Field
-                label="প্রতিবেদনের ঠিকানা"
-                hint="জমা দেওয়ার পর প্রকৃত ইংরেজি ঠিকানা তৈরি হয়; তখনই লিংক কপি করা যাবে।"
+                label="প্রতিবেদনের ঠিকানা (slug)"
+                htmlFor="write-slug"
+                hint="শিরোনাম লিখলে স্বয়ংক্রিয়ভাবে তৈরি হয়; প্রয়োজনে সম্পাদনা করুন। খালি থাকলে শিরোনাম থেকে তৈরি হবে।"
               >
-                <p className="flex h-10 min-w-0 items-center overflow-hidden rounded-md border bg-muted px-3 text-sm text-muted-foreground">
-                  <span className="truncate">
-                    {createdUrl || "জমা দেওয়ার পর তৈরি হবে"}
-                  </span>
+                <div className="flex min-w-0 items-center gap-2">
+                  <Input
+                    id="write-slug"
+                    name="slug"
+                    value={slug}
+                    onChange={(event) => {
+                      setSlug(event.target.value);
+                      setSlugTouched(true);
+                    }}
+                    maxLength={96}
+                    placeholder="dhaka-campus-songbad"
+                    autoCapitalize="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                  />
+                  {slugTouched && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => setSlugTouched(false)}
+                      title="শিরোনাম থেকে আবার তৈরি করুন"
+                    >
+                      স্বয়ংক্রিয়
+                    </Button>
+                  )}
+                </div>
+                <p className="mt-1 truncate text-xs text-muted-foreground">
+                  {slug
+                    ? `${SITE_URL}/news/${encodeURIComponent(slug.trim().toLowerCase() || "...")}/`
+                    : "জমা দেওয়ার সময় শিরোনাম থেকে তৈরি হবে"}
+                  {createdUrl ? ` · জমা হয়েছে: ${createdUrl}` : ""}
                 </p>
               </Field>
             </FieldGrid>

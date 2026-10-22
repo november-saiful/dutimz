@@ -1419,7 +1419,9 @@
   margin-bottom: 26px;
 }
 .fig-big {
-  height: 340px;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  width: 100%;
 }
 .article-main p {
   color: var(--body);
@@ -2488,9 +2490,6 @@ footer.site-footer {
   }
   .f-grid {
     grid-template-columns: repeat(2, 1fr);
-  }
-  .fig-big {
-    height: 250px;
   }
   .ab-title {
     font-size: 12px;

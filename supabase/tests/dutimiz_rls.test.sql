@@ -1,5 +1,5 @@
 begin;
-select plan(281);
+select plan(286);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -407,6 +407,30 @@ select results_eq(
   $$select interview_kind from public.articles where title = 'ভার্চুয়াল সাক্ষাৎকার'$$,
   $$values ('virtual')$$,
   'The filed interview records its section'
+);
+-- Editable slug. The writer may type the Latin address; the title only proposes it.
+select lives_ok(
+  $$select public.submit_article('porikkha', 'নিজের ঠিকানার প্রতিবেদন', 'নিজের ঠিকানার সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, 'amar-nijer-thikana', null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active))$$,
+  'A typed address is kept instead of the title derivation'
+);
+select results_eq(
+  $$select slug from public.articles where title = 'নিজের ঠিকানার প্রতিবেদন'$$,
+  $$values ('amar-nijer-thikana')$$,
+  'The filed story carries the typed address'
+);
+select lives_ok(
+  $$select public.submit_article('porikkha', 'একই ঠিকানার দ্বিতীয় প্রতিবেদন', 'দ্বিতীয় প্রতিবেদনের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, 'amar-nijer-thikana', null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active))$$,
+  'A taken typed address takes the next free suffix'
+);
+select results_eq(
+  $$select slug from public.articles where title = 'একই ঠিকানার দ্বিতীয় প্রতিবেদন'$$,
+  $$values ('amar-nijer-thikana-2')$$,
+  'The second story with the same typed address carries the suffixed address'
+);
+select throws_ok(
+  $$select public.submit_article('porikkha', 'ভুল ঠিকানার প্রতিবেদন', 'ভুল ঠিকানার সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, '!!!', null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active))$$,
+  'P0001', null,
+  'An address with no Latin left in it is refused'
 );
 reset role;
 select set_config('request.jwt.claim.sub', '', true);

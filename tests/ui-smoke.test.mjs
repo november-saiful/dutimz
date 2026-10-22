@@ -2021,3 +2021,17 @@ test('the saved stories row is in the menu with or without a session', async () 
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
   assert.doesNotMatch(header, /"saved"/, 'the header must not hide the row the menu now keeps');
 });
+
+test('the write form proposes the slug from the title and lets the writer edit it', async () => {
+  const form = await readProjectFile('components/account/writer-form.tsx');
+  // Editable field wired to state, with the title transliteration as the proposal.
+  assert.match(form, /id="write-slug"/, 'the address has its own field');
+  assert.match(form, /name="slug"/, 'the address travels with the form');
+  assert.match(form, /slugify_title/, 'typing a headline proposes the Latin address');
+  assert.match(form, /slugTouched/, 'a hand edit wins over the proposal');
+  assert.match(form, /p_slug: slugValue/, 'the typed address is sent to submit_article');
+  const migration = await readProjectFile('supabase/migrations/202610220001_editable_slug.sql');
+  assert.match(migration, /slug_base/, 'the server normalises a typed address');
+  assert.match(migration, /slugify_title\(slug_base\)/, 'a typed address keeps the title rules');
+  assert.match(migration, /attempt = 1 then slug_base/, 'a taken typed address takes a suffix');
+});
