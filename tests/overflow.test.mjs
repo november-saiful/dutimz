@@ -232,13 +232,13 @@ test('the site menu fits inside a phone viewport', async () => {
           const trigger = page.locator('[data-menu-trigger]');
           await trigger.waitFor({ state: 'visible', timeout: 10000 });
           await trigger.click();
-          await page.locator('.menu-panel').waitFor({ state: 'visible', timeout: 5000 });
-          // The panel opens on a 640ms curve with its lines arriving behind it, so
+          await page.locator('[data-menu-panel]').waitFor({ state: 'visible', timeout: 5000 });
+          // The panel opens on a spring with its lines arriving behind it, so
           // measure it once that wave has settled.
           await page.waitForTimeout(900);
 
           const measured = await page.evaluate(() => {
-            const panel = document.querySelector('.menu-panel');
+            const panel = document.querySelector('[data-menu-panel]');
             if (!panel) return null;
             const rect = panel.getBoundingClientRect();
             const root = document.documentElement;
@@ -295,7 +295,7 @@ test('the site menu fits inside a phone viewport', async () => {
           if (scrolls) {
             // Every line, including the foot of the menu, has to be reachable.
             const reachable = await page.evaluate(() => {
-              const panel = document.querySelector('.menu-panel');
+              const panel = document.querySelector('[data-menu-panel]');
               if (!panel) return null;
               panel.scrollTop = panel.scrollHeight;
               const last = panel.lastElementChild?.getBoundingClientRect();

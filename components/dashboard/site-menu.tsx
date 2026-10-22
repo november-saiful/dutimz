@@ -257,6 +257,7 @@ export function SiteMenu({
             key="site-menu-popup"
             role="dialog"
             aria-label="মেনু"
+            data-menu-panel
             className="absolute right-0 top-[calc(100%+10px)] z-[70] max-h-[calc(100dvh-80px)] w-[min(360px,calc(100vw-36px))] origin-top-right overflow-y-auto rounded-3xl border bg-white p-5 shadow-[0_24px_60px_-20px_rgba(26,18,32,0.35),0_8px_20px_-10px_rgba(26,18,32,0.18)] max-sm:fixed max-sm:left-4 max-sm:right-4 max-sm:top-[calc(var(--topbar)+8px)] max-sm:max-h-[calc(100dvh-var(--topbar)-20px)] max-sm:w-auto max-sm:origin-top-center"
             style={{ willChange: "transform, opacity" }}
             initial={panelMotion.initial}
