@@ -138,7 +138,7 @@ function estimateLabelWidth(label: string) {
   return Math.round(label.length * 4.3) + 7;
 }
 
-export function MobileDock() {
+export function MobileDock({ deckGlass = false }: { deckGlass?: boolean } = {}) {
   // `usePathname` and nothing else: the dock reads no session, no query and no
   // network, so every page can render it.
   const pathname = usePathname() ?? "/";
@@ -339,7 +339,9 @@ export function MobileDock() {
           </ul>
         </div>
       ) : null}
-      <div className="dock-card" ref={cardRef}>
+      {/* `data-deck-glass`: on the flipps decks the card floats over the reel's
+          picture, and the stylesheet turns it into a glass pane there. */}
+      <div className="dock-card" ref={cardRef} data-deck-glass={deckGlass || undefined}>
         {/*
           The goo, as the filter the layer below points at: blur the blobs, then
           push their alpha back to a hard edge, so wherever two of them overlap the

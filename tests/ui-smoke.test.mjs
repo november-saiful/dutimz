@@ -795,6 +795,8 @@ test('a shared story carries its own picture, not the site logo', async () => {
 test('the reel deck reads the archive and asks the reader for nothing', async () => {
   const page = await readProjectFile('app/flipps/page.tsx');
   assert.match(page, /getLatestStories/, 'the deck reads the published archive');
+  const data = await readProjectFile('components/flipps/flipps-data.ts');
+  assert.match(data, /export const REEL_COUNT = 10;/, 'the feed stops at the newest ten reports');
   assert.match(page, /FlippsReels/);
   assert.match(page, /DutimzShell bare/, 'a deck of full-screen cards draws its own container');
   const reels = await readProjectFile('components/flipps/flipps-reels.tsx');
@@ -812,6 +814,11 @@ test('the reel deck reads the archive and asks the reader for nothing', async ()
 test('a shared reel opens the deck on the story it was posted for', async () => {
   const share = await readProjectFile('app/flipps/[slug]/page.tsx');
   assert.match(share, /notFound\(\)/, 'an unclaimed slug is a genuine 404');
+  assert.match(
+    share,
+    /getStoryBySlug/,
+    'the shared reel is read by slug, not from the feed window, so an older flip still opens',
+  );
   assert.match(share, /shareImageFor/, "the preview carries the story's own picture");
   assert.match(share, /openGraph/);
   assert.match(
@@ -1236,7 +1243,11 @@ test('the phone dock carries the four destinations plus a create action, and onl
   assert.match(dock, /aria-current=\{isCurrent \? "page" : undefined\}/, 'the current tab says so');
   assert.match(dock, /aria-label="প্রধান নেভিগেশন"/);
   const shell = await readProjectFile('components/dashboard/dutimz-shell.tsx');
-  assert.match(shell, /<MobileDock \/>/, 'every page draws the dock');
+  assert.match(
+    shell,
+    /<MobileDock deckGlass=\{mobileDeck\} \/>/,
+    'every page draws the dock, and deck pages ask it for glass',
+  );
 
   // The four entries, each on the address the rest of the site already publishes.
   for (const [key, href] of [
@@ -1287,8 +1298,44 @@ test('the phone dock carries the four destinations plus a create action, and onl
   const reels = await readProjectFile('components/flipps/flipps-reels.tsx');
   assert.match(
     reels,
-    /100svh-var\(--topbar\)-var\(--dock\)-1\.5rem\)/,
-    'the reel deck ends above the dock instead of under it',
+    /h-\[100svh\]/,
+    'a phone reel fills the whole screen, under both pieces of chrome',
+  );
+  assert.match(
+    reels,
+    /max-\[860px\]:pb-\[calc\(1rem\+var\(--dock\)\)\]/,
+    "the reel's text stays clear of the dock it runs under",
+  );
+  assert.match(
+    reels,
+    /max-\[860px\]:pt-\[calc\(1rem\+var\(--topbar\)\)\]/,
+    "and clear of the bar it runs under",
+  );
+  const deckShell = await readProjectFile('components/dashboard/dutimz-shell.tsx');
+  assert.match(
+    deckShell,
+    /DashboardHeader sections=\{sections\} deckGlass=\{mobileDeck\}/,
+    'a deck page tells the bar the reels run beneath it',
+  );
+  assert.match(
+    deckShell,
+    /MobileDock deckGlass=\{mobileDeck\}/,
+    'and tells the dock the same',
+  );
+  assert.match(
+    css,
+    /--deck-glass-blur: blur\(7px\) saturate\(135%\)/,
+    'the deck chrome glass is one shared token, not a new surface per part',
+  );
+  assert.match(
+    css,
+    /\.topbar\[data-deck-glass\] \{[\s\S]*?backdrop-filter: var\(--deck-glass-blur\)/,
+    'the bar turns to glass over the reel',
+  );
+  assert.match(
+    css,
+    /\.dock-card\[data-deck-glass\] \{[\s\S]*?backdrop-filter: var\(--deck-glass-blur\)/,
+    'and so does the dock',
   );
 });
 

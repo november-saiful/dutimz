@@ -3,10 +3,11 @@ import { storyCategory, storyCredit, type Story } from "@/lib/supabase";
 import type { PreviewStory } from "@/lib/stories";
 
 /**
- * How many reports the deck carries. Long enough that the feed does not run out mid-read, short
- * enough that the page does not send the whole archive to draw a dozen cards.
+ * How many reports the flipps feed carries: the newest ten. The feed is a browse surface, not the
+ * archive, so it stops at a short window; a story that has slid out of it is still reachable through
+ * its own share link, which reads the story by slug rather than from this list.
  */
-export const REEL_COUNT = 12;
+export const REEL_COUNT = 10;
 
 /**
  * One reel: everything a card and its detail pane need, with the Bengali formatting already

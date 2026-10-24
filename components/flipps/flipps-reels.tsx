@@ -28,10 +28,11 @@ const SCRIM =
   "linear-gradient(to top, rgba(0,0,0,.94) 0%, rgba(0,0,0,.78) 18%, rgba(0,0,0,.46) 42%, rgba(0,0,0,.12) 64%, rgba(0,0,0,.42) 100%)";
 
 /**
- * One reel is one screen tall, minus the sticky bar the shell has already drawn (`--topbar`) and
- * the phone dock floating over the foot of the page (`--dock`, zero above the dock's breakpoint).
- * At and above the dock breakpoint the deck pages keep their centered wrapper, whose `py-3` comes
- * out of the same budget; on phones the wrapper is full-bleed, so there is no padding to subtract.
+ * On a phone one reel is the whole screen: the picture runs edge to edge, under the sticky top bar
+ * at the head and under the floating dock at the foot, so both pieces of chrome read as glass over
+ * the report. The reel's own text is inset clear of them (see the overlay below).
+ * At and above the dock breakpoint the deck pages keep their centered wrapper, below the bar, whose
+ * `py-3` comes out of the same budget.
  *
  * This is the height of the whole column, not of the track: the counter and its progress bar sit
  * above the track and take their own height out of the same budget, so the arithmetic stays in
@@ -41,7 +42,7 @@ const SCRIM =
  * and out re-lays-out every reel mid-flick, and the reader lands between two cards.
  */
 const REEL_COLUMN_HEIGHT =
-  "h-[calc(100svh-var(--topbar)-var(--dock))] min-[861px]:h-[calc(100svh-var(--topbar)-var(--dock)-1.5rem)]";
+  "h-[100svh] min-[861px]:h-[calc(100svh-var(--topbar)-var(--dock)-1.5rem)]";
 
 /**
  * The dateline every surface of a reel shares: the writer, how long ago, and — on the surfaces
@@ -277,9 +278,10 @@ export function FlippsReels({ items }: { items: FlippsItem[] }) {
                 </div>
                 <div aria-hidden className="absolute inset-0" style={{ backgroundImage: SCRIM }} />
 
-                {/* The image runs to the viewport bottom under the floating dock; the text stays
-                    above it, lifted by exactly the room the dock reserves (`--dock`). */}
-                <div className="absolute inset-0 flex flex-col justify-between p-4 text-white max-[860px]:pb-[calc(1rem+var(--dock))]">
+                {/* The image runs to every edge under the glass chrome; the text stays clear of
+                    both, pushed down past the top bar and lifted by exactly the room the dock
+                    reserves (`--dock`). */}
+                <div className="absolute inset-0 flex flex-col justify-between p-4 text-white max-[860px]:pt-[calc(1rem+var(--topbar))] max-[860px]:pb-[calc(1rem+var(--dock))]">
                   <div className="flex items-center justify-between gap-2">
                     <span className="rounded-full border border-white/25 bg-white/15 px-2.5 py-1 text-[10px] font-bold tracking-[0.06em]">
                       {item.section}

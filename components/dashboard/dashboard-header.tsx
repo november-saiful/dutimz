@@ -67,8 +67,15 @@ function initialsFor(name: string): string {
  */
 export function DashboardHeader({
   sections,
+  deckGlass = false,
 }: {
   sections: { slug: string; label: string }[];
+  /**
+   * An immersive phone deck (the flipps feeds) scrolls its picture under the bar:
+   * the bar then draws as a translucent glass pane instead of solid paper. Below
+   * the dock breakpoint only; the wide layout is unchanged.
+   */
+  deckGlass?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname() ?? "/";
@@ -258,7 +265,7 @@ export function DashboardHeader({
   }
 
   return (
-    <header className="topbar">
+    <header className="topbar" data-deck-glass={deckGlass || undefined}>
       <div className="topbar-in">
         <Link href="/" className="logo" aria-label="DUTIMZ মূলপাতা">
           {/*

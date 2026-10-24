@@ -112,7 +112,9 @@ export default async function SharedFlippsPage({
   return (
     // Like the deck: immersive below the dock breakpoint, the centered column at and above it.
     <DutimzShell bare mobileDeck>
-      <div className="w-full min-w-0 min-[861px]:mx-auto min-[861px]:max-w-[var(--maxw)] min-[861px]:px-7 min-[861px]:py-3">
+      {/* Same as the feed: below the dock breakpoint the reel runs under the top bar and the dock,
+          so the room both still take in flow is cancelled rather than left as paper strips. */}
+      <div className="w-full min-w-0 max-[860px]:-mt-[var(--topbar)] max-[860px]:mb-[calc(-1*var(--dock))] min-[861px]:mx-auto min-[861px]:max-w-[var(--maxw)] min-[861px]:px-7 min-[861px]:py-3">
         <FlippsReels items={items} />
       </div>
     </DutimzShell>

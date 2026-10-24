@@ -34,7 +34,7 @@ function NoReels() {
 
 export default async function FlippsPage() {
   const items: FlippsItem[] = isDemoMode()
-    ? previewStories.map(flippsFromPreview)
+    ? previewStories.slice(0, REEL_COUNT).map(flippsFromPreview)
     : (await getLatestStories(REEL_COUNT)).map(flippsFromStory);
 
   return (
@@ -42,7 +42,10 @@ export default async function FlippsPage() {
     // shell drops the footer and this wrapper stays full-bleed; at and above the dock breakpoint
     // it is the same centered column as before.
     <DutimzShell bare mobileDeck>
-      <div className="w-full min-w-0 min-[861px]:mx-auto min-[861px]:max-w-[var(--maxw)] min-[861px]:px-7 min-[861px]:py-3">
+      {/* On phones the deck starts under the top bar and ends under the dock, so both negative
+          margins cancel the room those pieces of chrome still take in flow — the picture is what
+          the glass chrome floats over. */}
+      <div className="w-full min-w-0 max-[860px]:-mt-[var(--topbar)] max-[860px]:mb-[calc(-1*var(--dock))] min-[861px]:mx-auto min-[861px]:max-w-[var(--maxw)] min-[861px]:px-7 min-[861px]:py-3">
         {items.length === 0 ? <NoReels /> : <FlippsReels items={items} />}
       </div>
     </DutimzShell>

@@ -147,6 +147,11 @@
        and the phone's own home-indicator inset. The stylesheet reserves it below
        the dock's breakpoint, as page padding and as the reel deck's subtraction. */
     --dock: 0px;
+    /* The glass the flipps deck's chrome shares while a reel runs under it: a
+       barely-there blur for both the top bar and the dock, so the picture reads
+       through them almost untouched and the pages add a state to the two surfaces
+       they already have rather than a third kind of glass. */
+    --deck-glass-blur: blur(7px) saturate(135%);
     /* The reference dock's morph curve, shared by the tab and its label. */
     --dock-ease: cubic-bezier(0.22, 1, 0.36, 1);
     /*
@@ -2495,6 +2500,49 @@ footer.site-footer {
   }
   .search-toggle {
     display: grid;
+  }
+  /*
+    The flipps deck runs its picture under both pieces of chrome, so on those
+    pages the bar and the dock turn to clear liquid glass: almost no tint, the
+    reel showing straight through, a barely-there blur and a bright edge where
+    the pane catches the light. `data-deck-glass` comes from the shell's
+    `mobileDeck` pages; every other page keeps the bar on paper and the dock on
+    its own card.
+  */
+  .topbar[data-deck-glass] {
+    /* A trace of white, not a pane of it: the picture stays the surface. */
+    background: rgba(255, 255, 255, 0.04);
+    /* Unprefixed only: spelling both forms makes the build keep just the
+       prefixed one, which Chrome ignores. */
+    backdrop-filter: var(--deck-glass-blur);
+    /* A hairline of light along the bottom edge, not a shadow: a border would add
+       a pixel to the bar the deck's top offset is measured from. */
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.32);
+  }
+  .dock-card[data-deck-glass] {
+    background:
+      linear-gradient(
+        160deg,
+        rgba(255, 255, 255, 0.14),
+        rgba(255, 255, 255, 0.03) 55%,
+        rgba(255, 255, 255, 0.08)
+      );
+    border-color: rgba(255, 255, 255, 0.28);
+    backdrop-filter: var(--deck-glass-blur);
+    /* The rim catches the light on top; the soft drop keeps the card floating. */
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.16),
+      0 12px 30px rgba(29, 15, 30, 0.2);
+  }
+  /*
+    The dock floats on the foot of the reel, where the scrim is at its darkest,
+    so a see-through card needs pale icons rather than the muted ink every other
+    page draws. The current tab keeps its white-on-drop and the create action its
+    white on the brand circle.
+  */
+  .dock-card[data-deck-glass] .dock-tab:not(.current):not(.dock-create) {
+    color: rgba(255, 255, 255, 0.82);
   }
   .f-grid {
     grid-template-columns: repeat(2, 1fr);

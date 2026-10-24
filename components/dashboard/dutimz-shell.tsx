@@ -38,7 +38,9 @@ export async function DutimzShell({
 
   return (
     <>
-      <DashboardHeader sections={sections} />
+      {/* On an immersive phone deck the reels run under both pieces of chrome, so the
+          bar and the dock turn to glass over the picture instead of sitting on paper. */}
+      <DashboardHeader sections={sections} deckGlass={mobileDeck} />
       {bare ? (
         <main id="main-content">{children}</main>
       ) : (
@@ -87,7 +89,7 @@ export async function DutimzShell({
         top bar has handed the desks to the menu; it covers the five primary
         destinations to the menu's full desk list.
       */}
-      <MobileDock />
+      <MobileDock deckGlass={mobileDeck} />
     </>
   );
 }
