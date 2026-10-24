@@ -43,6 +43,7 @@ export function SiteFooter({
           <Link href="/about/">আমাদের পরিচয়</Link>
           <Link href="/guidelines/">সম্পাদকীয় নীতিমালা</Link>
           <Link href="/privacy/">গোপনীয়তা নীতি</Link>
+          <Link href="/terms/">ব্যবহারের শর্তাবলি</Link>
           <a href="mailto:hello@dutimz.com">যোগাযোগ</a>
           <a href="mailto:corrections@dutimz.com">সংশোধন জানান</a>
         </div>

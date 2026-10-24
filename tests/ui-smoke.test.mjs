@@ -115,6 +115,7 @@ test('every portal route exists in the App Router', async () => {
     'app/about/page.tsx',
     'app/guidelines/page.tsx',
     'app/privacy/page.tsx',
+    'app/terms/page.tsx',
     'app/saved/page.tsx',
     'app/auth/callback/route.ts',
     'app/api/config/route.ts',
