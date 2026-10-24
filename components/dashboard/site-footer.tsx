@@ -42,6 +42,7 @@ export function SiteFooter({
           <h5>পরিচয় ও নীতি</h5>
           <Link href="/about/">আমাদের পরিচয়</Link>
           <Link href="/guidelines/">সম্পাদকীয় নীতিমালা</Link>
+          <Link href="/privacy/">গোপনীয়তা নীতি</Link>
           <a href="mailto:hello@dutimz.com">যোগাযোগ</a>
           <a href="mailto:corrections@dutimz.com">সংশোধন জানান</a>
         </div>

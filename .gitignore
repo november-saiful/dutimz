@@ -9,5 +9,10 @@ dist/
 .dev.vars
 supabase/.temp/
 
+# Next's build output and the incremental typecheck cache
+.next/
+tsconfig.tsbuildinfo
+
 # Local tooling state
 .freebuff/
+.workbuddy-ai/

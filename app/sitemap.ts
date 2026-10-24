@@ -27,6 +27,7 @@ const STATIC_PAGES: {
   { path: "/statistics/", changeFrequency: "weekly", priority: 0.6 },
   { path: "/about/", changeFrequency: "monthly", priority: 0.5 },
   { path: "/guidelines/", changeFrequency: "monthly", priority: 0.5 },
+  { path: "/privacy/", changeFrequency: "monthly", priority: 0.4 },
   { path: "/corrections/", changeFrequency: "weekly", priority: 0.5 },
   { path: "/search/", changeFrequency: "monthly", priority: 0.3 },
 ];
