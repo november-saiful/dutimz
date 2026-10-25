@@ -1,8 +1,30 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import test from 'node:test';
 
 const readProjectFile = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+const MIGRATIONS_DIR = new URL('../supabase/migrations/', import.meta.url);
+
+/**
+ * The definition each function would have after every migration has run.
+ *
+ * A later migration may replace a body, and a PL/pgSQL body is only parsed when it is called, so
+ * the file that defines a function is not necessarily the one that decides what it does today.
+ */
+async function latestFunctionBodies() {
+  const files = (await readdir(MIGRATIONS_DIR)).filter((name) => name.endsWith('.sql')).sort();
+  const latest = new Map();
+  for (const file of files) {
+    const sql = await readFile(new URL(file, MIGRATIONS_DIR), 'utf8');
+    const definitions = /create\s+(?:or\s+replace\s+)?function\s+public\.([a-z0-9_]+)\s*\(/gi;
+    for (const match of sql.matchAll(definitions)) {
+      const end = sql.indexOf('\n$$;', match.index);
+      if (end === -1) continue;
+      latest.set(match[1], sql.slice(match.index, end + 4));
+    }
+  }
+  return latest;
+}
 
 // pgTAP needs a live Postgres, which this checkout cannot start locally (no Docker, no psql),
 // so `supabase test db` only ever runs in CI. Two failures that can be caught without a
@@ -19,6 +41,29 @@ const ASSERTION_FUNCTIONS = [
 const ASSERTION_STATEMENT = /^[ \t]*select[ \t]+([a-z_][a-z0-9_]*)[ \t]*\(/gim;
 
 const suite = await readProjectFile('supabase/tests/dutimiz_rls.test.sql');
+
+test('no live function still names a column or table this branch removed', async () => {
+  // A PL/pgSQL body is parsed when it runs, not when it is created, so a function that still names
+  // a dropped column applies cleanly and fails on its first call. CI caught exactly that: the two
+  // triggers that release held earnings and the withdrawal request all still wrote
+  // `earnings_ledger.reason` after the column was dropped.
+  const forbidden = [
+    ['p_reason', (body) => body.includes('p_reason')],
+    ['rejection_reason', (body) => body.includes('rejection_reason')],
+    ['review_reason', (body) => body.includes('review_reason')],
+    ['admin_audit_log', (body) => body.includes('admin_audit_log')],
+    ['moderation_actions', (body) => body.includes('moderation_actions')],
+    ['reason', (body) => /\breason\b/.test(body)],
+  ];
+  const offenders = [];
+  for (const [name, body] of await latestFunctionBodies()) {
+    // Comments explain the removal and may name it; only live SQL matters.
+    const sql = body.replace(/--[^\n]*/g, '');
+    const hit = forbidden.find(([, matches]) => matches(sql));
+    if (hit) offenders.push(`${name} names ${hit[0]}`);
+  }
+  assert.deepEqual(offenders, [], `a removed column or table is still in use: ${offenders.join('; ')}`);
+});
 
 test('the pgTAP plan counts exactly the assertions the suite runs', () => {
   const planned = Number(suite.match(/select\s+plan\(\s*(\d+)\s*\)/)[1]);
