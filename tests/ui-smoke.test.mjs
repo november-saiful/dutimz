@@ -1014,7 +1014,10 @@ test('the desk manages stories from the panel, not only the pending queue', asyn
   }
   assert.match(articles, /from\("articles"\)/, 'the desk lists every story, whatever its status');
   assert.doesNotMatch(articles, /UUID/, 'no story action may ask for a raw id');
-  assert.doesNotMatch(articles, /\.delete\(/, 'removal stays a status change, never a row delete');
+  // Withholding a story is still a status change, and the panel never touches the table directly:
+  // the one way to erase a story is the audited RPC, which the browser role cannot bypass.
+  assert.doesNotMatch(articles, /\.delete\(/, 'a story is never deleted by a client table write');
+  assert.match(articles, /"admin_delete_article"/, 'erasing a story goes through the audited RPC');
   // The author is chosen by name and resolved through the administrator-only directory.
   assert.match(articles, /admin_member_records/);
 });

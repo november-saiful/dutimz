@@ -164,6 +164,34 @@ test('the admin console migration puts the wallet on the row and audits the stat
   assert.ok(migration.trimEnd().endsWith('commit;'), 'the migration should be atomic');
 });
 
+test('the permanent delete is audited before the story disappears, and refuses a paid one', async () => {
+  const migration = await readProjectFile('supabase/migrations/202610250001_admin_delete_article.sql');
+  assert.ok(
+    migration.includes('function public.admin_delete_article'),
+    'the one way to erase a story should be defined',
+  );
+  assert.ok(
+    migration.includes('revoke all on function public.admin_delete_article'),
+    'the RPC should be revoked so it is not callable past its own guard',
+  );
+  assert.ok(migration.includes("using errcode = '42501'"), 'a caller who is not an administrator is refused');
+  assert.ok(migration.includes("set search_path = ''"), 'a SECURITY DEFINER function must pin its search path');
+  assert.ok(migration.includes("'delete_article'"), 'the deletion is written to the accountability log');
+  // `earnings_ledger.article_id` is `on delete restrict`, so a paid story cannot be erased. The
+  // function has to name that refusal instead of letting a foreign-key error surface.
+  assert.ok(
+    migration.includes('from public.earnings_ledger'),
+    'a story that has already paid its author is refused in the function, not by the constraint',
+  );
+  // The audit row is written while the row still exists: it carries the title, the address and the
+  // counts the cascade is about to take, and the log's target has no foreign key to follow.
+  assert.ok(
+    migration.indexOf('insert into public.admin_audit_log') < migration.indexOf('delete from public.articles'),
+    'the audit row must be written before the story is gone',
+  );
+  assert.ok(migration.trimEnd().endsWith('commit;'), 'the migration should be atomic');
+});
+
 test('the member records migration stays administrator-only and off the dropped column', async () => {
   const migration = await readProjectFile('supabase/migrations/202609290003_admin_member_records.sql');
   // profile_details.completion_percent was dropped by 202609240003, so a query against it reads

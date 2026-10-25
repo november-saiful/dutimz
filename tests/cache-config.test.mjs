@@ -269,6 +269,7 @@ test('the desk invalidates what it changes, through one authenticated door', asy
     ['components/account/admin-articles.tsx', 'admin_update_article'],
     ['components/account/admin-articles.tsx', 'admin_set_article_publication'],
     ['components/account/admin-articles.tsx', 'admin_set_article_status'],
+    ['components/account/admin-articles.tsx', 'admin_delete_article'],
     ['components/account/admin-dashboard.tsx', 'review_withdrawal'],
   ]) {
     const source = await readProjectFile(path);

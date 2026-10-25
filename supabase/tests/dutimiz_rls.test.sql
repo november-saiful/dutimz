@@ -1,5 +1,5 @@
 begin;
-select plan(294);
+select plan(302);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -1903,6 +1903,75 @@ select ok(
 select has_function(
   'public', 'body_media_ids', array['text', 'text'],
   'The one shared reference extractor exists'
+);
+
+-- ---------------------------------------------------------------------------
+-- Permanent deletion. A story can leave the archive for good, but only the desk may do it, only
+-- with a reason, and never once money has been recorded against it: the ledger is the author's
+-- proof of what they earned and points at the story with `on delete restrict`.
+-- ---------------------------------------------------------------------------
+insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, published_at)
+  select '22000000-0000-4000-8000-000000000002', c.id, 'muchhe-felar-songbad', 'মুছে ফেলার প্রতিবেদন',
+         'মুছে ফেলার জন্য লেখা সংক্ষিপ্ত পরিচিতি', repeat('অস্থায়ী প্রতিবেদনের অংশ। ', 6), 'published', now()
+    from public.categories c where c.slug = 'porikkha';
+insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, published_at)
+  select '22000000-0000-4000-8000-000000000002', c.id, 'artha-thaka-songbad', 'অর্থযুক্ত প্রতিবেদন',
+         'অর্থ নির্ধারিত হয়েছে এমন প্রতিবেদন', repeat('অস্থায়ী প্রতিবেদনের অংশ। ', 6), 'published', now()
+    from public.categories c where c.slug = 'porikkha';
+insert into public.earnings_ledger (user_id, article_id, entry_type, amount_tk, reason)
+  select '22000000-0000-4000-8000-000000000002', a.id, 'article_earning_available', 500, 'পরীক্ষার অর্থ'
+    from public.articles a where a.slug = 'artha-thaka-songbad';
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select throws_ok(
+  $$select public.admin_delete_article(
+      (select id from public.articles where slug = 'muchhe-felar-songbad'),
+      'নিজের প্রতিবেদন মুছতে চাই')$$,
+  '42501', null,
+  'A reporter cannot delete a story for good'
+);
+
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select throws_ok(
+  $$select public.admin_delete_article(
+      (select id from public.articles where slug = 'muchhe-felar-songbad'),
+      'না')$$,
+  'P0001', null,
+  'A permanent deletion has to say why'
+);
+select throws_ok(
+  $$select public.admin_delete_article(
+      (select id from public.articles where slug = 'artha-thaka-songbad'),
+      'ভুল করে প্রকাশিত হয়েছিল')$$,
+  'P0001', null,
+  'A story that already paid its author cannot be erased'
+);
+select lives_ok(
+  $$select public.admin_delete_article(
+      (select id from public.articles where slug = 'muchhe-felar-songbad'),
+      'ভুল করে প্রকাশিত হয়েছিল')$$,
+  'The desk can delete a story for good'
+);
+reset role;
+
+select is_empty(
+  $$select 1 from public.articles where slug = 'muchhe-felar-songbad'$$,
+  'The deleted story is gone from the archive'
+);
+select isnt_empty(
+  $$select 1 from public.articles where slug = 'artha-thaka-songbad'$$,
+  'The story that paid its author is still there to be withheld instead'
+);
+select results_eq(
+  $$select details->>'slug' from public.admin_audit_log where action = 'delete_article'$$,
+  $$values ('muchhe-felar-songbad')$$,
+  'The deletion is written to the accountability log with the story it erased'
+);
+select ok(
+  not has_function_privilege('anon', 'public.admin_delete_article(uuid, text)', 'execute'),
+  'A signed-out visitor cannot delete a story'
 );
 
 select * from finish();

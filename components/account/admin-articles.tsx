@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Banknote, BookOpen, CalendarClock, Eye, EyeOff, Pencil, Search } from "lucide-react";
+import { Banknote, BookOpen, CalendarClock, Eye, EyeOff, Pencil, Search, Trash2 } from "lucide-react";
 
 import { AuthedMediaImage } from "@/components/article/authed-media-image";
 import { Badge } from "@/components/ui/badge";
@@ -102,6 +102,13 @@ export function AdminArticles() {
   const [offset, setOffset] = React.useState(0);
   const [hasMore, setHasMore] = React.useState(false);
   const [loadingMore, setLoadingMore] = React.useState(false);
+  // How many stories the whole filtered archive holds. The header used to read the length of the
+  // loaded page instead, so it said sixty for every desk past sixty stories.
+  const [total, setTotal] = React.useState(0);
+  const [loading, setLoading] = React.useState(true);
+  // What the visible list was actually fetched for. The header reads this rather than the live
+  // controls, so the count never describes a filter the table has not applied yet.
+  const [scope, setScope] = React.useState({ status: "all", query: "" });
 
   // The edit dialog holds the whole body, so it is its own state rather than a field on the row.
   const [editing, setEditing] = React.useState<Article | null>(null);
@@ -124,6 +131,15 @@ export function AdminArticles() {
   const [deciding, setDeciding] = React.useState<Article | null>(null);
   const [decideReason, setDecideReason] = React.useState("");
 
+  // Erasing a story is the only decision the desk cannot undo, so the dialog says what leaves with
+  // it. A story that has been paid cannot be erased at all — the ledger points at it with
+  // `on delete restrict` — and that refusal is read here, because `errorMessage` deliberately
+  // hides the server's own sentence.
+  const [deleting, setDeleting] = React.useState<Article | null>(null);
+  const [deleteReason, setDeleteReason] = React.useState("");
+  const [deleteAward, setDeleteAward] = React.useState<Award | null>(null);
+  const [deleteChecking, setDeleteChecking] = React.useState(false);
+
   // The preview shows the story as a reader sees it, with the desk's money decision floating at its
   // foot. The award is read once when the preview opens, and the CTA stays off until that read finishes.
   const [previewing, setPreviewing] = React.useState<Article | null>(null);
@@ -143,19 +159,23 @@ export function AdminArticles() {
   const load = React.useCallback(
     async (nextStatus: string, nextQuery: string, nextOffset = 0, append = false) => {
       if (append) setLoadingMore(true);
+      else setLoading(true);
       try {
         const supabase = supabaseBrowser();
         let request = supabase
           .from("articles")
           .select(
             "id,slug,title,excerpt,body,status,is_anonymous,published_at,created_at,hero_media_key,article_media(media_id,position),category:categories(slug,title_bn),author:profiles!articles_author_id_fkey(username,display_name)",
+            // The total arrives beside the page: PostgREST counts every matching row and reports it
+            // in Content-Range, so the archive size costs no second request.
+            { count: "exact" },
           )
           .order("created_at", { ascending: false })
           .range(nextOffset, nextOffset + PAGE_SIZE - 1);
         // Either filter is optional, and PostgREST lets both narrow the same request.
         if (nextStatus !== "all") request = request.eq("status", nextStatus);
         if (nextQuery.trim()) request = request.ilike("title", `%${nextQuery.trim()}%`);
-        const { data, error: loadError } = await request;
+        const { data, count, error: loadError } = await request;
         if (loadError) {
           setError(
             errorMessage("admin articles", loadError, "প্রতিবেদনের তালিকা লোড করা যায়নি। আবার চেষ্টা করুন।"),
@@ -163,13 +183,18 @@ export function AdminArticles() {
           return;
         }
         const rows = (data as unknown as Article[]) ?? [];
+        const loaded = nextOffset + rows.length;
         setArticles((prev) => (append ? [...prev, ...rows] : rows));
-        setOffset(nextOffset + rows.length);
-        setHasMore(rows.length === PAGE_SIZE);
+        setOffset(loaded);
+        // A count of null means the header simply repeats what is loaded, rather than claiming zero.
+        setTotal(count ?? loaded);
+        setHasMore(count == null ? rows.length === PAGE_SIZE : loaded < count);
+        setScope({ status: nextStatus, query: nextQuery.trim() });
       } catch (err) {
         setError(errorMessage("admin articles", err, "প্রতিবেদনের তালিকা লোড করা যায়নি। আবার চেষ্টা করুন।"));
       } finally {
         if (append) setLoadingMore(false);
+        else setLoading(false);
       }
     },
     [],
@@ -336,6 +361,67 @@ export function AdminArticles() {
     }
   }
 
+  async function openDelete(article: Article) {
+    setDeleting(article);
+    setDeleteReason("");
+    setDeleteAward(null);
+    setDeleteChecking(true);
+    try {
+      const { data, error: readError } = await supabaseBrowser()
+        .from("earnings_ledger")
+        .select("id,amount_tk,created_at")
+        .eq("article_id", article.id)
+        .in("entry_type", ["article_earning_available", "article_earning_held"])
+        .limit(1)
+        .maybeSingle();
+      if (readError) {
+        setError(
+          errorMessage("article delete award read", readError, "অর্থ নির্ধারিত হয়েছে কি না দেখা যায়নি।"),
+        );
+        return;
+      }
+      setDeleteAward((data as Award | null) ?? null);
+    } catch (err) {
+      setError(errorMessage("article delete award read", err, "অর্থ নির্ধারিত হয়েছে কি না দেখা যায়নি।"));
+    } finally {
+      setDeleteChecking(false);
+    }
+  }
+
+  async function deleteArticle() {
+    if (!deleting) return;
+    setError("");
+    setNotice("");
+    if (deleteReason.trim().length < 3) {
+      setError("মুছে ফেলার কারণ লিখুন (অন্তত ৩ অক্ষর)।");
+      return;
+    }
+    setBusy(`delete-${deleting.id}`);
+    try {
+      const { error: deleteError } = await supabaseBrowser().rpc("admin_delete_article", {
+        p_article_id: deleting.id,
+        p_reason: deleteReason.trim(),
+      });
+      if (deleteError) {
+        setError(
+          errorMessage("article delete", deleteError, "প্রতিবেদন স্থায়ীভাবে মুছে ফেলা যায়নি। আবার চেষ্টা করুন।"),
+        );
+        return;
+      }
+      // The story may have been live on the front page, its section and its own address.
+      void revalidateReaders();
+      setNotice("প্রতিবেদনটি স্থায়ীভাবে মুছে ফেলা হয়েছে।");
+      setDeleting(null);
+      await load(status, query, 0, false);
+    } catch (err) {
+      setError(
+        errorMessage("article delete", err, "প্রতিবেদন স্থায়ীভাবে মুছে ফেলা যায়নি। আবার চেষ্টা করুন।"),
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function openPreview(article: Article) {
     setPreviewing(article);
     setAward(null);
@@ -398,6 +484,13 @@ export function AdminArticles() {
     }
   }
 
+  // "মোট" only when nothing narrows the list, so the number always names exactly what it counts.
+  // Before the first page arrives the count is unknown, and the header says nothing rather than zero.
+  const heading =
+    loading && total === 0
+      ? "প্রতিবেদন"
+      : `প্রতিবেদন (${scope.status === "all" && !scope.query ? "মোট " : ""}${countLabel(total)}টি)`;
+
   return (
     <div className="flex flex-col gap-4">
       {error && (
@@ -412,7 +505,7 @@ export function AdminArticles() {
       )}
       <Card>
         <CardHeader>
-          <CardTitle>প্রতিবেদন ({countLabel(articles.length)}টি)</CardTitle>
+          <CardTitle>{heading}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <form
@@ -455,13 +548,20 @@ export function AdminArticles() {
                 <TableHead>অবস্থা</TableHead>
                 <TableHead className="hidden md:table-cell">লেখক</TableHead>
                 <TableHead className="hidden lg:table-cell">প্রকাশ</TableHead>
-                <TableHead className="w-40">
+                <TableHead className="w-52">
                   <span className="sr-only">পদক্ষেপ</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {articles.length === 0 && (
+              {loading && (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    তালিকা লোড হচ্ছে…
+                  </TableCell>
+                </TableRow>
+              )}
+              {!loading && articles.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
                     এই ছাঁকনিতে কোনো প্রতিবেদন নেই।
@@ -534,6 +634,16 @@ export function AdminArticles() {
                         >
                           {live ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => void openDelete(article)}
+                          aria-label={`${article.title} স্থায়ীভাবে মুছুন`}
+                          title="স্থায়ীভাবে মুছুন"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -542,14 +652,19 @@ export function AdminArticles() {
             </TableBody>
           </Table>
           {hasMore && (
-            <div className="flex justify-center pt-1">
+            <div className="flex flex-col items-center gap-1 pt-1">
               <Button
                 variant="outline"
-                onClick={() => void load(status, query, offset, true)}
+                onClick={() => void load(scope.status, scope.query, offset, true)}
                 disabled={loadingMore}
               >
-                {loadingMore ? "লোড হচ্ছে…" : `আরও দেখুন (${countLabel(articles.length)}টি দেখানো হচ্ছে)`}
+                {loadingMore
+                  ? "লোড হচ্ছে…"
+                  : `আরও দেখুন (${countLabel(articles.length)} / ${countLabel(total)})`}
               </Button>
+              <p className="text-xs text-muted-foreground">
+                আরও {countLabel(Math.max(0, total - articles.length))}টি প্রতিবেদন বাকি
+              </p>
             </div>
           )}
         </CardContent>
@@ -773,6 +888,58 @@ export function AdminArticles() {
               disabled={busy !== null}
             >
               {busy?.startsWith("status-") ? "সংরক্ষণ হচ্ছে…" : "নিশ্চিত করুন"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Erasing a story. The one desk action that cannot be undone, so it names what leaves with
+          the story and offers the reversible alternative beside it. */}
+      <Dialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>প্রতিবেদন স্থায়ীভাবে মুছুন</DialogTitle>
+            <DialogDescription>
+              {deleting && (
+                <>
+                  &ldquo;{deleting.title}&rdquo; — মুছে ফেললে এটি আর ফিরিয়ে আনা যাবে না।
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <p className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+            প্রতিবেদনটির সঙ্গে তার ছবি, মন্তব্য, প্রতিক্রিয়া, বুকমার্ক ও সংশোধনের ইতিহাসও স্থায়ীভাবে
+            মুছে যাবে। শুধু পাঠকের চোখ থেকে সরাতে চাইলে বদলে &ldquo;প্রকাশ থেকে সরান&rdquo; ব্যবহার করুন।
+          </p>
+          {deleteChecking && (
+            <p className="text-sm text-muted-foreground">অর্থ নির্ধারিত হয়েছে কি না দেখা হচ্ছে…</p>
+          )}
+          {deleteAward && (
+            <p className="text-sm text-destructive" role="alert">
+              এই প্রতিবেদনে ৳{bn(deleteAward.amount_tk)} নির্ধারিত হয়েছে। অর্থের হিসাব রক্ষার জন্য এটি
+              স্থায়ীভাবে মুছে ফেলা যায় না — প্রকাশ থেকে সরিয়ে রাখুন।
+            </p>
+          )}
+          <Field label="মুছে ফেলার কারণ" htmlFor="delete-reason" hint="কারণ অডিট লগে সংরক্ষিত হয়।">
+            <Textarea
+              id="delete-reason"
+              value={deleteReason}
+              rows={2}
+              minLength={3}
+              maxLength={500}
+              onChange={(event) => setDeleteReason(event.target.value)}
+            />
+          </Field>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(null)}>
+              বাতিল
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void deleteArticle()}
+              disabled={busy !== null || deleteChecking || deleteAward !== null}
+            >
+              {busy?.startsWith("delete-") ? "মুছে ফেলা হচ্ছে…" : "স্থায়ীভাবে মুছুন"}
             </Button>
           </DialogFooter>
         </DialogContent>
