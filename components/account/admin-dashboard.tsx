@@ -19,7 +19,6 @@ import { Field, FieldGrid } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -53,7 +52,6 @@ type LedgerEntry = {
   id: string;
   amount_tk: number;
   entry_type: string;
-  reason: string | null;
   created_at: string;
   articles: { title: string } | { title: string }[] | null;
 };
@@ -106,15 +104,6 @@ type SortState = {
  * before the round trip, and names the rule either way.
  */
 const USERNAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]{2,23}$/;
-
-/**
- * What gets logged when the desk leaves the reason blank.
- *
- * The audited RPCs require a reason so that no role change or member edit lands unaccounted
- * for. The form no longer forces the desk to type one, so a blank field records that none was
- * given — rather than an empty string the notification trigger would refuse.
- */
-const NO_REASON = "কারণ উল্লেখ করা হয়নি";
 
 const ROLE_LABELS: Record<string, string> = {
   reader: "রিডার",
@@ -198,14 +187,10 @@ export function AdminDashboard() {
   const [offset, setOffset] = React.useState(0);
   const [withdrawals, setWithdrawals] = React.useState<Withdrawal[]>([]);
   const [spotlight, setSpotlight] = React.useState<SpotlightPost[]>([]);
-  const [spotlightReasons, setSpotlightReasons] = React.useState<Record<string, string>>({});
   const [dating, setDating] = React.useState<SpotlightPost | null>(null);
   const [datingDate, setDatingDate] = React.useState("");
-  const [datingReason, setDatingReason] = React.useState("");
-  const [reasons, setReasons] = React.useState<Record<string, string>>({});
   const [adjustTarget, setAdjustTarget] = React.useState<Member | null>(null);
   const [adjustAmount, setAdjustAmount] = React.useState("");
-  const [adjustReason, setAdjustReason] = React.useState("");
   const [ledgerEntries, setLedgerEntries] = React.useState<LedgerEntry[]>([]);
   const [ledgerState, setLedgerState] = React.useState<
     "idle" | "loading" | "ready" | "error"
@@ -226,7 +211,6 @@ export function AdminDashboard() {
   const [editUsername, setEditUsername] = React.useState("");
   const [editRole, setEditRole] = React.useState("reporter");
   const [editTier, setEditTier] = React.useState("general");
-  const [editReason, setEditReason] = React.useState("");
 
   const pageSize = 20;
 
@@ -374,11 +358,6 @@ export function AdminDashboard() {
     id: string,
     decision: "paid" | "rejected",
   ): Promise<boolean> {
-    const reason = (reasons[id] ?? "").trim();
-    if (reason.length < 3) {
-      setError("সিদ্ধান্তের কারণ লিখুন (অন্তত ৩ অক্ষর)।");
-      return false;
-    }
     setBusy(id);
     setError("");
     try {
@@ -386,7 +365,6 @@ export function AdminDashboard() {
       const { error } = await supabase.rpc("review_withdrawal", {
         p_withdrawal_id: id,
         p_decision: decision,
-        p_reason: reason,
       });
       if (error) {
         setError(
@@ -402,11 +380,6 @@ export function AdminDashboard() {
       // invalidated like any other change to published writing.
       void revalidateReaders();
       setNotice("উত্তোলনের সিদ্ধান্ত নথিভুক্ত হয়েছে।");
-      setReasons((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
       // Paying or refusing moves reserved money back into the member's wallet, so both the pending
       // list and the member's own row have to be re-read.
       await Promise.all([loadWithdrawals(), loadMembers(offset, query)]);
@@ -420,11 +393,6 @@ export function AdminDashboard() {
   }
 
   async function moderateSpotlight(post: SpotlightPost, decision: "hide" | "restore" | "remove") {
-    const reason = (spotlightReasons[post.id] ?? "").trim();
-    if (reason.length < 3) {
-      setError("সিদ্ধান্তের কারণ লিখুন (অন্তত ৩ অক্ষর)।");
-      return;
-    }
     setBusy(`spotlight-${post.id}`);
     setError("");
     setNotice("");
@@ -432,7 +400,6 @@ export function AdminDashboard() {
       const { error } = await supabaseBrowser().rpc("admin_set_spotlight_status", {
         p_post_id: post.id,
         p_decision: decision,
-        p_reason: reason,
       });
       if (error) {
         setError(
@@ -456,7 +423,6 @@ export function AdminDashboard() {
   function openDating(post: SpotlightPost) {
     setDating(post);
     setDatingDate(new Date(post.created_at).toISOString().slice(0, 16));
-    setDatingReason("");
   }
 
   async function saveDating() {
@@ -467,16 +433,11 @@ export function AdminDashboard() {
       setError("তারিখ নির্ধারণ করুন।");
       return;
     }
-    if (datingReason.trim().length < 3) {
-      setError("তারিখ পরিবর্তনের কারণ লিখুন (অন্তত ৩ অক্ষর)।");
-      return;
-    }
     setBusy(`spotlight-date-${dating.id}`);
     try {
       const { error } = await supabaseBrowser().rpc("admin_set_spotlight_date", {
         p_post_id: dating.id,
         p_created_at: new Date(datingDate).toISOString(),
-        p_reason: datingReason.trim(),
       });
       if (error) {
         setError(
@@ -504,7 +465,7 @@ export function AdminDashboard() {
     try {
       const { data, error: ledgerError } = await supabaseBrowser()
         .from("earnings_ledger")
-        .select("id,amount_tk,entry_type,reason,created_at,articles(title)")
+        .select("id,amount_tk,entry_type,created_at,articles(title)")
         .eq("user_id", member.id)
         .order("created_at", { ascending: false })
         .limit(40);
@@ -594,7 +555,6 @@ export function AdminDashboard() {
   function openAdjust(member: Member) {
     setAdjustTarget(member);
     setAdjustAmount("");
-    setAdjustReason("");
     void loadLedger(member);
     void loadTargetWithdrawal(member.id);
   }
@@ -662,8 +622,8 @@ export function AdminDashboard() {
     setError("");
     setNotice("");
     const amountTk = Number(adjustAmount);
-    if (!Number.isInteger(amountTk) || amountTk === 0 || adjustReason.trim().length < 3) {
-      setError("শূন্য ছাড়া পূর্ণসংখ্যা পরিমাণ ও কারণ আবশ্যক।");
+    if (!Number.isInteger(amountTk) || amountTk === 0) {
+      setError("শূন্য ছাড়া পূর্ণসংখ্যা পরিমাণ লিখুন।");
       return;
     }
     setBusy("adjust");
@@ -671,7 +631,6 @@ export function AdminDashboard() {
       const { error } = await supabaseBrowser().rpc("admin_adjust_balance", {
         p_user_id: adjustTarget.id,
         p_amount_tk: amountTk,
-        p_reason: adjustReason.trim(),
       });
       if (error) {
         setError(
@@ -686,7 +645,6 @@ export function AdminDashboard() {
       setNotice("জমা অর্থ সমন্বয় করা হয়েছে।");
       closeAdjust();
       setAdjustAmount("");
-      setAdjustReason("");
       // Reload so the row's wallet figures reflect the adjustment immediately.
       await loadMembers(offset, query);
     } catch (err) {
@@ -750,7 +708,6 @@ export function AdminDashboard() {
     setEditUsername(member.username);
     setEditRole(member.role);
     setEditTier(member.reporter_tier ?? "general");
-    setEditReason("");
   }
 
   // Role editing happens on the member's own row now: the audited RPC needs
@@ -759,8 +716,6 @@ export function AdminDashboard() {
     if (!editing) return;
     setError("");
     setNotice("");
-    // A reason is optional now: a blank field records that none was given.
-    const reason = editReason.trim() || NO_REASON;
     // The username is a stable public handle, so only the desk can change it — through the
     // audited member-record RPC. The same rule is applied here first, because that RPC's
     // refusal arrives as fixed Bengali text that says nothing about what was wrong.
@@ -782,7 +737,6 @@ export function AdminDashboard() {
           p_user_id: editing.id,
           p_profile: { username: nextUsername },
           p_details: {},
-          p_reason: reason,
         });
         if (usernameError) {
           setError(
@@ -799,7 +753,6 @@ export function AdminDashboard() {
         p_user_id: editing.id,
         p_role: editRole,
         p_tier: editRole === "reporter" ? editTier : null,
-        p_reason: reason,
       });
       if (error) {
         setError(
@@ -1133,20 +1086,6 @@ export function AdminDashboard() {
                     </Select>
                   </Field>
                 )}
-                <Field
-                  label="কারণ (ঐচ্ছিক)"
-                  htmlFor="edit-reason"
-                  hint="খালি রাখলে অডিট লগে লেখা থাকবে যে কারণ দেওয়া হয়নি।"
-                >
-                  <Textarea
-                    id="edit-reason"
-                    value={editReason}
-                    onChange={(e) => setEditReason(e.target.value)}
-                    rows={2}
-                    maxLength={500}
-                    placeholder="কেন এই ভূমিকা দেওয়া হচ্ছে… (ঐচ্ছিক)"
-                  />
-                </Field>
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setEditing(null)}>
@@ -1195,25 +1134,6 @@ export function AdminDashboard() {
                     {post.description}
                   </p>
                   <div className="mt-2 grid gap-2">
-                    <Field
-                      label="সিদ্ধান্তের কারণ (আবশ্যক)"
-                      htmlFor={`sreasons-${post.id}`}
-                      hint="কারণ অডিট লগে সংরক্ষিত হয়।"
-                    >
-                      <Textarea
-                        id={`sreasons-${post.id}`}
-                        value={spotlightReasons[post.id] ?? ""}
-                        onChange={(e) =>
-                          setSpotlightReasons({
-                            ...spotlightReasons,
-                            [post.id]: e.target.value,
-                          })
-                        }
-                        rows={2}
-                        minLength={3}
-                        maxLength={500}
-                      />
-                    </Field>
                     <div className="flex flex-wrap gap-2">
                       {hidden ? (
                         <Button
@@ -1276,16 +1196,6 @@ export function AdminDashboard() {
                 type="datetime-local"
                 value={datingDate}
                 onChange={(e) => setDatingDate(e.target.value)}
-              />
-            </Field>
-            <Field label="কারণ (আবশ্যক)" htmlFor="spotlight-date-reason" hint="কারণ অডিট লগে সংরক্ষিত হয়।">
-              <Textarea
-                id="spotlight-date-reason"
-                value={datingReason}
-                onChange={(e) => setDatingReason(e.target.value)}
-                rows={2}
-                minLength={3}
-                maxLength={500}
               />
             </Field>
           </div>
@@ -1391,7 +1301,7 @@ export function AdminDashboard() {
       {/* One dialog serves both entry points: the wallet button on a member's own row, and the
           member the finance tab's search hands over. Neither ever shows a raw id. It opens on
           the member's full ledger history and the adjustment form sits underneath it, so the
-          desk reads the reason for a balance before it changes it. */}
+          desk reads what each entry was before it changes the balance. */}
       <Dialog
         open={adjustTarget !== null}
         onOpenChange={(open) => {
@@ -1420,25 +1330,6 @@ export function AdminDashboard() {
                 {formatDateBn(targetWithdrawal.created_at)}
               </p>
               <div className="mt-2 grid gap-2">
-                <Field
-                  label="সিদ্ধান্তের কারণ (আবশ্যক)"
-                  htmlFor={`wreason-${targetWithdrawal.id}`}
-                  hint="কারণ অডিট লগে সংরক্ষিত হয়। পরিশোধ করলে সংরক্ষিত অর্থ সদস্যের উত্তোলনযোগ্য জমায় যোগ হয়; প্রত্যাখ্যান করলে ফেরত যায়।"
-                >
-                  <Textarea
-                    id={`wreason-${targetWithdrawal.id}`}
-                    value={reasons[targetWithdrawal.id] ?? ""}
-                    onChange={(e) =>
-                      setReasons({
-                        ...reasons,
-                        [targetWithdrawal.id]: e.target.value,
-                      })
-                    }
-                    rows={2}
-                    minLength={3}
-                    maxLength={500}
-                  />
-                </Field>
                 <div className="flex gap-2">
                   <Button
                     size="sm"
@@ -1488,7 +1379,7 @@ export function AdminDashboard() {
                 ledgerEntries.map((entry) => {
                   const amount = Number(entry.amount_tk);
                   const title = one(entry.articles)?.title;
-                  const detail = [title, entry.reason].filter(Boolean).join(" · ");
+                  const detail = title ?? "";
                   return (
                     <div
                       key={entry.id}
@@ -1531,20 +1422,6 @@ export function AdminDashboard() {
                 step={1}
                 value={adjustAmount}
                 onChange={(e) => setAdjustAmount(e.target.value)}
-              />
-            </Field>
-            <Field
-              label="কারণ (আবশ্যক)"
-              htmlFor="adjust-reason"
-              hint="কারণ অডিট লগে সংরক্ষিত হয়।"
-            >
-              <Textarea
-                id="adjust-reason"
-                value={adjustReason}
-                onChange={(e) => setAdjustReason(e.target.value)}
-                rows={2}
-                minLength={3}
-                maxLength={500}
               />
             </Field>
           </FieldGrid>

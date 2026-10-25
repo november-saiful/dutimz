@@ -73,7 +73,6 @@ type MyArticle = {
   created_at: string;
   published_at: string | null;
   rejected_at: string | null;
-  rejection_reason: string | null;
 };
 
 type MySpotlight = {
@@ -790,12 +789,6 @@ export function AccountDashboard() {
                               : null
                           }
                           title={article.title}
-                          excerpt={
-                            article.status === "rejected" &&
-                            article.rejection_reason
-                              ? `কারণ: ${article.rejection_reason}`
-                              : null
-                          }
                           meta={
                             <>
                               <time dateTime={when}>{formatDateBn(when)}</time>

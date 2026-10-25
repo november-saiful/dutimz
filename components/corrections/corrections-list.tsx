@@ -14,7 +14,6 @@ type Correction = {
   slug: string;
   title: string;
   revision: number;
-  reason: string;
   editor_label: string;
   headline_changed: boolean;
   body_changed: boolean;
@@ -105,7 +104,6 @@ export function CorrectionsList() {
             >
               {row.title}
             </Link>
-            <p className="text-sm text-muted-foreground">{row.reason}</p>
             <p className="text-xs text-muted-foreground">
               সম্পাদনা: {row.editor_label}
             </p>

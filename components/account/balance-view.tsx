@@ -16,7 +16,6 @@ type LedgerEntry = {
   id: string;
   amount_tk: number;
   entry_type: string;
-  reason: string | null;
   created_at: string;
   articles: { title: string } | { title: string }[] | null;
   withdrawals: { method: string; status: string } | null;
@@ -107,7 +106,7 @@ export function BalanceView() {
           supabase
             .from("earnings_ledger")
             .select(
-              "id,amount_tk,entry_type,reason,created_at,articles(title),withdrawals(method,status)",
+              "id,amount_tk,entry_type,created_at,articles(title),withdrawals(method,status)",
             )
             .eq("user_id", user.id)
             .order("created_at", { ascending: false })
@@ -270,7 +269,7 @@ export function BalanceView() {
               title ??
               (entry.entry_type === "withdrawal_reserve"
                 ? "উত্তোলন অনুরোধ"
-                : entry.reason ?? "অ্যাকাউন্ট লেনদেন");
+                : "অ্যাকাউন্ট লেনদেন");
             const amount = Number(entry.amount_tk);
             return (
               <article
@@ -281,7 +280,7 @@ export function BalanceView() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{label}</p>
                   <p className="text-xs text-muted-foreground">
-                    {entry.reason ?? ""} · {formatDateBn(entry.created_at)}
+                    {formatDateBn(entry.created_at)}
                   </p>
                 </div>
                 <span

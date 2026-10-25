@@ -36,8 +36,7 @@ import { supabaseBrowser } from "@/lib/supabase";
   from the moderation desk, and only then does the reader see anything change.
 
   One component serves both a story and a Spotlight post because the flow is the same one: the
-  current text, corrected, with a reason the reviewer reads. What differs is the table it lands in
-  and which RPC is called.
+  current text, corrected. What differs is the table it lands in and which RPC is called.
 
   The editor and the uploader are the composer's own, so a correction is written with exactly the
   formatting tools the original was.
@@ -70,7 +69,6 @@ export function ContentEditDialog({
   const [slug, setSlug] = React.useState("");
   const [excerpt, setExcerpt] = React.useState("");
   const [body, setBody] = React.useState("");
-  const [reason, setReason] = React.useState("");
   const [gallery, setGallery] = React.useState<GalleryItem[]>([]);
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -84,7 +82,6 @@ export function ContentEditDialog({
     setSlug(target.slug ?? "");
     setExcerpt(target.excerpt ?? "");
     setBody(target.body);
-    setReason("");
     setError("");
     setBusy(false);
     setGallery((current) => {
@@ -117,7 +114,6 @@ export function ContentEditDialog({
     setError("");
     const nextTitle = title.trim();
     const nextBody = body.trim();
-    const nextReason = reason.trim();
     if (!nextTitle) {
       setError("শিরোনাম আবশ্যক।");
       return;
@@ -130,10 +126,6 @@ export function ContentEditDialog({
       setError("বিবরণ কমপক্ষে ১০ অক্ষরের হতে হবে।");
       return;
     }
-    if (nextReason.length < 3) {
-      setError("সম্পাদনার কারণ লিখুন (অন্তত ৩ অক্ষর)।");
-      return;
-    }
     setBusy(true);
     try {
       const supabase = supabaseBrowser();
@@ -144,14 +136,12 @@ export function ContentEditDialog({
               p_title: nextTitle,
               p_excerpt: excerpt.trim() || null,
               p_body: nextBody,
-              p_reason: nextReason,
               p_slug: slug.trim().toLowerCase() || null,
             })
           : await supabase.rpc("submit_spotlight_edit", {
               p_post_id: target.id,
               p_title: nextTitle,
               p_description: nextBody,
-              p_reason: nextReason,
             });
       if (result.error) {
         setError(
@@ -265,22 +255,6 @@ export function ContentEditDialog({
             scope={kind}
             onInsert={insertPicture}
           />
-
-          <Field
-            label="সম্পাদনার কারণ (আবশ্যক)"
-            htmlFor="edit-request-reason"
-            hint="কী বদলেছেন এবং কেন — কারণটি পর্যালোচকের কাছে যায় ও ইতিহাসে সংরক্ষিত হয়।"
-          >
-            <Textarea
-              id="edit-request-reason"
-              value={reason}
-              rows={3}
-              minLength={3}
-              maxLength={500}
-              required
-              onChange={(event) => setReason(event.target.value)}
-            />
-          </Field>
 
           {error && <FormMessage>{error}</FormMessage>}
 

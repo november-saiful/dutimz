@@ -1,5 +1,5 @@
 begin;
-select plan(302);
+select plan(288);
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
@@ -94,11 +94,6 @@ select results_eq(
   $$values ('reader_8800000000004000')$$,
   'An account reconciled by the administrator bootstrap already has its public profile'
 );
-select results_eq(
-  $$select count(*)::int from public.admin_audit_log where action = 'bootstrap_admin'$$,
-  $$values (3)$$,
-  'Every administrator granted by the bootstrap is audited'
-);
 select hasnt_function('public', 'bootstrap_first_admin', 'The single-shot administrator claim is retired');
 
 -- Normalisation, and the list as the single source of administrators.
@@ -141,10 +136,10 @@ select has_table('public', 'profile_details', 'Private student profile table exi
 select has_table('public', 'user_roles', 'Role assignments live separately from public profile');
 select has_table('public', 'articles', 'Articles table exists');
 select has_table('public', 'article_revisions', 'Article revision history exists');
-select has_table('public', 'moderation_actions', 'Moderation audit history exists');
+select ok(to_regclass('public.moderation_actions') is null, 'The moderation log is gone');
 select has_table('public', 'earnings_ledger', 'Earnings use an append-only ledger');
 select has_table('public', 'withdrawals', 'Withdrawal requests are modeled');
-select col_not_null('public', 'moderation_actions', 'reason', 'Moderation reason is mandatory');
+select ok(to_regclass('public.admin_audit_log') is null, 'The accountability log is gone');
 select col_not_null('public', 'profiles', 'username', 'Every profile has a stable username');
 select results_eq(
   $$select count(*)::int from auth.users u join public.profiles p on p.id = u.id$$,
@@ -222,9 +217,9 @@ select results_eq(
   'Publishing a story credits nothing automatically'
 );
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
-select throws_ok($$select public.admin_award_article((select id from public.articles where slug = 'songbad'), 0, 'পরীক্ষামূলক পরিমাণ')$$, 'P0001', null, 'An award below ৳1 is refused');
-select public.admin_award_article((select id from public.articles where slug = 'songbad'), 90, 'পরীক্ষামূলক পরিমাণ');
-select throws_ok($$select public.admin_award_article((select id from public.articles where slug = 'songbad'), 90, 'পরীক্ষামূলক পরিমাণ')$$, 'P0001', null, 'A story can be awarded only once');
+select throws_ok($$select public.admin_award_article((select id from public.articles where slug = 'songbad'), 0)$$, 'P0001', null, 'An award below ৳1 is refused');
+select public.admin_award_article((select id from public.articles where slug = 'songbad'), 90);
+select throws_ok($$select public.admin_award_article((select id from public.articles where slug = 'songbad'), 90)$$, 'P0001', null, 'A story can be awarded only once');
 select results_eq(
   $$select count(*)::int, coalesce(sum(amount_tk), 0)::int from public.earnings_ledger where article_id = (select id from public.articles where slug = 'songbad') and entry_type = 'article_earning_available'$$,
   $$values (1, 90)$$,
@@ -253,7 +248,7 @@ select throws_ok($$select public.request_withdrawal(3500, 'bkash', '01700000000'
 
 reset role;
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
-select public.admin_adjust_balance('22000000-0000-4000-8000-000000000002', 5000, 'পরীক্ষামূলক ব্যালেন্স সমন্বয়');
+select public.admin_adjust_balance('22000000-0000-4000-8000-000000000002', 5000);
 insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, published_at)
   select '22000000-0000-4000-8000-000000000002', c.id, 'porikkha-' || g, 'পরীক্ষামূলক সংবাদ ' || g,
          'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি ' || g, repeat('পরীক্ষামূলক প্রতিবেদনের অংশ। ', 6), 'published', now()
@@ -267,7 +262,7 @@ select results_eq($$select (public.get_my_wallet() ->> 'reserved')::int$$, $$val
 
 reset role;
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
-select public.review_withdrawal((select id from public.withdrawals where user_id = '22000000-0000-4000-8000-000000000002' and status = 'pending'), 'rejected', 'পরীক্ষামূলক প্রত্যাখ্যান');
+select public.review_withdrawal((select id from public.withdrawals where user_id = '22000000-0000-4000-8000-000000000002' and status = 'pending'), 'rejected');
 select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
 select results_eq($$select (public.get_my_wallet() ->> 'reserved')::int$$, $$values (0)$$, 'Rejecting a request gives the reserved money back to the reporter');
 
@@ -279,12 +274,8 @@ insert into public.articles (author_id, category_id, slug, title, excerpt, body,
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
 select throws_ok(
-  $$select public.moderate_article((select id from public.articles where slug = 'porikkha-mod'), 'approve', 'নিজের প্রতিবেদন অনুমোদনের চেষ্টা')$$,
+  $$select public.moderate_article((select id from public.articles where slug = 'porikkha-mod'), 'approve')$$,
   '42501', null, 'A moderator cannot approve their own submission'
-);
-select throws_ok(
-  $$select public.moderate_article((select id from public.articles where slug = 'porikkha-mod'), 'approve', 'ab')$$,
-  'P0001', null, 'A moderation decision without a real reason is refused'
 );
 
 -- Photo galleries: R2 images attach to a story in submission order, a reader only
@@ -502,7 +493,7 @@ select is_empty(
   'A moderator cannot read the attribution either; it belongs to the desk administrator'
 );
 select lives_ok(
-  $$select public.moderate_article((select id from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন'), 'approve', 'নামহীন প্রতিবেদন যাচাই করে অনুমোদন')$$,
+  $$select public.moderate_article((select id from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন'), 'approve')$$,
   'A moderator approves an anonymous story without ever seeing the byline'
 );
 
@@ -512,12 +503,6 @@ select results_eq(
   $$select status::text, author_id is null from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন'$$,
   $$values ('published', true)$$,
   'The approved anonymous story is published with no author on its public row'
-);
-select results_eq(
-  $$select target_user_id from public.moderation_actions
-     where action = 'approve_article' and article_id = (select id from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন')$$,
-  $$values ('22000000-0000-4000-8000-000000000002'::uuid)$$,
-  'The moderation audit still records the real reporter behind the anonymous story'
 );
 select results_eq(
   $$select count(*)::int, coalesce(sum(amount_tk), 0)::int from public.earnings_ledger
@@ -530,17 +515,11 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select lives_ok(
-  $$select public.admin_update_article((select id from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন'), 'নামহীন পরীক্ষামূলক প্রতিবেদন', 'নামহীন প্রতিবেদনের হালনাগাদ পরিচিতি', repeat('হালনাগাদ প্রতিবেদনের অংশ। ', 8), 'সম্পাদকীয় হালনাগাদ ও যাচাই')$$,
+  $$select public.admin_update_article((select id from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন'), 'নামহীন পরীক্ষামূলক প্রতিবেদন', 'নামহীন প্রতিবেদনের হালনাগাদ পরিচিতি', repeat('হালনাগাদ প্রতিবেদনের অংশ। ', 8))$$,
   'The desk can edit an anonymous story without disturbing its byline'
 );
 reset role;
 select set_config('request.jwt.claim.sub', '', true);
-select results_eq(
-  $$select target_user_id from public.moderation_actions
-     where action = 'edit_article' and article_id = (select id from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন')$$,
-  $$values ('22000000-0000-4000-8000-000000000002'::uuid)$$,
-  'An admin edit of an anonymous story still records the real reporter'
-);
 
 set local role anon;
 select set_config('request.jwt.claim.role', 'anon', true);
@@ -577,7 +556,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
 select throws_ok(
-  $$select public.moderate_article((select id from public.articles where slug = 'porikkha-mod-anon'), 'approve', 'নিজের নামহীন প্রতিবেদন অনুমোদনের চেষ্টা')$$,
+  $$select public.moderate_article((select id from public.articles where slug = 'porikkha-mod-anon'), 'approve')$$,
   '42501', null,
   'A moderator cannot approve the anonymous story they filed themselves'
 );
@@ -667,7 +646,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
 select throws_ok(
-  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'author', '22000000-0000-4000-8000-000000000002', null, 'নিজের নামে বদলানোর চেষ্টা')$$,
+  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'author', '22000000-0000-4000-8000-000000000002', null)$$,
   '42501', null,
   'A reporter cannot rewrite a byline, not even their own'
 );
@@ -703,12 +682,6 @@ select results_eq(
   $$values (0, 0)$$,
   'Publishing a story on another reporter behalf credits nothing automatically'
 );
-select results_eq(
-  $$select count(*)::int from public.admin_audit_log
-     where action = 'publish_on_behalf' and target_id = (select id from public.articles where title = 'অন্যের নামে প্রকাশিত প্রতিবেদন')$$,
-  $$values (1)$$,
-  'Publishing under another name is recorded for accountability'
-);
 
 -- Re-bylining an already published story: the credited row moves and no stale attribution is
 -- left behind, which is the state articles_author_matches_anonymity exists to protect.
@@ -716,7 +689,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select lives_ok(
-  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'author', '33000000-0000-4000-8000-000000000003', null, 'বাইলাইন সংশোধন')$$,
+  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'author', '33000000-0000-4000-8000-000000000003', null)$$,
   'The desk can move a byline to another author'
 );
 reset role;
@@ -729,19 +702,13 @@ select is_empty(
   $$select article_id from public.article_attributions where article_id = (select id from public.articles where slug = 'porikkha-byline')$$,
   'A credited story keeps no attribution row behind it'
 );
-select results_eq(
-  $$select count(*)::int from public.moderation_actions
-     where action = 'set_article_publication' and article_id = (select id from public.articles where slug = 'porikkha-byline')$$,
-  $$values (1)$$,
-  'The byline change appears in the moderation history'
-);
 
 -- Withdrawing a byline has to keep the author on file -- the desk still needs to know who was
 -- paid and who to ask -- and crediting it again must clear that record rather than leave it.
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select lives_ok(
-  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'anonymous', null, null, 'লেখকের অনুরোধে নাম প্রত্যাহার')$$,
+  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'anonymous', null, null)$$,
   'The desk can withdraw a byline without losing the author'
 );
 reset role;
@@ -755,7 +722,7 @@ select results_eq(
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select lives_ok(
-  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'author', '22000000-0000-4000-8000-000000000002', null, 'পুনরায় নাম প্রকাশ')$$,
+  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'author', '22000000-0000-4000-8000-000000000002', null)$$,
   'The desk can credit an anonymous story again'
 );
 reset role;
@@ -769,11 +736,11 @@ select is_empty(
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select lives_ok(
-  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-dateline'), 'keep', null, timestamptz '2026-08-15 09:00:00+00', 'প্রকাশের সময় নির্ধারণ')$$,
+  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-dateline'), 'keep', null, timestamptz '2026-08-15 09:00:00+00')$$,
   'The desk can date a story while it still waits for approval'
 );
 select lives_ok(
-  $$select public.moderate_article((select id from public.articles where slug = 'porikkha-dateline'), 'approve', 'নির্ধারিত তারিখে অনুমোদন')$$,
+  $$select public.moderate_article((select id from public.articles where slug = 'porikkha-dateline'), 'approve')$$,
   'A dated pending story can still be approved'
 );
 reset role;
@@ -788,7 +755,7 @@ select results_eq(
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select lives_ok(
-  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'keep', null, now() + interval '400 days', 'ভবিষ্যতের তারিখ নির্ধারণের চেষ্টা')$$,
+  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'keep', null, now() + interval '400 days')$$,
   'The desk can send any date and the operation still succeeds'
 );
 reset role;
@@ -804,32 +771,27 @@ select results_eq(
 );
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
-select throws_ok(
-  $$select public.admin_set_article_publication((select id from public.articles where slug = 'porikkha-byline'), 'keep', null, null, 'ab')$$,
-  'P0001', null,
-  'A byline or date change without a real reason is refused'
-);
 -- The desk edit form used to insist on a published story, which broke its own edit button in
 -- the moderation queue: editing a pending submission always came back as not found.
 select lives_ok(
-  $$select public.admin_update_article((select id from public.articles where slug = 'porikkha-mod'), 'মডারেটরের নিজের অপেক্ষমাণ প্রতিবেদন', 'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('পরীক্ষামূলক প্রতিবেদনের অংশ। ', 6), 'অপেক্ষমাণ অবস্থায় সম্পাদকীয় সংশোধন')$$,
+  $$select public.admin_update_article((select id from public.articles where slug = 'porikkha-mod'), 'মডারেটরের নিজের অপেক্ষমাণ প্রতিবেদন', 'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('পরীক্ষামূলক প্রতিবেদনের অংশ। ', 6))$$,
   'The desk can edit a story that has not been published yet'
 );
 
 -- Taking a live story down, and putting it back. Approval and rejection already have a door, but
 -- it refuses anything not still pending, so a published story had no audited way off the site.
 select throws_ok(
-  $$select public.admin_set_article_status((select id from public.articles where slug = 'porikkha-dateline'), 'draft', 'অপ্রকাশিত খসড়ায় ফেরানোর চেষ্টা')$$,
+  $$select public.admin_set_article_status((select id from public.articles where slug = 'porikkha-dateline'), 'draft')$$,
   'P0001', null,
   'A story can be left only published or withheld, never returned to a queue it cannot wait in'
 );
 select throws_ok(
-  $$select public.admin_set_article_status((select id from public.articles where slug = 'porikkha-dateline'), 'published', 'ইতিমধ্যে প্রকাশিত প্রতিবেদন আবার প্রকাশের চেষ্টা')$$,
+  $$select public.admin_set_article_status((select id from public.articles where slug = 'porikkha-dateline'), 'published')$$,
   'P0001', null,
   'A story already in a state cannot be moved into that same state again'
 );
 select lives_ok(
-  $$select public.admin_set_article_status((select id from public.articles where slug = 'porikkha-dateline'), 'rejected', 'যাচাই ছাড়া প্রকাশিত হওয়ায় প্রত্যাহার')$$,
+  $$select public.admin_set_article_status((select id from public.articles where slug = 'porikkha-dateline'), 'rejected')$$,
   'The desk can take a published story out of publication'
 );
 select results_eq(
@@ -838,19 +800,13 @@ select results_eq(
   'A story taken out of publication keeps the dateline it went live with'
 );
 select lives_ok(
-  $$select public.admin_set_article_status((select id from public.articles where slug = 'porikkha-dateline'), 'published', 'পুনরায় প্রকাশের সিদ্ধান্ত')$$,
+  $$select public.admin_set_article_status((select id from public.articles where slug = 'porikkha-dateline'), 'published')$$,
   'The desk can put a withheld story back into publication'
 );
 select results_eq(
   $$select status::text from public.articles where slug = 'porikkha-dateline'$$,
   $$values ('published')$$,
   'The restored story is public again'
-);
-select ok(
-  exists (select 1 from public.moderation_actions
-           where action = 'set_article_status'
-             and article_id = (select id from public.articles where slug = 'porikkha-dateline')),
-  'Every story status decision is written to the moderation log'
 );
 
 reset role;
@@ -869,12 +825,12 @@ select throws_ok(
   'A reporter cannot list the member records'
 );
 select throws_ok(
-  $$select public.admin_set_article_status((select id from public.articles where slug = 'porikkha-dateline'), 'rejected', 'অননুমোদিত অবস্থা পরিবর্তনের চেষ্টা')$$,
+  $$select public.admin_set_article_status((select id from public.articles where slug = 'porikkha-dateline'), 'rejected')$$,
   '42501', null,
   'A reporter cannot take a story out of publication'
 );
 select throws_ok(
-  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{"display_name":"অননুমোদিত পরিবর্তন"}'::jsonb, '{}'::jsonb, 'অননুমোদিত সম্পাদনার চেষ্টা')$$,
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{"display_name":"অননুমোদিত পরিবর্তন"}'::jsonb, '{}'::jsonb)$$,
   '42501', null,
   'A reporter cannot edit another member record'
 );
@@ -899,7 +855,7 @@ select results_eq(
   'The member row carries the same three wallet figures the member sees on their own balance page'
 );
 select lives_ok(
-  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{"username":"staff_reader","display_name":"সংশোধিত পাঠক নাম"}'::jsonb, '{"department":"সংশোধিত বিভাগ","session":"২০২৪-২৫"}'::jsonb, 'সদস্যের তথ্য সংশোধন')$$,
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{"username":"staff_reader","display_name":"সংশোধিত পাঠক নাম"}'::jsonb, '{"department":"সংশোধিত বিভাগ","session":"২০২৪-২৫"}'::jsonb)$$,
   'The desk can change another member''s username and correct their details together'
 );
 reset role;
@@ -914,7 +870,7 @@ select results_eq(
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select lives_ok(
-  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{"hall_name":"পরীক্ষামূলক হল"}'::jsonb, 'হলের নাম যোগ')$$,
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{"hall_name":"পরীক্ষামূলক হল"}'::jsonb)$$,
   'The desk can fill in a single field'
 );
 reset role;
@@ -928,7 +884,7 @@ select results_eq(
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select lives_ok(
-  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{"hall_name":""}'::jsonb, 'ভুল তথ্য মুছে ফেলা')$$,
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{"hall_name":""}'::jsonb)$$,
   'An empty value is how the desk clears a field it filled in by mistake'
 );
 reset role;
@@ -941,51 +897,36 @@ select results_eq(
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select throws_ok(
-  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{"nickname":"x"}'::jsonb, '{}'::jsonb, 'অচেনা ঘরের চেষ্টা')$$,
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{"nickname":"x"}'::jsonb, '{}'::jsonb)$$,
   'P0001', null,
   'An unknown profile field is refused rather than dropped on the floor'
 );
 select throws_ok(
-  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{"completion_percent":100}'::jsonb, 'নিষিদ্ধ ঘরের চেষ্টা')$$,
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{"completion_percent":100}'::jsonb)$$,
   'P0001', null,
   'A derived field the desk must not set directly is refused'
 );
 select throws_ok(
-  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', jsonb_build_object('username', (select username from public.profiles where id = '22000000-0000-4000-8000-000000000002')), '{}'::jsonb, 'ইউজারনেম সংঘর্ষের চেষ্টা')$$,
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', jsonb_build_object('username', (select username from public.profiles where id = '22000000-0000-4000-8000-000000000002')), '{}'::jsonb)$$,
   'P0001', null,
   'A username already taken by another member is refused as a sentence, not an index violation'
 );
 select throws_ok(
-  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{"residency_status":"hall_resident"}'::jsonb, 'হল ছাড়া আবাসিক')$$,
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{"residency_status":"hall_resident"}'::jsonb)$$,
   'P0001', null,
   'A hall resident needs a hall name to go with it'
 );
 select throws_ok(
-  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{"payout_method":"bkash"}'::jsonb, 'নম্বর ছাড়া পেমেন্ট পদ্ধতি')$$,
+  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{"payout_method":"bkash"}'::jsonb)$$,
   'P0001', null,
   'A payout method and its number have to arrive together'
 );
 select throws_ok(
-  $$select public.admin_update_member('00000000-0000-4000-8000-000000000000', '{}'::jsonb, '{}'::jsonb, 'অজানা সদস্য')$$,
+  $$select public.admin_update_member('00000000-0000-4000-8000-000000000000', '{}'::jsonb, '{}'::jsonb)$$,
   'P0001', null,
   'Editing a member who does not exist is refused'
 );
-select throws_ok(
-  $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{}'::jsonb, '{}'::jsonb, 'ab')$$,
-  'P0001', null,
-  'A member record change without a real reason is refused'
-);
 reset role;
-select ok(
-  (select count(*) from public.admin_audit_log where action = 'update_member' and target_id = '11000000-0000-4000-8000-000000000001') >= 3,
-  'Every member record change is written to the accountability log'
-);
-select ok(
-  (select details ? 'profile_before' and details ? 'profile_after' and details ? 'details_before'
-     from public.admin_audit_log where action = 'update_member' and target_id = '11000000-0000-4000-8000-000000000001'
-    order by created_at limit 1),
-  'The log keeps what the desk saw as well as what it saved'
-);
 reset role;
 select set_config('request.jwt.claim.sub', '', true);
 
@@ -1229,7 +1170,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select lives_ok(
-  $$select public.admin_set_spotlight_status((select id from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'), 'hide', 'সম্পাদকীয় নীতিমালা লঙ্ঘন')$$,
+  $$select public.admin_set_spotlight_status((select id from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'), 'hide')$$,
   'The desk can hide a Spotlight post'
 );
 reset role;
@@ -1257,7 +1198,7 @@ select results_eq(
   'The author can still read their own hidden post'
 );
 select throws_ok(
-  $$select public.admin_set_spotlight_status((select id from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'), 'restore', 'নিজেই পুনরুদ্ধারের চেষ্টা')$$,
+  $$select public.admin_set_spotlight_status((select id from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'), 'restore')$$,
   '42501', null,
   'A member cannot reverse a desk decision'
 );
@@ -1299,21 +1240,17 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select lives_ok(
-  $$select public.admin_set_spotlight_status((select id from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'), 'restore', 'পুনর্বিবেচনায় পুনরুদ্ধার')$$,
+  $$select public.admin_set_spotlight_status((select id from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'), 'restore')$$,
   'The desk can restore a hidden post'
 );
 select lives_ok(
-  $$select public.admin_set_spotlight_status((select id from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'), 'remove', 'পুনরায় নীতিমালা লঙ্ঘনে মুছে ফেলা')$$,
+  $$select public.admin_set_spotlight_status((select id from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'), 'remove')$$,
   'The desk can remove a post outright'
 );
 reset role;
 select is_empty(
   $$select 1 from public.spotlight_posts where title = 'স্পটলাইট পরীক্ষামূলক পোস্ট'$$,
   'A post removed by the desk is gone'
-);
-select ok(
-  (select count(*) from public.moderation_actions where action = 'moderate_spotlight') >= 2,
-  'Every Spotlight desk decision is recorded in the moderation log'
 );
 reset role;
 select set_config('request.jwt.claim.sub', '', true);
@@ -1518,7 +1455,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
 select lives_ok(
-  $$select public.moderate_article((select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'), 'approve', 'লেখার মধ্যে ছবিসহ প্রতিবেদন অনুমোদন')$$,
+  $$select public.moderate_article((select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'), 'approve')$$,
   'The desk approves the story that carries an inline picture'
 );
 reset role;
@@ -1561,8 +1498,7 @@ select lives_ok(
   $$select public.submit_article_edit(
       (select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'),
       'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত', null,
-      'সংশোধিত অনুচ্ছেদ। ' || repeat('সংশোধিত বাক্য। ', 10),
-      'প্রথম অনুচ্ছেদের তথ্য সংশোধন')$$,
+      'সংশোধিত অনুচ্ছেদ। ' || repeat('সংশোধিত বাক্য। ', 10))$$,
   'An author can request an edit to their own published story'
 );
 reset role;
@@ -1580,8 +1516,7 @@ select throws_ok(
         || E'\\n\\n![০৮](/media/92000000-0000-4000-8000-000000000008)'
         || E'\\n\\n![০৯](/media/92000000-0000-4000-8000-000000000009)'
         || E'\\n\\n![১০](/media/92000000-0000-4000-8000-000000000010)'
-        || E'\\n\\n![১১](/media/92000000-0000-4000-8000-000000000011)',
-      'ছবি সীমা পরীক্ষা')$$,
+        || E'\\n\\n![১১](/media/92000000-0000-4000-8000-000000000011)')$$,
   'P0001', null,
   'An article edit cannot push its gallery-plus-inline distinct image count above ten'
 );
@@ -1598,7 +1533,7 @@ select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003
 select throws_ok(
   $$select public.submit_article_edit(
       (select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'),
-      'অন্যের প্রতিবেদন সম্পাদনার অনুরোধ', null, repeat('অন্যের লেখা। ', 10), 'পরীক্ষা')$$,
+      'অন্যের প্রতিবেদন সম্পাদনার অনুরোধ', null, repeat('অন্যের লেখা। ', 10))$$,
   '42501', null,
   'A member cannot request an edit to a story they did not file'
 );
@@ -1606,7 +1541,7 @@ select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002
 select throws_ok(
   $$select public.submit_article_edit(
       (select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন'),
-      'দ্বিতীয় অনুরোধ', null, repeat('পরীক্ষামূলক বাক্য। ', 10), 'পরীক্ষা')$$,
+      'দ্বিতীয় অনুরোধ', null, repeat('পরীক্ষামূলক বাক্য। ', 10))$$,
   'P0001', null,
   'A second request cannot queue behind one that is still waiting'
 );
@@ -1625,13 +1560,13 @@ select lives_ok(
   $$select public.submit_article_edit(
       (select id from public.articles where title = 'মডারেটরের নিজের সম্পাদনার প্রতিবেদন'),
       'মডারেটরের নিজের সম্পাদনার প্রতিবেদন', null,
-      repeat('সংশোধিত বাক্য। ', 12), 'নিজের প্রতিবেদনের সংশোধন')$$,
+      repeat('সংশোধিত বাক্য। ', 12))$$,
   'The moderator requests a correction to their own published story'
 );
 select throws_ok(
   $$select public.moderate_article_edit(
-      (select id from public.article_edit_requests where reason = 'নিজের প্রতিবেদনের সংশোধন'),
-      'approve', 'নিজের অনুরোধ নিজে অনুমোদন')$$,
+      (select id from public.article_edit_requests where title = 'মডারেটরের নিজের সম্পাদনার প্রতিবেদন'),
+      'approve')$$,
   '42501', null,
   'Even a moderator cannot approve their own edit request'
 );
@@ -1639,8 +1574,8 @@ select throws_ok(
 -- Approval, by somebody else.
 select lives_ok(
   $$select public.moderate_article_edit(
-      (select id from public.article_edit_requests where reason = 'প্রথম অনুচ্ছেদের তথ্য সংশোধন'),
-      'approve', 'তথ্য যাচাই করে সংশোধন অনুমোদন')$$,
+      (select id from public.article_edit_requests where body like '%সংশোধিত অনুচ্ছেদ।%'),
+      'approve')$$,
   'A moderator approves a correction proposed by another author'
 );
 reset role;
@@ -1662,7 +1597,7 @@ select results_eq(
 );
 select results_eq(
   $$select status, reviewed_by from public.article_edit_requests
-     where reason = 'প্রথম অনুচ্ছেদের তথ্য সংশোধন'$$,
+     where body like '%সংশোধিত অনুচ্ছেদ।%'$$,
   $$values ('approved', '33000000-0000-4000-8000-000000000003'::uuid)$$,
   'The settled request records who approved it'
 );
@@ -1682,14 +1617,14 @@ select lives_ok(
   $$select public.submit_article_edit(
       (select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'),
       'লেখার মধ্যে ছবি বসানো প্রতিবেদন — বাতিলযোগ্য', null,
-      repeat('বাতিলযোগ্য সংশোধন। ', 12), 'প্রত্যাখ্যাত হওয়ার কথা')$$,
+      repeat('বাতিলযোগ্য সংশোধন। ', 12))$$,
   'The author can ask again once the earlier request has been settled'
 );
 select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
 select lives_ok(
   $$select public.moderate_article_edit(
-      (select id from public.article_edit_requests where reason = 'প্রত্যাখ্যাত হওয়ার কথা'),
-      'reject', 'সূত্র ছাড়া সংশোধন গ্রহণ করা যায় না')$$,
+      (select id from public.article_edit_requests where body like '%বাতিলযোগ্য সংশোধন।%'),
+      'reject')$$,
   'A moderator can refuse a requested correction'
 );
 reset role;
@@ -1700,10 +1635,10 @@ select results_eq(
   'A refused correction never reaches the live story'
 );
 select results_eq(
-  $$select status, review_reason from public.article_edit_requests
-     where reason = 'প্রত্যাখ্যাত হওয়ার কথা'$$,
-  $$values ('rejected', 'সূত্র ছাড়া সংশোধন গ্রহণ করা যায় না')$$,
-  'A refused correction keeps the reason the author has to be told'
+  $$select status from public.article_edit_requests
+     where body like '%বাতিলযোগ্য সংশোধন।%'$$,
+  $$values ('rejected')$$,
+  'A refused correction stays refused'
 );
 
 -- Editable addresses on the edit paths. The desk renames immediately; an author proposes
@@ -1716,8 +1651,7 @@ select lives_ok(
       (select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'),
       'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত',
       (select excerpt from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'),
-      (select body from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'),
-      'ঠিকানা বদল পরীক্ষা', 'songshodhito-thikana')$$,
+      (select body from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'), 'songshodhito-thikana')$$,
   'The desk can rename the address while editing'
 );
 select results_eq(
@@ -1730,8 +1664,7 @@ select lives_ok(
       (select id from public.articles where title = 'নিজের ঠিকানার প্রতিবেদন'),
       'নিজের ঠিকানার প্রতিবেদন',
       (select excerpt from public.articles where title = 'নিজের ঠিকানার প্রতিবেদন'),
-      (select body from public.articles where title = 'নিজের ঠিকানার প্রতিবেদন'),
-      'নেওয়া ঠিকানায় সম্পাদনা', 'songshodhito-thikana')$$,
+      (select body from public.articles where title = 'নিজের ঠিকানার প্রতিবেদন'), 'songshodhito-thikana')$$,
   'A taken address on edit takes the next free suffix'
 );
 select results_eq(
@@ -1744,8 +1677,7 @@ select throws_ok(
       (select id from public.articles where title = 'নিজের ঠিকানার প্রতিবেদন'),
       'নিজের ঠিকানার প্রতিবেদন',
       (select excerpt from public.articles where title = 'নিজের ঠিকানার প্রতিবেদন'),
-      (select body from public.articles where title = 'নিজের ঠিকানার প্রতিবেদন'),
-      'ভুল ঠিকানায় সম্পাদনা', '!!!')$$,
+      (select body from public.articles where title = 'নিজের ঠিকানার প্রতিবেদন'), '!!!')$$,
   'P0001', null,
   'An edited address with no Latin left in it is refused'
 );
@@ -1754,14 +1686,14 @@ select lives_ok(
   $$select public.submit_article_edit(
       (select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'),
       'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত', null,
-      repeat('ঠিকানাসহ সংশোধন। ', 12), 'ঠিকানাসহ সংশোধনের অনুরোধ', 'lekhoker-thikana')$$,
+      repeat('ঠিকানাসহ সংশোধন। ', 12), 'lekhoker-thikana')$$,
   'An author can propose a new address with their correction'
 );
 select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
 select lives_ok(
   $$select public.moderate_article_edit(
-      (select id from public.article_edit_requests where reason = 'ঠিকানাসহ সংশোধনের অনুরোধ'),
-      'approve', 'ঠিকানাসহ সংশোধন অনুমোদন')$$,
+      (select id from public.article_edit_requests where body like '%ঠিকানাসহ সংশোধন।%'),
+      'approve')$$,
   'Approving applies the proposed address beside the proposed text'
 );
 reset role;
@@ -1780,7 +1712,7 @@ select lives_ok(
   $$select public.update_own_article(
       (select id from public.articles where title = 'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত'),
       'লেখার মধ্যে ছবি বসানো প্রতিবেদন — সংশোধিত', null,
-      repeat('পুরোনো পথের সংশোধন। ', 12), 'পুরোনো সম্পাদনা পথ পরীক্ষা')$$,
+      repeat('পুরোনো পথের সংশোধন। ', 12))$$,
   'The old self-edit path still answers its callers'
 );
 reset role;
@@ -1811,22 +1743,21 @@ select lives_ok(
   $$select public.submit_spotlight_edit(
       (select id from public.spotlight_posts where title = 'যাচাইযোগ্য নতুন ইস্যু'),
       'যাচাইযোগ্য নতুন ইস্যু',
-      'সংশোধিত বিবরণ। ' || repeat('পরীক্ষামূলক বাক্য। ', 8),
-      'বিবরণে তথ্য যোগ')$$,
+      'সংশোধিত বিবরণ। ' || repeat('পরীক্ষামূলক বাক্য। ', 8))$$,
   'An author can request an edit to their own Spotlight post'
 );
 select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
 select throws_ok(
   $$select public.submit_spotlight_edit(
       (select id from public.spotlight_posts where title = 'যাচাইযোগ্য নতুন ইস্যু'),
-      'অন্যের পোস্ট সম্পাদনার অনুরোধ', repeat('অন্যের পোস্ট। ', 8), 'পরীক্ষা')$$,
+      'অন্যের পোস্ট সম্পাদনার অনুরোধ', repeat('অন্যের পোস্ট। ', 8))$$,
   '42501', null,
   'Only the author can request an edit to a Spotlight post'
 );
 select lives_ok(
   $$select public.moderate_spotlight_edit(
-      (select id from public.spotlight_edit_requests where reason = 'বিবরণে তথ্য যোগ'),
-      'approve', 'স্পটলাইট সংশোধন অনুমোদন')$$,
+      (select id from public.spotlight_edit_requests where description like '%সংশোধিত বিবরণ।%'),
+      'approve')$$,
   'A moderator approves the Spotlight correction'
 );
 reset role;
@@ -1865,8 +1796,7 @@ select throws_ok(
         || E'\\n\\n![আটটি](/spotlight/media/93000000-0000-4000-8000-000000000004)'
         || E'\\n\\n![নয়টি](/spotlight/media/93000000-0000-4000-8000-000000000003)'
         || E'\\n\\n![দশটি](/spotlight/media/93000000-0000-4000-8000-000000000002)'
-        || E'\\n\\n![এগারোটি](/spotlight/media/93000000-0000-4000-8000-000000000001)',
-      'ছবি সীমা পরীক্ষা')$$,
+        || E'\\n\\n![এগারোটি](/spotlight/media/93000000-0000-4000-8000-000000000001)')$$,
   'P0001', null,
   'An edit cannot exceed ten distinct gallery and inline pictures together'
 );
@@ -1881,19 +1811,19 @@ select results_eq(
 -- The new doors are callable exactly where they should be, and the reference extractor is not a
 -- client's to call at all.
 select ok(
-  not has_function_privilege('anon', 'public.submit_article_edit(uuid, text, text, text, text, text)', 'execute'),
+  not has_function_privilege('anon', 'public.submit_article_edit(uuid, text, text, text, text)', 'execute'),
   'A signed-out visitor cannot request an edit'
 );
 select ok(
-  has_function_privilege('authenticated', 'public.submit_article_edit(uuid, text, text, text, text, text)', 'execute'),
+  has_function_privilege('authenticated', 'public.submit_article_edit(uuid, text, text, text, text)', 'execute'),
   'A signed-in member can request an edit'
 );
 select ok(
-  not has_function_privilege('anon', 'public.moderate_article_edit(uuid, text, text)', 'execute'),
+  not has_function_privilege('anon', 'public.moderate_article_edit(uuid, text)', 'execute'),
   'A signed-out visitor cannot judge a request'
 );
 select ok(
-  not has_function_privilege('anon', 'public.moderate_spotlight_edit(uuid, text, text)', 'execute'),
+  not has_function_privilege('anon', 'public.moderate_spotlight_edit(uuid, text)', 'execute'),
   'A signed-out visitor cannot judge a Spotlight correction'
 );
 select ok(
@@ -1906,9 +1836,9 @@ select has_function(
 );
 
 -- ---------------------------------------------------------------------------
--- Permanent deletion. A story can leave the archive for good, but only the desk may do it, only
--- with a reason, and never once money has been recorded against it: the ledger is the author's
--- proof of what they earned and points at the story with `on delete restrict`.
+-- Permanent deletion. A story can leave the archive for good, but only the desk may do it, and
+-- never once money has been recorded against it: the ledger is the author's proof of what they
+-- earned and points at the story with `on delete restrict`.
 -- ---------------------------------------------------------------------------
 insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, published_at)
   select '22000000-0000-4000-8000-000000000002', c.id, 'muchhe-felar-songbad', 'মুছে ফেলার প্রতিবেদন',
@@ -1918,8 +1848,8 @@ insert into public.articles (author_id, category_id, slug, title, excerpt, body,
   select '22000000-0000-4000-8000-000000000002', c.id, 'artha-thaka-songbad', 'অর্থযুক্ত প্রতিবেদন',
          'অর্থ নির্ধারিত হয়েছে এমন প্রতিবেদন', repeat('অস্থায়ী প্রতিবেদনের অংশ। ', 6), 'published', now()
     from public.categories c where c.slug = 'porikkha';
-insert into public.earnings_ledger (user_id, article_id, entry_type, amount_tk, reason)
-  select '22000000-0000-4000-8000-000000000002', a.id, 'article_earning_available', 500, 'পরীক্ষার অর্থ'
+insert into public.earnings_ledger (user_id, article_id, entry_type, amount_tk)
+  select '22000000-0000-4000-8000-000000000002', a.id, 'article_earning_available', 500
     from public.articles a where a.slug = 'artha-thaka-songbad';
 
 set local role authenticated;
@@ -1927,8 +1857,7 @@ select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
 select throws_ok(
   $$select public.admin_delete_article(
-      (select id from public.articles where slug = 'muchhe-felar-songbad'),
-      'নিজের প্রতিবেদন মুছতে চাই')$$,
+      (select id from public.articles where slug = 'muchhe-felar-songbad'))$$,
   '42501', null,
   'A reporter cannot delete a story for good'
 );
@@ -1936,22 +1865,13 @@ select throws_ok(
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select throws_ok(
   $$select public.admin_delete_article(
-      (select id from public.articles where slug = 'muchhe-felar-songbad'),
-      'না')$$,
-  'P0001', null,
-  'A permanent deletion has to say why'
-);
-select throws_ok(
-  $$select public.admin_delete_article(
-      (select id from public.articles where slug = 'artha-thaka-songbad'),
-      'ভুল করে প্রকাশিত হয়েছিল')$$,
+      (select id from public.articles where slug = 'artha-thaka-songbad'))$$,
   'P0001', null,
   'A story that already paid its author cannot be erased'
 );
 select lives_ok(
   $$select public.admin_delete_article(
-      (select id from public.articles where slug = 'muchhe-felar-songbad'),
-      'ভুল করে প্রকাশিত হয়েছিল')$$,
+      (select id from public.articles where slug = 'muchhe-felar-songbad'))$$,
   'The desk can delete a story for good'
 );
 reset role;
@@ -1964,13 +1884,8 @@ select isnt_empty(
   $$select 1 from public.articles where slug = 'artha-thaka-songbad'$$,
   'The story that paid its author is still there to be withheld instead'
 );
-select results_eq(
-  $$select details->>'slug' from public.admin_audit_log where action = 'delete_article'$$,
-  $$values ('muchhe-felar-songbad')$$,
-  'The deletion is written to the accountability log with the story it erased'
-);
 select ok(
-  not has_function_privilege('anon', 'public.admin_delete_article(uuid, text)', 'execute'),
+  not has_function_privilege('anon', 'public.admin_delete_article(uuid)', 'execute'),
   'A signed-out visitor cannot delete a story'
 );
 

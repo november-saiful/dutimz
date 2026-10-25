@@ -109,7 +109,6 @@ export const previewMember = {
       created_at: "2026-09-24T09:00:00.000Z",
       published_at: "2026-09-26T09:00:00.000Z",
       rejected_at: null,
-      rejection_reason: null,
     },
     {
       id: "preview-2",
@@ -119,7 +118,6 @@ export const previewMember = {
       created_at: "2026-09-04T09:00:00.000Z",
       published_at: "2026-09-06T09:00:00.000Z",
       rejected_at: null,
-      rejection_reason: null,
     },
     {
       id: "preview-3",
@@ -129,7 +127,6 @@ export const previewMember = {
       created_at: "2026-10-02T09:00:00.000Z",
       published_at: null,
       rejected_at: null,
-      rejection_reason: null,
     },
     {
       id: "preview-4",
@@ -139,7 +136,6 @@ export const previewMember = {
       created_at: "2026-09-18T09:00:00.000Z",
       published_at: null,
       rejected_at: "2026-09-21T09:00:00.000Z",
-      rejection_reason: "তথ্যসূত্র যাচাই করা যায়নি।",
     },
   ],
   spotlights: [

@@ -535,7 +535,6 @@ test('every form renders through the shared field primitives', async () => {
     'components/account/reporter-application.tsx',
     'components/account/balance-view.tsx',
     'components/account/admin-dashboard.tsx',
-    'components/account/moderation-queue.tsx',
     'components/account/questionnaire-fields.tsx',
     'components/account/gallery-uploader.tsx',
     'components/profile/profile-edit-dialog.tsx',
@@ -1020,6 +1019,20 @@ test('the desk manages stories from the panel, not only the pending queue', asyn
   assert.match(articles, /"admin_delete_article"/, 'erasing a story goes through the audited RPC');
   // The author is chosen by name and resolved through the administrator-only directory.
   assert.match(articles, /admin_member_records/);
+});
+
+test('the desk can tick several stories and erase them in one action', async () => {
+  const articles = await readProjectFile('components/account/admin-articles.tsx');
+  // A box per row, and one in the header that covers the loaded page and shows a dash when only
+  // some rows are ticked.
+  assert.match(articles, /type="checkbox"/, 'a story can be ticked');
+  assert.match(articles, /indeterminate/, 'the header box reports a partial selection');
+  assert.match(articles, /নির্বাচিতগুলো মুছুন/, 'the batch action is labelled');
+  // The batch is the same audited decision, once per story, and a paid story is named and left
+  // out before the batch starts rather than failing halfway through it.
+  assert.match(articles, /admin_delete_article/, 'the batch uses the audited delete');
+  assert.match(articles, /earnings_ledger/, 'the batch reads which stories have been paid first');
+  assert.doesNotMatch(articles, /\.delete\(/, 'still no client table write');
 });
 
 test('article reader keeps reactions, bookmarks, share, corrections, and comments', async () => {
@@ -1530,31 +1543,22 @@ test('a story is submitted with the excerpt argument the RPC requires', async ()
   );
 });
 
-test('the desk is not forced to type a reason, and is told why a username was refused', async () => {
+test('the desk decides without a written reason, and is told why a username was refused', async () => {
+  // Every desk decision used to demand a reason, and every dialog carried a textarea for it.
+  // The reason is gone from the client entirely: no field, no argument, no placeholder text.
+  for (const path of [
+    'components/account/admin-dashboard.tsx',
+    'components/account/admin-articles.tsx',
+    'components/account/moderation-queue.tsx',
+    'components/account/pending-edits.tsx',
+    'components/account/content-edit-dialog.tsx',
+  ]) {
+    const source = await readProjectFile(path);
+    assert.doesNotMatch(source, /p_reason/, `${path} must not send a reason`);
+    assert.doesNotMatch(source, /কারণ/, `${path} must not ask for a reason`);
+  }
   const admin = await readProjectFile('components/account/admin-dashboard.tsx');
-  // Scoped to the member dialog: the withdrawal, Spotlight and balance forms still label
-  // their own reason required, which is deliberate.
-  assert.match(
-    admin,
-    /label="কারণ \(ঐচ্ছিক\)"/,
-    'the member dialog reason field must say it is optional',
-  );
-  const reasonField = admin.slice(
-    admin.indexOf('id="edit-reason"'),
-    admin.indexOf('</Field>', admin.indexOf('id="edit-reason"')),
-  );
-  assert.notEqual(reasonField.length, 0, 'the member dialog must have a reason field');
-  assert.doesNotMatch(
-    reasonField,
-    /minLength/,
-    'the member reason field must not enforce a minimum length',
-  );
-  assert.doesNotMatch(
-    admin,
-    /editReason\.trim\(\)\.length < 3/,
-    'the member dialog must not block on a short reason',
-  );
-  assert.match(admin, /NO_REASON/, 'a blank reason is recorded as one that was not given');
+  assert.doesNotMatch(admin, /NO_REASON/, 'the placeholder reason went with the field');
   assert.match(
     admin,
     /USERNAME_PATTERN/,
@@ -1650,7 +1654,7 @@ test('the member dashboard separates identity, news and spotlights', async () =>
     assert.ok(dashboard.includes(label), `the ${label} tab must exist`);
   }
   assert.match(dashboard, /get_my_articles/, 'the news tab reads the member\'s own stories');
-  assert.match(dashboard, /rejection_reason/, 'a rejected story must show the reason it was refused');
+  assert.doesNotMatch(dashboard, /rejection_reason/, 'the refusal reason is no longer recorded or shown');
   assert.match(dashboard, /spotlight_posts/, 'the spotlight tab lists the member\'s own issues');
   assert.doesNotMatch(dashboard, /UUID/, 'no dashboard field may ask for a raw id');
 });

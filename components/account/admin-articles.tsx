@@ -29,7 +29,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextContent } from "@/components/ui/rich-text-content";
 import { revalidateReaders } from "@/lib/desk-client";
-import { errorMessage } from "@/lib/errors";
+import { errorMessage, reportError } from "@/lib/errors";
 import { inlineMediaIds } from "@/lib/richtext";
 import { supabaseBrowser } from "@/lib/supabase";
 import { bn, formatDateBn } from "@/lib/site";
@@ -109,6 +109,15 @@ export function AdminArticles() {
   // What the visible list was actually fetched for. The header reads this rather than the live
   // controls, so the count never describes a filter the table has not applied yet.
   const [scope, setScope] = React.useState({ status: "all", query: "" });
+  // Ticked rows. The desk can erase several stories in one go, so the set outlives a single row's
+  // dialog; it is cleared whenever the list itself is replaced.
+  const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = React.useState(false);
+  // Which of the ticked stories already paid their author. `null` while the read is in flight, so
+  // the confirm button cannot be pressed before the answer is known.
+  const [bulkPaid, setBulkPaid] = React.useState<Set<string> | null>(null);
+  const [bulkBusy, setBulkBusy] = React.useState(false);
+  const selectAllRef = React.useRef<HTMLInputElement>(null);
 
   // The edit dialog holds the whole body, so it is its own state rather than a field on the row.
   const [editing, setEditing] = React.useState<Article | null>(null);
@@ -116,7 +125,6 @@ export function AdminArticles() {
   const [editSlug, setEditSlug] = React.useState("");
   const [editExcerpt, setEditExcerpt] = React.useState("");
   const [editBody, setEditBody] = React.useState("");
-  const [editReason, setEditReason] = React.useState("");
 
   // Byline and dateline travel together in one desk operation.
   const [publishing, setPublishing] = React.useState<Article | null>(null);
@@ -125,18 +133,15 @@ export function AdminArticles() {
   const [authorMatches, setAuthorMatches] = React.useState<Member[]>([]);
   const [author, setAuthor] = React.useState<Member | null>(null);
   const [publishDate, setPublishDate] = React.useState("");
-  const [publishReason, setPublishReason] = React.useState("");
 
   // Taking a story down (or putting it back) is its own audited decision.
   const [deciding, setDeciding] = React.useState<Article | null>(null);
-  const [decideReason, setDecideReason] = React.useState("");
 
   // Erasing a story is the only decision the desk cannot undo, so the dialog says what leaves with
   // it. A story that has been paid cannot be erased at all — the ledger points at it with
   // `on delete restrict` — and that refusal is read here, because `errorMessage` deliberately
   // hides the server's own sentence.
   const [deleting, setDeleting] = React.useState<Article | null>(null);
-  const [deleteReason, setDeleteReason] = React.useState("");
   const [deleteAward, setDeleteAward] = React.useState<Award | null>(null);
   const [deleteChecking, setDeleteChecking] = React.useState(false);
 
@@ -147,7 +152,6 @@ export function AdminArticles() {
   const [awardLoaded, setAwardLoaded] = React.useState(false);
   const [awarding, setAwarding] = React.useState(false);
   const [awardAmount, setAwardAmount] = React.useState("");
-  const [awardReason, setAwardReason] = React.useState("");
   const [awardMessage, setAwardMessage] = React.useState("");
 
   // The pictures the story's own body already draws. The preview's attachment strip skips them so
@@ -190,6 +194,8 @@ export function AdminArticles() {
         setTotal(count ?? loaded);
         setHasMore(count == null ? rows.length === PAGE_SIZE : loaded < count);
         setScope({ status: nextStatus, query: nextQuery.trim() });
+        // A ticked row that is no longer on screen must not be erased by a later bulk action.
+        if (!append) setSelected(new Set());
       } catch (err) {
         setError(errorMessage("admin articles", err, "প্রতিবেদনের তালিকা লোড করা যায়নি। আবার চেষ্টা করুন।"));
       } finally {
@@ -212,17 +218,12 @@ export function AdminArticles() {
     setEditSlug(article.slug);
     setEditExcerpt(article.excerpt);
     setEditBody(article.body);
-    setEditReason("");
   }
 
   async function saveEdit() {
     if (!editing) return;
     setError("");
     setNotice("");
-    if (editReason.trim().length < 3) {
-      setError("সম্পাদনার কারণ লিখুন (অন্তত ৩ অক্ষর)।");
-      return;
-    }
     setBusy(`edit-${editing.id}`);
     try {
       const { error: saveError } = await supabaseBrowser().rpc("admin_update_article", {
@@ -230,7 +231,6 @@ export function AdminArticles() {
         p_title: editTitle.trim(),
         p_excerpt: editExcerpt.trim(),
         p_body: editBody,
-        p_reason: editReason.trim(),
         p_slug: editSlug.trim().toLowerCase() || null,
       });
       if (saveError) {
@@ -263,7 +263,6 @@ export function AdminArticles() {
         ? new Date(article.published_at).toISOString().slice(0, 16)
         : "",
     );
-    setPublishReason("");
   }
 
   async function findAuthors(term: string) {
@@ -292,10 +291,6 @@ export function AdminArticles() {
     if (!publishing) return;
     setError("");
     setNotice("");
-    if (publishReason.trim().length < 3) {
-      setError("পরিবর্তনের কারণ লিখুন (অন্তত ৩ অক্ষর)।");
-      return;
-    }
     // The server needs an id, but the desk should never type one: the search above resolves a
     // name to the member row, and that row is what is sent.
     if (byline === "author" && !author) {
@@ -309,7 +304,6 @@ export function AdminArticles() {
         p_byline: byline,
         p_author_id: author?.id ?? null,
         p_published_at: publishDate ? new Date(publishDate).toISOString() : null,
-        p_reason: publishReason.trim(),
       });
       if (publishError) {
         setError(
@@ -333,16 +327,11 @@ export function AdminArticles() {
   async function decideStatus(article: Article, next: "published" | "rejected") {
     setError("");
     setNotice("");
-    if (decideReason.trim().length < 3) {
-      setError("সিদ্ধান্তের কারণ লিখুন (অন্তত ৩ অক্ষর)।");
-      return;
-    }
     setBusy(`status-${article.id}`);
     try {
       const { error: statusError } = await supabaseBrowser().rpc("admin_set_article_status", {
         p_article_id: article.id,
         p_status: next,
-        p_reason: decideReason.trim(),
       });
       if (statusError) {
         setError(errorMessage("article status", statusError, "প্রতিবেদনের অবস্থা বদলানো যায়নি। আবার চেষ্টা করুন।"));
@@ -363,7 +352,6 @@ export function AdminArticles() {
 
   async function openDelete(article: Article) {
     setDeleting(article);
-    setDeleteReason("");
     setDeleteAward(null);
     setDeleteChecking(true);
     try {
@@ -392,15 +380,10 @@ export function AdminArticles() {
     if (!deleting) return;
     setError("");
     setNotice("");
-    if (deleteReason.trim().length < 3) {
-      setError("মুছে ফেলার কারণ লিখুন (অন্তত ৩ অক্ষর)।");
-      return;
-    }
     setBusy(`delete-${deleting.id}`);
     try {
       const { error: deleteError } = await supabaseBrowser().rpc("admin_delete_article", {
         p_article_id: deleting.id,
-        p_reason: deleteReason.trim(),
       });
       if (deleteError) {
         setError(
@@ -422,13 +405,86 @@ export function AdminArticles() {
     }
   }
 
+  async function openBulkDelete() {
+    if (selected.size === 0) return;
+    setBulkOpen(true);
+    setBulkPaid(null);
+    try {
+      const { data, error: readError } = await supabaseBrowser()
+        .from("earnings_ledger")
+        .select("article_id")
+        .in("article_id", [...selected])
+        .in("entry_type", ["article_earning_available", "article_earning_held"]);
+      if (readError) {
+        setError(
+          errorMessage("bulk delete award read", readError, "অর্থ নির্ধারিত হয়েছে কি না দেখা যায়নি।"),
+        );
+        return;
+      }
+      setBulkPaid(
+        new Set(
+          ((data as { article_id: string | null }[] | null) ?? [])
+            .map((row) => row.article_id)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      );
+    } catch (err) {
+      setError(errorMessage("bulk delete award read", err, "অর্থ নির্ধারিত হয়েছে কি না দেখা যায়নি।"));
+    }
+  }
+
+  async function deleteSelected() {
+    if (bulkPaid === null) return;
+    // A story that has been paid is refused by the server, so it is left out here and named in the
+    // dialog instead of failing halfway through the batch.
+    const deletable = [...selected].filter((id) => !bulkPaid.has(id));
+    if (deletable.length === 0) return;
+    setBulkBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const supabase = supabaseBrowser();
+      let failed = 0;
+      for (const id of deletable) {
+        const { error: deleteError } = await supabase.rpc("admin_delete_article", { p_article_id: id });
+        if (deleteError) {
+          failed += 1;
+          reportError("article bulk delete", deleteError);
+        }
+      }
+      const removed = deletable.length - failed;
+      const skipped = selected.size - deletable.length;
+      // One invalidation covers the batch: every story in it may have been live somewhere.
+      if (removed > 0) void revalidateReaders();
+      if (removed > 0) {
+        setNotice(
+          [
+            `${countLabel(removed)}টি প্রতিবেদন স্থায়ীভাবে মুছে ফেলা হয়েছে।`,
+            skipped > 0 ? `${countLabel(skipped)}টিতে অর্থ নির্ধারিত থাকায় ছাড়া হয়েছে।` : "",
+          ]
+            .filter(Boolean)
+            .join(" "),
+        );
+      }
+      if (failed > 0) {
+        setError(`${countLabel(failed)}টি প্রতিবেদন মোছা যায়নি। আবার চেষ্টা করুন।`);
+      }
+      setBulkOpen(false);
+      setSelected(new Set());
+      await load(status, query, 0, false);
+    } catch (err) {
+      setError(errorMessage("article bulk delete", err, "প্রতিবেদনগুলো মোছা যায়নি। আবার চেষ্টা করুন।"));
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
   async function openPreview(article: Article) {
     setPreviewing(article);
     setAward(null);
     setAwardLoaded(false);
     setAwarding(false);
     setAwardAmount("");
-    setAwardReason("");
     setAwardMessage("");
     try {
       const { data, error: readError } = await supabaseBrowser()
@@ -458,16 +514,11 @@ export function AdminArticles() {
       setAwardMessage("টাকার পরিমাণ ১ থেকে ১০,০০,০০০ টাকার মধ্যে লিখুন।");
       return;
     }
-    if (awardReason.trim().length < 3) {
-      setAwardMessage("কারণ লিখুন (অন্তত ৩ অক্ষর)।");
-      return;
-    }
     setBusy(`award-${previewing.id}`);
     try {
       const { data, error: awardError } = await supabaseBrowser().rpc("admin_award_article", {
         p_article_id: previewing.id,
         p_amount_tk: amount,
-        p_reason: awardReason.trim(),
       });
       if (awardError) {
         setAwardMessage(errorMessage("article award", awardError, "অর্থ নির্ধারণ করা যায়নি। আবার চেষ্টা করুন।"));
@@ -483,6 +534,14 @@ export function AdminArticles() {
       setBusy(null);
     }
   }
+
+  const allSelected = articles.length > 0 && articles.every((article) => selected.has(article.id));
+  const someSelected = selected.size > 0 && !allSelected;
+
+  // The header box shows a dash while only some of the loaded rows are ticked.
+  React.useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = someSelected;
+  }, [someSelected]);
 
   // "মোট" only when nothing narrows the list, so the number always names exactly what it counts.
   // Before the first page arrives the count is unknown, and the header says nothing rather than zero.
@@ -541,9 +600,38 @@ export function AdminArticles() {
               </Button>
             ))}
           </div>
+          {selected.size > 0 && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2">
+              <span className="text-sm font-medium">{countLabel(selected.size)}টি নির্বাচিত</span>
+              <Button size="sm" variant="destructive" onClick={() => void openBulkDelete()}>
+                <Trash2 className="size-4" aria-hidden />
+                নির্বাচিতগুলো মুছুন
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+                নির্বাচন বাতিল
+              </Button>
+            </div>
+          )}
           <Table aria-label="প্রতিবেদনের তালিকা">
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    className="size-4 cursor-pointer accent-primary align-middle"
+                    aria-label="দৃশ্যমান সব প্রতিবেদন নির্বাচন করুন"
+                    checked={allSelected}
+                    disabled={loading || articles.length === 0}
+                    onChange={(event) =>
+                      setSelected(
+                        event.target.checked
+                          ? new Set(articles.map((article) => article.id))
+                          : new Set(),
+                      )
+                    }
+                  />
+                </TableHead>
                 <TableHead>প্রতিবেদন</TableHead>
                 <TableHead>অবস্থা</TableHead>
                 <TableHead className="hidden md:table-cell">লেখক</TableHead>
@@ -556,14 +644,14 @@ export function AdminArticles() {
             <TableBody>
               {loading && (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                     তালিকা লোড হচ্ছে…
                   </TableCell>
                 </TableRow>
               )}
               {!loading && articles.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                     এই ছাঁকনিতে কোনো প্রতিবেদন নেই।
                   </TableCell>
                 </TableRow>
@@ -572,6 +660,21 @@ export function AdminArticles() {
                 const live = article.status === "published";
                 return (
                   <TableRow key={article.id}>
+                    <TableCell>
+                      <input
+                        type="checkbox"
+                        className="size-4 cursor-pointer accent-primary"
+                        aria-label={`${article.title} নির্বাচন করুন`}
+                        checked={selected.has(article.id)}
+                        onChange={(event) =>
+                          setSelected((prev) =>
+                            event.target.checked
+                              ? new Set([...prev, article.id])
+                              : new Set([...prev].filter((id) => id !== article.id)),
+                          )
+                        }
+                      />
+                    </TableCell>
                     <TableCell>
                       <p className="text-sm font-medium">{article.title}</p>
                       <p className="text-xs text-muted-foreground">
@@ -625,10 +728,7 @@ export function AdminArticles() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => {
-                            setDeciding(article);
-                            setDecideReason("");
-                          }}
+                          onClick={() => setDeciding(article)}
                           aria-label={live ? `${article.title} প্রকাশ থেকে সরান` : `${article.title} প্রকাশ করুন`}
                           title={live ? "প্রকাশ থেকে সরান" : "প্রকাশ করুন"}
                         >
@@ -719,16 +819,6 @@ export function AdminArticles() {
                 value={editBody}
                 rows={10}
                 onChange={(event) => setEditBody(event.target.value)}
-              />
-            </Field>
-            <Field label="সম্পাদনার কারণ" htmlFor="edit-reason" hint="কারণ অডিট লগে সংরক্ষিত হয়।">
-              <Textarea
-                id="edit-reason"
-                value={editReason}
-                rows={2}
-                minLength={3}
-                maxLength={500}
-                onChange={(event) => setEditReason(event.target.value)}
               />
             </Field>
           </div>
@@ -826,16 +916,6 @@ export function AdminArticles() {
                 />
               </Field>
             </FieldGrid>
-            <Field label="পরিবর্তনের কারণ" htmlFor="pub-reason" hint="কারণ অডিট লগে সংরক্ষিত হয়।">
-              <Textarea
-                id="pub-reason"
-                value={publishReason}
-                rows={2}
-                minLength={3}
-                maxLength={500}
-                onChange={(event) => setPublishReason(event.target.value)}
-              />
-            </Field>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPublishing(null)}>
@@ -866,16 +946,6 @@ export function AdminArticles() {
               )}
             </DialogDescription>
           </DialogHeader>
-          <Field label="সিদ্ধান্তের কারণ" htmlFor="decide-reason" hint="কারণ অডিট লগে সংরক্ষিত হয়।">
-            <Textarea
-              id="decide-reason"
-              value={decideReason}
-              rows={2}
-              minLength={3}
-              maxLength={500}
-              onChange={(event) => setDecideReason(event.target.value)}
-            />
-          </Field>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeciding(null)}>
               বাতিল
@@ -920,16 +990,6 @@ export function AdminArticles() {
               স্থায়ীভাবে মুছে ফেলা যায় না — প্রকাশ থেকে সরিয়ে রাখুন।
             </p>
           )}
-          <Field label="মুছে ফেলার কারণ" htmlFor="delete-reason" hint="কারণ অডিট লগে সংরক্ষিত হয়।">
-            <Textarea
-              id="delete-reason"
-              value={deleteReason}
-              rows={2}
-              minLength={3}
-              maxLength={500}
-              onChange={(event) => setDeleteReason(event.target.value)}
-            />
-          </Field>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>
               বাতিল
@@ -940,6 +1000,44 @@ export function AdminArticles() {
               disabled={busy !== null || deleteChecking || deleteAward !== null}
             >
               {busy?.startsWith("delete-") ? "মুছে ফেলা হচ্ছে…" : "স্থায়ীভাবে মুছুন"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* The same decision for a batch. It names the stories that will be left behind before the
+          desk confirms, so a paid story cannot look like it was erased with the rest. */}
+      <Dialog open={bulkOpen} onOpenChange={(open) => !open && setBulkOpen(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>নির্বাচিত প্রতিবেদনগুলো স্থায়ীভাবে মুছুন</DialogTitle>
+            <DialogDescription>
+              {countLabel(selected.size)}টি প্রতিবেদন — মুছে ফেললে আর ফিরিয়ে আনা যাবে না।
+            </DialogDescription>
+          </DialogHeader>
+          <p className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+            প্রতিটি প্রতিবেদনের সঙ্গে তার ছবি, মন্তব্য, প্রতিক্রিয়া, বুকমার্ক ও সংশোধনের ইতিহাসও
+            স্থায়ীভাবে মুছে যাবে।
+          </p>
+          {bulkPaid === null && (
+            <p className="text-sm text-muted-foreground">অর্থ নির্ধারিত হয়েছে কি না দেখা হচ্ছে…</p>
+          )}
+          {bulkPaid !== null && bulkPaid.size > 0 && (
+            <p className="text-sm text-destructive" role="alert">
+              এর মধ্যে {countLabel(bulkPaid.size)}টিতে অর্থ নির্ধারিত হয়েছে; অর্থের হিসাব রক্ষার জন্য
+              সেগুলো বাদ যাবে — শুধু প্রকাশ থেকে সরিয়ে রাখা যাবে।
+            </p>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkOpen(false)}>
+              বাতিল
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void deleteSelected()}
+              disabled={bulkBusy || bulkPaid === null || bulkPaid.size === selected.size}
+            >
+              {bulkBusy ? "মুছে ফেলা হচ্ছে…" : "স্থায়ীভাবে মুছুন"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1016,16 +1114,6 @@ export function AdminArticles() {
                         step={1}
                         value={awardAmount}
                         onChange={(event) => setAwardAmount(event.target.value)}
-                      />
-                    </Field>
-                    <Field label="কারণ" htmlFor="award-reason" hint="কারণ অডিট লগে সংরক্ষিত হয়।">
-                      <Textarea
-                        id="award-reason"
-                        value={awardReason}
-                        rows={2}
-                        minLength={3}
-                        maxLength={500}
-                        onChange={(event) => setAwardReason(event.target.value)}
                       />
                     </Field>
                     <div className="flex justify-end gap-2">

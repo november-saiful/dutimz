@@ -42,9 +42,7 @@ test('the anonymity rules keep their pgTAP coverage', () => {
     'The reporter can read back their own attribution',
     'A moderator cannot read the attribution either; it belongs to the desk administrator',
     'A signed-out visitor cannot read the attribution table',
-    'The moderation audit still records the real reporter behind the anonymous story',
     'Approving an anonymous story credits nothing: the desk sets any amount for it',
-    'An admin edit of an anonymous story still records the real reporter',
     'Public search still finds an anonymous story and exposes no author with it',
   ];
   const missing = required.filter((description) => !suite.includes(description));
@@ -53,6 +51,8 @@ test('the anonymity rules keep their pgTAP coverage', () => {
 
 test('the member records rules keep their pgTAP coverage', () => {
   const required = [
+    'The moderation log is gone',
+    'The accountability log is gone',
     'A reporter cannot list the member records',
     'A reporter cannot edit another member record',
     'The desk sees every member with their role and how complete their record is',
@@ -64,10 +64,8 @@ test('the member records rules keep their pgTAP coverage', () => {
     'A username already taken by another member is refused as a sentence, not an index violation',
     'A hall resident needs a hall name to go with it',
     'A payout method and its number have to arrive together',
-    'Every member record change is written to the accountability log',
     'A member cannot change their own username through the profile API',
     "The desk can change another member''s username and correct their details together",
-    'The log keeps what the desk saw as well as what it saved',
   ];
   const missing = required.filter((description) => !suite.includes(description));
   assert.deepEqual(missing, [], `member record coverage disappeared: ${missing.join('; ')}`);
@@ -111,7 +109,6 @@ test('the excerpt, visibility and spotlight rules keep their pgTAP coverage', ()
     'The desk can restore a hidden post',
     'The desk can remove a post outright',
     'A post removed by the desk is gone',
-    'Every Spotlight desk decision is recorded in the moderation log',
   ];
   const missing = required.filter((description) => !suite.includes(description));
   assert.deepEqual(missing, [], `excerpt/visibility/spotlight coverage disappeared: ${missing.join('; ')}`);

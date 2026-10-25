@@ -5,9 +5,7 @@ import * as React from "react";
 import { AuthedMediaImage } from "@/components/article/authed-media-image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field } from "@/components/ui/field";
 import { RichTextContent } from "@/components/ui/rich-text-content";
-import { Textarea } from "@/components/ui/textarea";
 import { revalidateReaders } from "@/lib/desk-client";
 import { errorMessage } from "@/lib/errors";
 import { bn, formatDateBn } from "@/lib/site";
@@ -22,9 +20,6 @@ import { one, supabaseBrowser } from "@/lib/supabase";
   same rendering the reader gets, or a formatting mistake would slip through a review that looked
   fine. Both sides are drawn with `RichTextContent` for that reason, and both are put in a scroll
   box because a story body is longer than a review card.
-
-  The reason is mandatory for a rejection as much as for an approval: it is what the author is told,
-  and it is what the accountability log keeps.
 */
 
 type Editor = { username: string; display_name: string };
@@ -35,7 +30,6 @@ type ArticleEditRequest = {
   excerpt: string;
   body: string;
   slug: string | null;
-  reason: string;
   created_at: string;
   article: {
     id: string;
@@ -52,17 +46,16 @@ type SpotlightEditRequest = {
   id: string;
   title: string;
   description: string;
-  reason: string;
   created_at: string;
   post: { id: string; title: string; description: string } | null;
   editor: Editor | Editor[] | null;
 };
 
 const ARTICLE_REQUEST_SELECT =
-  "id,title,excerpt,body,slug,reason,created_at,article:articles!article_edit_requests_article_id_fkey(id,slug,title,excerpt,body,status),editor:profiles!article_edit_requests_editor_id_fkey(username,display_name)";
+  "id,title,excerpt,body,slug,created_at,article:articles!article_edit_requests_article_id_fkey(id,slug,title,excerpt,body,status),editor:profiles!article_edit_requests_editor_id_fkey(username,display_name)";
 
 const SPOTLIGHT_REQUEST_SELECT =
-  "id,title,description,reason,created_at,post:spotlight_posts!spotlight_edit_requests_post_id_fkey(id,title,description),editor:profiles!spotlight_edit_requests_editor_id_fkey(username,display_name)";
+  "id,title,description,created_at,post:spotlight_posts!spotlight_edit_requests_post_id_fkey(id,title,description),editor:profiles!spotlight_edit_requests_editor_id_fkey(username,display_name)";
 
 function editorName(request: { editor: Editor | Editor[] | null }): string {
   const author = one(request.editor);
@@ -111,7 +104,6 @@ export function PendingEdits() {
   const [allowed, setAllowed] = React.useState<boolean | null>(null);
   const [articles, setArticles] = React.useState<ArticleEditRequest[]>([]);
   const [spotlights, setSpotlights] = React.useState<SpotlightEditRequest[]>([]);
-  const [reasons, setReasons] = React.useState<Record<string, string>>({});
   const [error, setError] = React.useState("");
   const [notice, setNotice] = React.useState("");
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -221,11 +213,6 @@ export function PendingEdits() {
     id: string,
     decision: "approve" | "reject",
   ) {
-    const reason = (reasons[id] ?? "").trim();
-    if (reason.length < 3) {
-      setError("সিদ্ধান্তের কারণ লিখুন (অন্তত ৩ অক্ষর)।");
-      return;
-    }
     setBusy(id);
     setError("");
     setNotice("");
@@ -236,12 +223,10 @@ export function PendingEdits() {
           ? await supabase.rpc("moderate_article_edit", {
               p_request_id: id,
               p_decision: decision,
-              p_reason: reason,
             })
           : await supabase.rpc("moderate_spotlight_edit", {
               p_request_id: id,
               p_decision: decision,
-              p_reason: reason,
             });
       if (result.error) {
         setError(
@@ -257,11 +242,6 @@ export function PendingEdits() {
       // the pages showing it are invalidated here — the same call the moderation queue makes for an
       // approval, because it is the same consequence.
       void revalidateReaders();
-      setReasons((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
       setNotice(
         decision === "approve"
           ? "সম্পাদনা অনুমোদিত ও প্রকাশিত হয়েছে।"
@@ -353,9 +333,6 @@ export function PendingEdits() {
                   ঠিকানা: /{request.article.slug} → /{request.slug}
                 </p>
               )}
-              <p className="mt-2 text-sm text-muted-foreground">
-                কারণ: {request.reason}
-              </p>
               <div className="mt-3">
                 <Proposal
                   label="প্রস্তাবিত"
@@ -364,25 +341,7 @@ export function PendingEdits() {
                   scope="article"
                 />
               </div>
-              <div className="mt-3 grid gap-2">
-                <Field
-                  label="সিদ্ধান্তের কারণ (আবশ্যক)"
-                  htmlFor={`ereason-${request.id}`}
-                  hint="কারণ লেখকের কাছে পৌঁছায় ও অডিট লগে সংরক্ষিত হয়।"
-                >
-                  <Textarea
-                    id={`ereason-${request.id}`}
-                    value={reasons[request.id] ?? ""}
-                    onChange={(e) =>
-                      setReasons({ ...reasons, [request.id]: e.target.value })
-                    }
-                    rows={2}
-                    minLength={3}
-                    maxLength={500}
-                    required
-                  />
-                </Field>
-                <div className="flex gap-2">
+              <div className="mt-3 flex gap-2">
                   <Button
                     size="sm"
                     disabled={busy === request.id}
@@ -396,9 +355,8 @@ export function PendingEdits() {
                     disabled={busy === request.id}
                     onClick={() => void decide("article", request.id, "reject")}
                   >
-                    প্রত্যাখ্যান
-                  </Button>
-                </div>
+                  প্রত্যাখ্যান
+                </Button>
               </div>
             </article>
           ))}
@@ -431,9 +389,6 @@ export function PendingEdits() {
                   শিরোনাম: “{request.post.title}” → “{request.title}”
                 </p>
               )}
-              <p className="mt-2 text-sm text-muted-foreground">
-                কারণ: {request.reason}
-              </p>
               <div className="mt-3">
                 <Proposal
                   label="প্রস্তাবিত"
@@ -442,25 +397,7 @@ export function PendingEdits() {
                   scope="spotlight"
                 />
               </div>
-              <div className="mt-3 grid gap-2">
-                <Field
-                  label="সিদ্ধান্তের কারণ (আবশ্যক)"
-                  htmlFor={`sereason-${request.id}`}
-                  hint="কারণ লেখকের কাছে পৌঁছায় ও অডিট লগে সংরক্ষিত হয়।"
-                >
-                  <Textarea
-                    id={`sereason-${request.id}`}
-                    value={reasons[request.id] ?? ""}
-                    onChange={(e) =>
-                      setReasons({ ...reasons, [request.id]: e.target.value })
-                    }
-                    rows={2}
-                    minLength={3}
-                    maxLength={500}
-                    required
-                  />
-                </Field>
-                <div className="flex gap-2">
+              <div className="mt-3 flex gap-2">
                   <Button
                     size="sm"
                     disabled={busy === request.id}
@@ -478,9 +415,8 @@ export function PendingEdits() {
                       void decide("spotlight", request.id, "reject")
                     }
                   >
-                    প্রত্যাখ্যান
-                  </Button>
-                </div>
+                  প্রত্যাখ্যান
+                </Button>
               </div>
             </article>
           ))}

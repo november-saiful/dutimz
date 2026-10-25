@@ -5,8 +5,6 @@ import * as React from "react";
 import { AuthedMediaImage } from "@/components/article/authed-media-image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field } from "@/components/ui/field";
-import { Textarea } from "@/components/ui/textarea";
 import { RichTextContent } from "@/components/ui/rich-text-content";
 import { revalidateReaders } from "@/lib/desk-client";
 import { errorMessage } from "@/lib/errors";
@@ -36,7 +34,6 @@ export function ModerationQueue() {
   const [allowed, setAllowed] = React.useState<boolean | null>(null);
   const [articles, setArticles] = React.useState<PendingArticle[]>([]);
   const [comments, setComments] = React.useState<FlaggedComment[]>([]);
-  const [reasons, setReasons] = React.useState<Record<string, string>>({});
   const [error, setError] = React.useState("");
   const [notice, setNotice] = React.useState("");
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -128,11 +125,6 @@ export function ModerationQueue() {
     id: string,
     decision: string,
   ) {
-    const reason = (reasons[id] ?? "").trim();
-    if (reason.length < 3) {
-      setError("সিদ্ধান্তের কারণ লিখুন (অন্তত ৩ অক্ষর)।");
-      return;
-    }
     setBusy(id);
     setError("");
     setNotice("");
@@ -143,12 +135,10 @@ export function ModerationQueue() {
           ? await supabase.rpc("moderate_article", {
               p_article_id: id,
               p_decision: decision,
-              p_reason: reason,
             })
           : await supabase.rpc("moderate_comment", {
               p_comment_id: id,
               p_decision: decision,
-              p_reason: reason,
             });
       if (result.error) {
         setError(
@@ -164,11 +154,6 @@ export function ModerationQueue() {
       // cached copies of those pages are invalidated; a comment lands on a cached article page the
       // same way. Both decisions go through here, so both go through the same call.
       void revalidateReaders();
-      setReasons((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
       setNotice("সিদ্ধান্ত নথিভুক্ত হয়েছে।");
       await load();
     } catch (err) {
@@ -249,41 +234,22 @@ export function ModerationQueue() {
                   />
                 </div>
               </details>
-              <div className="mt-3 grid gap-2">
-                <Field
-                  label="সিদ্ধান্তের কারণ (আবশ্যক)"
-                  htmlFor={`reason-${article.id}`}
-                  hint="কারণ লেখকের কাছে পৌঁছায় ও অডিট লগে সংরক্ষিত হয়।"
+              <div className="mt-3 flex gap-2">
+                <Button
+                  size="sm"
+                  disabled={busy === article.id}
+                  onClick={() => void decide("article", article.id, "approve")}
                 >
-                  <Textarea
-                    id={`reason-${article.id}`}
-                    value={reasons[article.id] ?? ""}
-                    onChange={(e) =>
-                      setReasons({ ...reasons, [article.id]: e.target.value })
-                    }
-                    rows={2}
-                    minLength={3}
-                    maxLength={500}
-                    required
-                  />
-                </Field>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    disabled={busy === article.id}
-                    onClick={() => void decide("article", article.id, "approve")}
-                  >
-                    অনুমোদন
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    disabled={busy === article.id}
-                    onClick={() => void decide("article", article.id, "reject")}
-                  >
-                    প্রত্যাখ্যান
-                  </Button>
-                </div>
+                  অনুমোদন
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={busy === article.id}
+                  onClick={() => void decide("article", article.id, "reject")}
+                >
+                  প্রত্যাখ্যান
+                </Button>
               </div>
             </article>
           ))}
@@ -307,49 +273,30 @@ export function ModerationQueue() {
                 {comment.articles?.title ?? "প্রতিবেদন"} · {comment.status}
               </p>
               <p className="mt-1 text-sm">{comment.body}</p>
-              <div className="mt-3 grid gap-2">
-                <Field
-                  label="সিদ্ধান্তের কারণ (আবশ্যক)"
-                  htmlFor={`creason-${comment.id}`}
-                  hint="কারণ মন্তব্যটির ইতিহাসে সংরক্ষিত হয়।"
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  disabled={busy === comment.id}
+                  onClick={() => void decide("comment", comment.id, "restore")}
                 >
-                  <Textarea
-                    id={`creason-${comment.id}`}
-                    value={reasons[comment.id] ?? ""}
-                    onChange={(e) =>
-                      setReasons({ ...reasons, [comment.id]: e.target.value })
-                    }
-                    rows={2}
-                    minLength={3}
-                    maxLength={500}
-                    required
-                  />
-                </Field>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    disabled={busy === comment.id}
-                    onClick={() => void decide("comment", comment.id, "restore")}
-                  >
-                    পুনরুদ্ধার
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={busy === comment.id}
-                    onClick={() => void decide("comment", comment.id, "hide")}
-                  >
-                    লুকান
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    disabled={busy === comment.id}
-                    onClick={() => void decide("comment", comment.id, "remove")}
-                  >
-                    অপসারণ
-                  </Button>
-                </div>
+                  পুনরুদ্ধার
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy === comment.id}
+                  onClick={() => void decide("comment", comment.id, "hide")}
+                >
+                  লুকান
+                </Button>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={busy === comment.id}
+                  onClick={() => void decide("comment", comment.id, "remove")}
+                >
+                  অপসারণ
+                </Button>
               </div>
             </article>
           ))}
