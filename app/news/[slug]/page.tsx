@@ -58,8 +58,10 @@ import {
   after a release is served from the cache), and a story published since then is rendered on
   demand and cached like any other. The desk invalidates what it changes; the window is the
   backstop for an approval whose invalidation never arrives.
+
+  Half an hour, because an article changes only when the desk edits it, and the desk says so.
 */
-export const revalidate = 60;
+export const revalidate = 1800;
 
 export async function generateStaticParams(): Promise<{ slug: string }[]> {
   // Slugs only: the render fetches each story itself, and this list is already the one the

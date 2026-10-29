@@ -13,8 +13,11 @@ import {
 /*
   Cached shell: the corrections list loads client-side with a fresh fetch, so
   caching this shell costs no freshness and serves readers from the page cache.
+
+  An hour rather than a minute: the list is fetched client-side, so a shorter window only bought
+  background regenerations of a page whose HTML never changes (see open-next.config.ts).
 */
-export const revalidate = 60;
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "সংশোধন ও তথ্য যাচাই",

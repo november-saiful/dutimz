@@ -36,8 +36,13 @@ import {
   The window below is the fallback, not the mechanism: it bounds how stale the page can be if an
   approval's invalidation never arrives. Regeneration happens in the background queue, off the
   request that triggered it.
+
+  Five minutes rather than one, because the desk is what keeps this page current: an approval
+  invalidates it outright, so a shorter window bought nothing except a background regeneration of
+  the whole front page every minute — which is the load that exhausted the Durable Object quota
+  (open-next.config.ts).
 */
-export const revalidate = 60;
+export const revalidate = 300;
 
 function EmptyDesk() {
   return (

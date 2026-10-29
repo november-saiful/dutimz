@@ -15,7 +15,7 @@
     }
   ],
   // Caching. Routes that export `revalidate` are served from the bucket below and regenerated
-  // by the Durable Object queue; without either binding the adapter falls back to its dummy
+  // by the queue in open-next.config.ts; without either the adapter falls back to its dummy
   // implementations, every public page re-renders on every request, and the site returns
   // `x-nextjs-cache: MISS` forever (which is exactly what the live site did).
   //
@@ -33,10 +33,22 @@
   ],
   "durable_objects": {
     "bindings": [
-      {
-        "name": "NEXT_CACHE_DO_QUEUE",
-        "class_name": "DOQueueHandler"
-      },
+      // Only the tag cache is bound. Revalidation used to have a second Durable Object here
+      // (`NEXT_CACHE_DO_QUEUE` -> `DOQueueHandler`), and it is deliberately gone:
+      //
+      //   - it is billed for every second it is awake at 128 MB, and the Workers Free allowance
+      //     is 13,000 GB-s a day — 28.2 hours of one object. A 60-second window on nine routes
+      //     keeps that object awake more or less permanently, which is what exhausted the daily
+      //     quota and blocked every Durable Object request until the UTC reset;
+      //   - it remembers a failed revalidation in its own SQLite, keyed by a hash that is
+      //     constant for an unchanged entry, and only clears it when the build id changes. One
+      //     transient failure therefore froze that route at `x-nextjs-cache: STALE` until the
+      //     next deploy, while still waking the object on every reader's request.
+      //
+      // open-next.config.ts hands the same HEAD request to `ctx.waitUntil` instead: no idle cost,
+      // no state that outlives the attempt, and a failure is retried by the next stale request.
+      // The `v1` migration below stays because migrations are append-only and the class is still
+      // exported by the generated Worker, so removing the tag would fail the deploy.
       // The tag cache is what makes `revalidatePath` mean anything: the desk's approvals and
       // edits invalidate the cached reading surfaces through it. The class is exported by the
       // generated Worker even if this binding is absent, so a missing binding here degrades
@@ -49,6 +61,8 @@
   },
   // Migrations are append-only: a class that is already deployed has to keep the tag it was
   // created with, so the tag cache gets a tag of its own rather than being folded into v1.
+  // `v1` stays even though `DOQueueHandler` is no longer bound — the class is still exported by
+  // the generated Worker, and dropping a tag that has already been applied is not a redeploy.
   "migrations": [
     {
       "tag": "v1",
@@ -105,10 +119,10 @@
       ],
       "durable_objects": {
         "bindings": [
-          {
-            "name": "NEXT_CACHE_DO_QUEUE",
-            "class_name": "DOQueueHandler"
-          },
+          // No queue binding: revalidation runs in `ctx.waitUntil` inside the Worker itself, so
+          // the preview needs no Durable Object for it either. The tag cache still has to be
+          // declared here — bindings are not inherited — or the preview's `revalidatePath` is
+          // accepted and does nothing.
           {
             "name": "NEXT_TAG_CACHE_DO_SHARDED",
             "class_name": "DOShardedTagCache"

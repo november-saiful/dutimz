@@ -14,8 +14,11 @@ import { getCategoryStories } from "@/lib/stories";
   Worker's resource limit (Cloudflare 503, error 1102). The desk's approvals and edits now
   invalidate the cached pages instead, so the section is refreshed by the change rather than by
   the reader's request. The window bounds how stale it can get if an invalidation never arrives.
+
+  Ten minutes rather than one: the invalidation is what makes a section current, and a shorter
+  window only regenerated every section in the background (see open-next.config.ts).
 */
-export const revalidate = 60;
+export const revalidate = 600;
 
 /**
  * A dynamic segment with nothing to prerender is rendered per request and never stored, whatever

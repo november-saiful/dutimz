@@ -11,8 +11,13 @@ import { getSitemapArticles, getSitemapCategorySlugs } from "@/lib/stories";
   from the sitemap stops looking for it. The desk's approval invalidates this route along with the
   pages (lib/revalidate.ts), and the window below is the backstop — so a story appears here within
   a minute of the deploy that carried it, or immediately after the approval that published it.
+
+  Ten minutes, not one: a metadata route is not refreshed by `revalidatePath` (the adapter does not
+  re-run it), so this window is the *only* thing that reloads it, and crawlers do not poll faster
+  than that anyway. One minute meant a background regeneration every minute of a document that
+  changes a few times a day (see open-next.config.ts).
 */
-export const revalidate = 60;
+export const revalidate = 600;
 
 // Nothing reader-specific is advertised here: /account/, /auth/ and /api/ are disallowed in
 // app/robots.ts, and /saved/ and /profile/me/ are per-reader views with no canonical of their

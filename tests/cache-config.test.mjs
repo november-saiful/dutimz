@@ -11,6 +11,15 @@
 // The bindings themselves are non-inheritable in Wrangler, so the preview environment has to
 // re-declare each one; a preview that forgot them would deploy a Worker whose cache silently
 // does nothing, which is the same bug wearing a different hat.
+//
+// The queue is the one piece that is deliberately *not* a binding any more. It was a Durable
+// Object per route, and that is what blew the Workers Free quota (13,000 GB-s a day — 28.2 hours
+// of one object — reported as `101,562,500,000` microseconds) and what froze routes at
+// `x-nextjs-cache: STALE` until the next deploy, because the object persisted a failed
+// revalidation in its own SQLite under an id that does not change while the entry does not. It
+// is now a local `ctx.waitUntil` queue in open-next.config.ts, so these tests assert the
+// opposite of what they used to: no queue binding, and a queue that hands the work off instead
+// of awaiting it.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
@@ -23,14 +32,15 @@ const wranglerConfig = async () =>
   parseJsonc(await readProjectFile('wrangler.jsonc'));
 
 // These names are the adapter's contract, not this project's preference: R2IncrementalCache
-// reads `NEXT_INC_CACHE_R2_BUCKET`, do-queue reads `NEXT_CACHE_DO_QUEUE`, the sharded tag cache
-// reads `NEXT_TAG_CACHE_DO_SHARDED`, and each class has to be exported from the generated Worker
-// under the name the config declares.
+// reads `NEXT_INC_CACHE_R2_BUCKET` and the sharded tag cache reads `NEXT_TAG_CACHE_DO_SHARDED`,
+// and that class has to be exported from the generated Worker under the name the config declares.
 const R2_BINDING = 'NEXT_INC_CACHE_R2_BUCKET';
-const QUEUE_BINDING = 'NEXT_CACHE_DO_QUEUE';
-const QUEUE_CLASS = 'DOQueueHandler';
 const TAG_CACHE_BINDING = 'NEXT_TAG_CACHE_DO_SHARDED';
 const TAG_CACHE_CLASS = 'DOShardedTagCache';
+
+/** The retired queue. It must not come back: see the note at the top of this file. */
+const RETIRED_QUEUE_BINDING = 'NEXT_CACHE_DO_QUEUE';
+const RETIRED_QUEUE_CLASS = 'DOQueueHandler';
 
 /** The routes a reader reaches through an approval, and the window each one falls back to. */
 const CACHED_READING_ROUTES = [
@@ -50,17 +60,42 @@ test('the adapter is configured with a real cache and queue, not its no-op defau
   );
   assert.match(
     config,
-    /from "@opennextjs\/cloudflare\/overrides\/queue\/do-queue"/,
-    'the queue must be imported; time-based revalidation cannot enqueue anything without it',
-  );
-  assert.match(
-    config,
     /from "@opennextjs\/cloudflare\/overrides\/tag-cache\/do-sharded-tag-cache"/,
     'the tag cache must be imported; without one `revalidatePath` is accepted and does nothing',
   );
+
+  // The queue is local now, and the two things that make it safe are both asserted here.
+  //
+  // `queue.send()` is awaited inline in the cache interceptor, before the reader's response is
+  // returned, so a queue that awaits its own fetch makes every stale page view wait for a whole
+  // render. The revalidation has to be handed to `ctx.waitUntil`.
+  assert.match(config, /queue:\s*waitUntilQueue/);
+  assert.match(config, /ctx\.waitUntil\(/, 'the revalidation must run off the response path');
+
+  // And it has to check what came back. A stale page answers 200 too; only `REVALIDATED` means
+  // the entry was actually rewritten. A queue that treats 200 as success reports health while
+  // every route sits at `x-nextjs-cache: STALE`, which is exactly how the last one failed.
+  assert.match(config, /x-nextjs-cache/);
+  assert.match(config, /REVALIDATED/);
+
+  // The Durable Object queue is what exhausted the daily duration allowance and what froze
+  // routes at STALE until the next deploy. It must not be wired back in.
+  assert.doesNotMatch(
+    config,
+    /overrides\/queue\/do-queue/,
+    'the Durable Object revalidation queue must stay out: see the note at the top of this file',
+  );
+
   assert.match(config, /incrementalCache:\s*r2IncrementalCache/);
-  assert.match(config, /queue:\s*doQueue/);
   assert.match(config, /tagCache:\s*doShardedTagCache/);
+
+  // One base shard, not the default four: every object is billed for the time it is awake, the
+  // only writer is the desk pressing approve, and eight cold shards pay a cold start per render.
+  assert.match(
+    config,
+    /doShardedTagCache\(\s*\{\s*baseShardSize:\s*1\s*\}\s*\)/,
+    'the tag cache must not keep the default shard count: objects cost duration while awake',
+  );
 
   // A bare call is exactly how the site shipped uncached, so it must not come back.
   assert.doesNotMatch(
@@ -70,7 +105,7 @@ test('the adapter is configured with a real cache and queue, not its no-op defau
   );
 });
 
-test('production binds the cache bucket, the queue class and its migration', async () => {
+test('production binds the cache bucket and the tag cache, and no revalidation queue', async () => {
   const config = await wranglerConfig();
 
   const productionBuckets = cacheBuckets(config, 'production');
@@ -82,21 +117,20 @@ test('production binds the cache bucket, the queue class and its migration', asy
   assert.equal(config.r2_buckets?.[0]?.binding, R2_BINDING);
   assert.ok(productionBuckets[0], 'the cache bucket must be named');
 
-  const queue = config.durable_objects?.bindings ?? [];
+  const bindings = config.durable_objects?.bindings ?? [];
+
+  // A binding here would mean the Durable Object queue was back — the thing that spent the whole
+  // daily duration allowance and froze routes at STALE. Revalidation is local now.
   assert.ok(
-    queue.some((entry) => entry.name === QUEUE_BINDING && entry.class_name === QUEUE_CLASS),
-    `the Durable Object queue must be bound as ${QUEUE_BINDING} -> ${QUEUE_CLASS}`,
-  );
-  assert.ok(
-    (config.migrations ?? []).some((entry) => entry.new_sqlite_classes?.includes(QUEUE_CLASS)),
-    'the queue class must be declared in a migration, or the deploy cannot create it',
+    !bindings.some((entry) => entry.name === RETIRED_QUEUE_BINDING),
+    `${RETIRED_QUEUE_BINDING} must not be bound: revalidation runs in ctx.waitUntil`,
   );
 
   // The tag cache is the only thing that makes the desk's invalidation mean anything, and a
   // missing binding degrades silently: `revalidatePath` still returns, the pages simply wait out
   // their revalidate window. So it is asserted here rather than trusted.
   assert.ok(
-    queue.some(
+    bindings.some(
       (entry) => entry.name === TAG_CACHE_BINDING && entry.class_name === TAG_CACHE_CLASS,
     ),
     `the tag cache must be bound as ${TAG_CACHE_BINDING} -> ${TAG_CACHE_CLASS}`,
@@ -106,6 +140,16 @@ test('production binds the cache bucket, the queue class and its migration', asy
       entry.new_sqlite_classes?.includes(TAG_CACHE_CLASS),
     ),
     'the tag cache class needs its own migration tag: migrations are append-only',
+  );
+
+  // `v1` created the queue class and has already been applied, and the class is still exported by
+  // the generated Worker. A tag that has been applied cannot be withdrawn, so it stays even
+  // though nothing binds the class any more.
+  assert.ok(
+    (config.migrations ?? []).some((entry) =>
+      entry.new_sqlite_classes?.includes(RETIRED_QUEUE_CLASS),
+    ),
+    'the v1 migration must stay even though the queue class is no longer bound',
   );
   assert.equal(
     config.observability?.enabled,
@@ -134,11 +178,13 @@ test('the preview environment re-declares every binding it needs, in its own nam
   // Bindings are non-inheritable in Wrangler: anything missing here is simply absent in the
   // preview Worker, and the cache degrades to doing nothing rather than failing loudly.
   assert.equal(preview.r2_buckets?.[0]?.binding, R2_BINDING);
+  // The preview needs no queue binding either: revalidation is local to whichever Worker serves
+  // the request, so there is nothing to declare and nothing to inherit.
   assert.ok(
-    (preview.durable_objects?.bindings ?? []).some(
-      (entry) => entry.name === QUEUE_BINDING && entry.class_name === QUEUE_CLASS,
+    !(preview.durable_objects?.bindings ?? []).some(
+      (entry) => entry.name === RETIRED_QUEUE_BINDING,
     ),
-    'the preview must bind the queue as well; its own Worker needs the classes it declares',
+    'the preview must not bind the retired queue either',
   );
   assert.ok(
     (preview.durable_objects?.bindings ?? []).some(
@@ -148,9 +194,9 @@ test('the preview environment re-declares every binding it needs, in its own nam
   );
   assert.ok(
     (preview.migrations ?? []).some((entry) =>
-      entry.new_sqlite_classes?.includes(QUEUE_CLASS),
+      entry.new_sqlite_classes?.includes(RETIRED_QUEUE_CLASS),
     ),
-    'an environment deploys its own Worker, so it needs its own migration for the class',
+    'an environment deploys its own Worker, so it keeps the migration history that class needs',
   );
   assert.ok(
     (preview.migrations ?? []).some((entry) =>
@@ -225,6 +271,40 @@ test('the pages an approval changes are cached rather than rendered per request'
       `${path} needs generateStaticParams: without it there is no cache entry to invalidate`,
     );
   }
+});
+
+test('the fallback windows are wide enough that the desk, not the clock, keeps pages current', async () => {
+  // The window is the backstop for an invalidation that never arrives, not the mechanism: the
+  // desk invalidates on every approval. A minute-wide window therefore bought nothing and
+  // regenerated the front page, every article and the sitemap in the background continuously —
+  // which is the load that spent the whole daily Durable Object allowance.
+  for (const path of CACHED_READING_ROUTES) {
+    const source = await readProjectFile(path);
+    const match = source.match(/export const revalidate = (\d+)/);
+    assert.ok(match, `${path} must declare the window it falls back to`);
+    assert.ok(
+      Number(match[1]) >= 300,
+      `${path} falls back after ${match[1]}s; a one-minute window regenerates it in the background for nobody`,
+    );
+  }
+});
+
+test('a route whose URL space is unbounded is not cached at all', async () => {
+  // Any string answers 200 on /u/[username] — the shell holds no member data, PublicProfile
+  // fetches it client-side — so a crawler or a scanner walking /u/... minted a cache entry per
+  // invented name, and every one of them went stale and asked to be regenerated. There is
+  // nothing in that shell that can go out of date, so it does not belong in the cache.
+  const profile = await readProjectFile('app/u/[username]/page.tsx');
+  assert.match(
+    profile,
+    /export const dynamic = "force-dynamic"/,
+    'the profile shell must render per request: its URL space cannot be bounded',
+  );
+  assert.doesNotMatch(
+    profile,
+    /export const revalidate/,
+    'a route that renders per request has no window to fall back to',
+  );
 });
 
 test('the desk invalidates what it changes, through one authenticated door', async () => {

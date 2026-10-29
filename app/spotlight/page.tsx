@@ -13,8 +13,11 @@ import {
 /*
   Cached shell: the forum list loads client-side with its own fresh fetch, so
   caching this shell costs no freshness and serves readers from the R2 page cache.
+
+  An hour rather than a minute: the forum list is fetched client-side, so a shorter window only
+  bought background regenerations of a page whose HTML never changes (see open-next.config.ts).
 */
-export const revalidate = 60;
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "স্পটলাইট",

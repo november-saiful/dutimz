@@ -14,8 +14,11 @@ import {
   Cached shell: the numbers themselves load client-side (PublicStats/SpotlightStats
   fetch fresh data), so caching this shell costs no freshness and saves a full
   render per reader. Listed in lib/revalidate.ts reading surfaces.
+
+  An hour rather than a minute: the shell carries no numbers of its own, so the only thing a
+  shorter window did was regenerate it in the background for nobody (see open-next.config.ts).
 */
-export const revalidate = 60;
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "কার্যক্রমের পরিসংখ্যান",

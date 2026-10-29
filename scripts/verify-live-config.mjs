@@ -299,7 +299,8 @@ async function cacheProblems(base) {
   //   the front page was rendered per request, every request for it exceeded the Worker's resource
   //   limit, and Cloudflare answered 503 (`error code: 1102`) to every reader. A `MISS` here means
   //   the front page is being rendered on demand again, which is a release that will fall over
-  //   under any traffic (STALE is allowed: it is still served from the cache).
+  //   under any traffic (STALE is allowed here — it is still served from the cache — but a page
+  //   that stays STALE across visits is reported as stuck below).
   //
   // The sampled article and section routes are deliberately *not* gated: a story published since
   // the deployment is legitimately a miss the first time it is asked for. What keeps them off the
@@ -338,6 +339,23 @@ async function cacheProblems(base) {
     }
 
     if (verdict) {
+      // STALE is a legitimate answer — the page is still served from the cache — but a page that
+      // is STALE *again* once the queue has had time to regenerate it is not stale, it is stuck:
+      // the regeneration is being enqueued and never landing. That is what the Durable Object
+      // queue did silently for as long as it existed — it persisted the failure and answered
+      // STALE forever — so it is worth saying out loud even though it is not a release failure.
+      if (verdict === 'STALE') {
+        await sleep(Math.max(cacheDelayMs, 5000));
+        const settled = await visit(url);
+        await settled.arrayBuffer().catch(() => undefined);
+        if ((settled.headers.get('x-nextjs-cache') ?? 'absent') === 'STALE') {
+          console.log(
+            `::warning::${path} is STALE on every visit: the regeneration it enqueues is not ` +
+              'landing, so the page is frozen until the next deploy rather than merely old. ' +
+              'Look for "[cache] revalidation did not land" in the Worker logs',
+          );
+        }
+      }
       console.log(`  ${path} is served from the incremental cache (${verdict})`);
       continue;
     }
@@ -346,7 +364,7 @@ async function cacheProblems(base) {
       `${path} is never served from the incremental cache (x-nextjs-cache: ${[...observed].join(', ')})` +
       (allowStale ? '' : ', and this route is fully static so it has no reason to miss') +
       ', so every visit re-renders it from the database; the portal Worker is most likely missing ' +
-      'its NEXT_INC_CACHE_R2_BUCKET or NEXT_CACHE_DO_QUEUE binding.';
+      'its NEXT_INC_CACHE_R2_BUCKET binding or its WORKER_SELF_REFERENCE service binding.';
 
     if (required) {
       problems.push(diagnosis);

@@ -20,7 +20,9 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import { formatDateBn, relativeTimeBn, spotlightMediaUrlFor } from "@/lib/site";
 import { isSupabaseConfigured, one, supabaseServer } from "@/lib/supabase";
 
-export const revalidate = 60;
+// Ten minutes: a resolved issue changes when the desk marks it, and it invalidates the section
+// then. The window is only the backstop (see open-next.config.ts).
+export const revalidate = 600;
 
 /**
  * Postgres casts the `uuid` column before it can compare, so a malformed segment raises
