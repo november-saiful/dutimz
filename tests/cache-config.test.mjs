@@ -12,14 +12,13 @@
 // re-declare each one; a preview that forgot them would deploy a Worker whose cache silently
 // does nothing, which is the same bug wearing a different hat.
 //
-// The queue is the one piece that is deliberately *not* a binding any more. It was a Durable
-// Object per route, and that is what blew the Workers Free quota (13,000 GB-s a day — 28.2 hours
-// of one object — reported as `101,562,500,000` microseconds) and what froze routes at
-// `x-nextjs-cache: STALE` until the next deploy, because the object persisted a failed
-// revalidation in its own SQLite under an id that does not change while the entry does not. It
-// is now a local `ctx.waitUntil` queue in open-next.config.ts, so these tests assert the
-// opposite of what they used to: no queue binding, and a queue that hands the work off instead
-// of awaiting it.
+// The queue is the one piece that is deliberately *not* a binding any more, and deliberately not
+// a worker either. It was a Durable Object per route, and that is what blew the Workers Free
+// quota (13,000 GB-s a day — 28.2 hours of one object — reported as `101,562,500,000`
+// microseconds) and what froze routes at `x-nextjs-cache: STALE` until the next deploy. It was
+// then a local `ctx.waitUntil` queue, and that moved the render into the reader's own invocation
+// — the reader was answered 503 `error code: 1102` instead. It now does nothing at all, and every
+// render is asked for explicitly by `lib/cache-refresh.ts` from the desk or from a cron trigger.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
@@ -64,19 +63,21 @@ test('the adapter is configured with a real cache and queue, not its no-op defau
     'the tag cache must be imported; without one `revalidatePath` is accepted and does nothing',
   );
 
-  // The queue is local now, and the two things that make it safe are both asserted here.
-  //
-  // `queue.send()` is awaited inline in the cache interceptor, before the reader's response is
-  // returned, so a queue that awaits its own fetch makes every stale page view wait for a whole
-  // render. The revalidation has to be handed to `ctx.waitUntil`.
-  assert.match(config, /queue:\s*waitUntilQueue/);
-  assert.match(config, /ctx\.waitUntil\(/, 'the revalidation must run off the response path');
-
-  // And it has to check what came back. A stale page answers 200 too; only `REVALIDATED` means
-  // the entry was actually rewritten. A queue that treats 200 as success reports health while
-  // every route sits at `x-nextjs-cache: STALE`, which is exactly how the last one failed.
-  assert.match(config, /x-nextjs-cache/);
-  assert.match(config, /REVALIDATED/);
+  // The queue exists only so the adapter does not fall back to `"dummy"`, and doing nothing is
+  // the whole point: `send()` runs inside the invocation of whoever asked for the stale page, so
+  // any work here is billed to a reader. A render measured 20-700 ms against a 10 ms ceiling;
+  // that is the 503 (error 1102) this site served instead of pages.
+  assert.match(config, /queue:\s*discardQueue/);
+  assert.doesNotMatch(
+    config,
+    /ctx\.waitUntil\(/,
+    'a reader request must never schedule a render, not even in the background',
+  );
+  assert.doesNotMatch(
+    config,
+    /WORKER_SELF_REFERENCE/,
+    'the queue must not reach the Worker back: that is a render inside the reader invocation',
+  );
 
   // The Durable Object queue is what exhausted the daily duration allowance and what froze
   // routes at STALE until the next deploy. It must not be wired back in.
@@ -158,17 +159,82 @@ test('production binds the cache bucket and the tag cache, and no revalidation q
   );
 });
 
-test('the queue can reach the Worker back through its own service binding', async () => {
+test('the refresher can reach the Worker back through its own service binding', async () => {
   const config = await wranglerConfig();
   const selfReference = (config.services ?? []).find(
     (entry) => entry.binding === 'WORKER_SELF_REFERENCE',
   );
   assert.ok(
     selfReference,
-    'the Durable Object queue revalidates by calling the Worker back over WORKER_SELF_REFERENCE, ' +
-      'and refuses to start without it',
+    'lib/cache-refresh.ts renders a page by calling the Worker back over WORKER_SELF_REFERENCE; ' +
+      'without the binding there is no way to rewrite a cached page at all',
   );
   assert.equal(selfReference.service, config.name);
+});
+
+test('every render is asked for explicitly, through a door that is not a reader request', async () => {
+  // Half of the guarantee is open-next.config.ts (nothing renders on a reader's request); this is
+  // the other half: the renders that do happen are named, bounded, and reachable only from the
+  // desk or from the schedule.
+  const refresher = await readProjectFile('lib/cache-refresh.ts');
+  assert.match(
+    refresher,
+    /"x-prerender-revalidate"/,
+    'a HEAD without the build\'s preview mode id is answered from the cache, not rendered',
+  );
+  assert.match(refresher, /"x-isr": "1"/, 'the request has to be marked as a cache refresh');
+  assert.match(
+    refresher,
+    /REVALIDATED/,
+    'a 200 alone is not success: only REVALIDATED means the entry was rewritten',
+  );
+  assert.match(
+    refresher,
+    /WORKER_SELF_REFERENCE/,
+    'the render must go through the service binding, not out to the public edge and back',
+  );
+
+  // The scheduled door: called by a cron job with no session, so it carries its own token, and
+  // refuses rather than falling open when the token is not configured.
+  const cron = await readProjectFile('app/api/cache/refresh/route.ts');
+  assert.match(cron, /CACHE_REFRESH_TOKEN/, 'the scheduled refresh must be authenticated');
+  assert.match(cron, /status: 401|401/, 'a wrong or missing token must be refused');
+  assert.doesNotMatch(
+    cron,
+    /revalidateReadingSurfaces/,
+    'the schedule rewrites pages; invalidating every tag is the desk\'s job and would only ' +
+      'mark the archive stale',
+  );
+
+  // The desk: it still invalidates, and it now also asks for the render, because nothing else
+  // will until the next tick of the schedule.
+  const desk = await readProjectFile('app/api/revalidate/route.ts');
+  assert.match(desk, /revalidateReadingSurfaces\(\)/);
+  assert.match(desk, /refreshCachedPages/, 'an approval has to rewrite the pages it changed');
+  assert.match(
+    desk,
+    /ctx\.waitUntil\(/,
+    'the desk must not wait for the renders; it already has its answer',
+  );
+
+  // And the schedule itself, on the one Worker in this project that can export `scheduled`.
+  const workerSource = await readProjectFile('worker/src/index.ts');
+  assert.match(workerSource, /async scheduled\(/, 'the media Worker runs the refresh on a trigger');
+  const workerConfig = parseJsonc(await readProjectFile('worker/wrangler.jsonc'));
+  const crons = workerConfig.triggers?.crons ?? [];
+  assert.ok(
+    crons.length > 0,
+    'the trigger has to be declared here, not clicked into the dashboard, so a release re-asserts it',
+  );
+  assert.ok(
+    workerConfig.vars?.CACHE_REFRESH_URL,
+    'the cron needs the portal address it refreshes',
+  );
+  assert.doesNotMatch(
+    JSON.stringify(workerConfig.vars),
+    /CACHE_REFRESH_TOKEN/,
+    'the refresh token is a secret: it must never be committed as a var',
+  );
 });
 
 test('the preview environment re-declares every binding it needs, in its own namespace', async () => {

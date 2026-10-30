@@ -1,5 +1,7 @@
 import { revalidatePath } from "next/cache";
 
+import { getSitemapArticles, getSitemapCategorySlugs } from "./stories";
+
 /*
   The reading surfaces a desk write invalidates.
 
@@ -42,4 +44,36 @@ export function revalidateReadingSurfaces(): string[] {
     else revalidatePath(path);
   }
   return READING_SURFACES.map(({ path }) => path);
+}
+
+/*
+  The pages to render after an invalidation, named concretely.
+
+  `revalidatePath` above marks a route, not a URL: `/news/[slug]` is every article. Rendering is
+  per URL, so the refresher needs the URLs that exist, which the database knows and the route
+  pattern does not.
+
+  The list is deliberately not "every article". Re-rendering the whole archive after one approval
+  would be the unbounded render rate this design exists to remove, and an old story's cached page
+  is not wrong — it changes only when someone edits it, and that goes through the desk as well.
+  The newest stories are the ones an approval can move, so those are the ones refreshed.
+
+  The section pages and the sitemap are cheap and included either way; the front page is the one
+  every reader sees first.
+*/
+const ARTICLES_TO_REFRESH = 12;
+
+export async function readingPagesToRefresh(
+  options: { includeArticles?: boolean } = {},
+): Promise<string[]> {
+  const paths = ["/", "/statistics/", "/sitemap.xml"];
+  const [categories, articles] = await Promise.all([
+    getSitemapCategorySlugs(),
+    options.includeArticles === false
+      ? Promise.resolve([])
+      : getSitemapArticles(ARTICLES_TO_REFRESH),
+  ]);
+  for (const slug of categories) paths.push(`/category/${slug}/`);
+  for (const { slug } of articles) paths.push(`/news/${slug}/`);
+  return paths;
 }

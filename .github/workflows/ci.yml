@@ -287,12 +287,22 @@ jobs:
         run: |
           printf '%s' "$SUPABASE_URL" | npx wrangler secret put SUPABASE_URL --config worker/wrangler.jsonc
           printf '%s' "$SUPABASE_ANON_KEY" | npx wrangler secret put SUPABASE_ANON_KEY --config worker/wrangler.jsonc
+          # The cron trigger on this Worker is the only thing that refreshes the portal's cached
+          # pages on a schedule, and both ends need the same token. Absent, the schedule reports
+          # that it did nothing rather than failing a release over a cache concern — but the site
+          # then serves each page as it was, until the desk next changes something.
+          if [ -n "${CACHE_REFRESH_TOKEN:-}" ]; then
+            printf '%s' "$CACHE_REFRESH_TOKEN" | npx wrangler secret put CACHE_REFRESH_TOKEN --config worker/wrangler.jsonc
+          else
+            echo "::warning::CACHE_REFRESH_TOKEN is not set: the scheduled cache refresh will do nothing."
+          fi
           npx wrangler deploy --config worker/wrangler.jsonc
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY || secrets.SUPABASE_ANON_KEY }}
+          CACHE_REFRESH_TOKEN: ${{ secrets.CACHE_REFRESH_TOKEN }}
       - name: Ensure the cache buckets exist
         # `wrangler deploy` binds a bucket by name, it does not create one, so a fresh
         # environment would otherwise red-fail the release on a missing bucket. Created here
@@ -303,6 +313,21 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Store the cache refresh token on the portal Worker
+        # The portal is the only thing that can render its own pages, and nothing a reader does
+        # is allowed to ask it to (open-next.config.ts). `/api/cache/refresh` is the scheduled
+        # door into that, and it refuses every caller without this secret.
+        id: refreshtoken
+        run: |
+          if [ -n "${CACHE_REFRESH_TOKEN:-}" ]; then
+            printf '%s' "$CACHE_REFRESH_TOKEN" | npx wrangler secret put CACHE_REFRESH_TOKEN
+          else
+            echo "::warning::CACHE_REFRESH_TOKEN is not set: cached pages will only be rewritten when the desk changes something."
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CACHE_REFRESH_TOKEN: ${{ secrets.CACHE_REFRESH_TOKEN }}
       - name: Deploy the production Worker
         # No build here: the bundle was compiled above and must be exactly the one that
         # passed, not a second build that happens to run later in the same job.

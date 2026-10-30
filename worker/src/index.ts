@@ -5,6 +5,8 @@ interface Env {
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
   ALLOWED_ORIGINS: string;
+  CACHE_REFRESH_URL?: string;
+  CACHE_REFRESH_TOKEN?: string;
 }
 
 type Scope = 'article' | 'spotlight' | 'profile';
@@ -347,5 +349,40 @@ export default {
       return serveMedia(request, env, corsOrigin, 'article', decodeURIComponent(url.pathname.slice('/media/'.length)), request.method === 'HEAD');
     }
     return json({ error: 'এই মিডিয়া অনুরোধ সমর্থিত নয়।' }, 404, corsOrigin);
+  },
+
+  /**
+   * The only thing on a schedule in this project: ask the portal to rewrite the pages every
+   * reader sees.
+   *
+   * It lives here rather than on the portal Worker because the generated OpenNext worker exports
+   * only `fetch`, so a cron trigger on it fails with "Handler does not export a scheduled()
+   * function". This Worker is ours from top to bottom, so the trigger is one fetch every five
+   * minutes and nothing else — the render happens in the portal, in an invocation of its own,
+   * which is the point: no reader ever pays for it (see open-next.config.ts).
+   */
+  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    const url = env.CACHE_REFRESH_URL;
+    if (!url || !env.CACHE_REFRESH_TOKEN) {
+      console.error('[cache] CACHE_REFRESH_URL and CACHE_REFRESH_TOKEN must be set: nothing was refreshed');
+      return;
+    }
+    ctx.waitUntil((async () => {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: { authorization: `Bearer ${env.CACHE_REFRESH_TOKEN}` },
+          signal: AbortSignal.timeout(45_000),
+        });
+        const body = await response.text();
+        if (!response.ok) {
+          console.error(`[cache] refresh failed: ${response.status} ${body.slice(0, 500)}`);
+          return;
+        }
+        console.log(`[cache] refresh: ${body.slice(0, 500)}`);
+      } catch (error) {
+        console.error('[cache] refresh request failed', error);
+      }
+    })());
   },
 };

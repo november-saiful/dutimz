@@ -34,8 +34,9 @@ import {
   "re-render for everyone".
 
   The window below is the fallback, not the mechanism: it bounds how stale the page can be if an
-  approval's invalidation never arrives. Regeneration happens in the background queue, off the
-  request that triggered it.
+  approval's invalidation never arrives. Regeneration is asked for explicitly — by the desk after
+  it invalidates, and by the five-minute schedule on the media Worker — and never by the reader's
+  own request, which is what the previous background queue did (open-next.config.ts).
 
   Five minutes rather than one, because the desk is what keeps this page current: an approval
   invalidates it outright, so a shorter window bought nothing except a background regeneration of

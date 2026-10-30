@@ -11,127 +11,40 @@
 //
 // The cache keyspace is namespaced by the Next build id, so entries from one release can never
 // be served by another, and a preview build can never be served as production.
-import { defineCloudflareConfig, getCloudflareContext } from "@opennextjs/cloudflare";
+import { defineCloudflareConfig } from "@opennextjs/cloudflare";
 import r2IncrementalCache from "@opennextjs/cloudflare/overrides/incremental-cache/r2-incremental-cache";
 import doShardedTagCache from "@opennextjs/cloudflare/overrides/tag-cache/do-sharded-tag-cache";
 
 /*
-  Regenerating a stale page, without a Durable Object.
+  A queue that regenerates nothing, on purpose.
 
-  This used to be the adapter's `doQueue`, which is one `DOQueueHandler` Durable Object per
-  route. It works, and it is why the queue here was a Durable Object at all: `queue.send()` is
-  awaited inline in the cache interceptor, before the reader's response is returned, and an RPC
-  that returns as soon as the object has parked the work is what kept a stale page from costing
-  the reader the whole regeneration. Two things about it did not survive contact with a real
-  site on the Workers Free plan.
+  `queue.send()` is awaited inline by the cache interceptor, inside the invocation of whoever
+  asked for the page. Anything this queue does is therefore paid for by that caller, and a reader
+  asking for a stale page is the common case. That is how this site answered 503 `error code:
+  1102` ("Worker exceeded resource limits") to its front page and to every article: a cache HIT
+  measured 8-13 ms of CPU and a render 20-700 ms, against a Workers Free ceiling of 10 ms.
+  Handing the work to `ctx.waitUntil` did not move it off the request — the isolate stays alive
+  and billed until the promise settles, and the reader's invocation is killed all the same.
 
-  The first is duration. A Durable Object is billed for every second it is alive at 128 MB,
-  whether it is doing anything or not, and the free allowance is 13,000 GB-s a day — 28.2 hours
-  of one object. The queue object is alive for the whole of `executeRevalidation`, which is a
-  full HEAD render of the page, and the object is torn down again after ~10s idle, so it is a
-  cold start plus a render for every stale page view. At a 60-second window on nine routes that
-  is not a burst, it is a baseline, and it exhausted the daily allowance outright: the account
-  was blocked with `101,562,500,000` duration used — that number is microseconds of a 128 MB
-  object, i.e. exactly the 28.2 hours, and every Durable Object request failed until the reset.
+  This queue was a Durable Object before that, and it failed differently: the object is billed
+  for every second it is awake at 128 MB (the free allowance is 13,000 GB-s a day, and the
+  account was blocked with `101,562,500,000` µs of it used), and it persisted a single failed
+  revalidation under an id that does not change for an unchanged entry, freezing that route at
+  `x-nextjs-cache: STALE` until the next deploy.
 
-  The second is worse, because it is silent. `DOQueueHandler.revalidate()` returns early for any
-  message whose `MessageDeduplicationId` is in `routeInFailedState`, and that map is persisted to
-  the object's SQLite and restored on every cold start. The id is a hash of the path, the entry's
-  `lastModified` and its etag, so for an entry that is not changing it is a constant. One
-  transient failure — a 500, a timeout, anything that is not an `OpenNextError` — after six
-  retries leaves a row behind that is only cleared when the build id changes, and from then on
-  that route never revalidates again for the life of the deployment. It keeps answering
-  `x-nextjs-cache: STALE`, every request re-enqueues, the object wakes up and returns immediately,
-  and the page is frozen until the next deploy while still paying duration for every reader.
+  So nothing a reader does triggers a render any more. A stale entry is served from R2, and
+  freshness is delivered explicitly by `lib/cache-refresh.ts` from the two places that are not a
+  reader's request: the desk, right after it changes something (`app/api/revalidate`), and a
+  cron trigger on the media Worker every five minutes (`worker/src/index.ts`).
 
-  So the revalidation is handed to `ctx.waitUntil` in this Worker instead. It is the same HEAD
-  request the Durable Object made, with the same headers, against the same service binding; the
-  difference is that it costs nothing to be idle, there is no state that outlives the attempt, and
-  a failure is simply retried by the next stale request rather than being remembered forever. The
-  reader is not made to wait for it: `send` returns before the fetch resolves, which is what the
-  Durable Object was buying, and Cloudflare keeps the isolate alive until the `waitUntil` promise
-  settles (bounded here by the same 10s timeout the adapter used).
-
-  What it gives up: the Durable Object deduplicated revalidations across isolates, so two readers
-  landing on the same stale page in different isolates could share one regeneration. Here they
-  cannot, and `inFlight` only deduplicates within an isolate. That is a few redundant renders of
-  one page instead of a quota that cannot be paid, and the windows below are wide enough that a
-  page is regenerated a handful of times an hour rather than continuously.
+  What that gives up: a page's `revalidate` window no longer rewrites the page by itself — it is
+  only the moment the entry becomes stale. The schedule and the desk are what rewrite it. That is
+  deliberate: it turns an unbounded, reader-driven render rate into a fixed one, which is the
+  only shape that survives a CPU ceiling this low.
 */
-const REVALIDATION_TIMEOUT_MS = 10_000;
-
-/** One regeneration per route per isolate at a time; concurrent callers share the result. */
-const inFlight = new Set<string>();
-
-const waitUntilQueue = {
-  name: "wait-until-queue",
-  send: (msg: {
-    MessageDeduplicationId: string;
-    MessageBody: { host: string; url: string };
-  }): Promise<void> => {
-    const { env, ctx } = getCloudflareContext();
-    const { host, url } = msg.MessageBody;
-
-    if (inFlight.has(msg.MessageDeduplicationId)) {
-      return Promise.resolve();
-    }
-    inFlight.add(msg.MessageDeduplicationId);
-
-    ctx.waitUntil(
-      (async () => {
-        const protocol = host.includes("localhost") ? "http" : "https";
-        // The service binding, not the public hostname: this call must not leave the Worker for
-        // the edge and come back. `x-prerender-revalidate` has to be the build's own preview mode
-        // id — the adapter sets `NEXT_PREVIEW_MODE_ID` from the prerender manifest at startup, and
-        // the Durable Object got the same value inlined at build time under a double underscore.
-        const service = env.WORKER_SELF_REFERENCE as
-          | { fetch: (input: string, init?: RequestInit) => Promise<Response> }
-          | undefined;
-        if (!service) {
-          console.error(
-            `[cache] no WORKER_SELF_REFERENCE binding: cannot revalidate ${host}${url}`,
-          );
-          return;
-        }
-
-        let response: Response | undefined;
-        try {
-          response = await service.fetch(`${protocol}://${host}${url}`, {
-            method: "HEAD",
-            headers: {
-              "x-prerender-revalidate":
-                process.env.NEXT_PREVIEW_MODE_ID ??
-                process.env.__NEXT_PREVIEW_MODE_ID ??
-                "",
-              "x-isr": "1",
-            },
-            signal: AbortSignal.timeout(REVALIDATION_TIMEOUT_MS),
-          });
-          const state = response.headers.get("x-nextjs-cache");
-          // 200 alone is not success: a page that answers 200 with `STALE` or `HIT` was served
-          // from the cache and not regenerated, which is the failure mode this file exists to
-          // make visible. `REVALIDATED` is the only status that means the entry was rewritten.
-          if (response.status !== 200 || state !== "REVALIDATED") {
-            console.error(
-              `[cache] revalidation did not land for ${host}${url}: ` +
-                `status ${response.status}, x-nextjs-cache ${state ?? "absent"}`,
-            );
-          }
-        } catch (error) {
-          console.error(`[cache] revalidation failed for ${host}${url}`, error);
-        } finally {
-          inFlight.delete(msg.MessageDeduplicationId);
-          try {
-            await response?.body?.cancel();
-          } catch {
-            // The stream was already consumed; nothing to release.
-          }
-        }
-      })(),
-    );
-
-    return Promise.resolve();
-  },
+const discardQueue = {
+  name: "discard-queue",
+  send: async (): Promise<void> => {},
 };
 
 export default defineCloudflareConfig({
@@ -143,10 +56,9 @@ export default defineCloudflareConfig({
   // benefit (bypassing the tag cache on a hit) is worth nothing while every tag a page carries
   // is a soft tag that the tag cache already answers for.
   incrementalCache: r2IncrementalCache,
-  // Time-based revalidation (`export const revalidate = ...`) is exactly what needs a queue.
-  // Without one the adapter logs "Dummy queue is not implemented" and never regenerates a
-  // stale entry. The queue reaches the Worker back through WORKER_SELF_REFERENCE.
-  queue: waitUntilQueue,
+  // Time-based revalidation still needs a queue object — without one the adapter logs "Dummy
+  // queue is not implemented" — but its job here is to be discarded: see the note above.
+  queue: discardQueue,
   // The desk edits what readers see, and the pages it changes are cached, so the invalidation
   // that `revalidatePath` records has somewhere to live: without a real tag cache the call is
   // accepted and silently does nothing (the adapter's default tag cache is a no-op), and an

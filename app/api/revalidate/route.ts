@@ -1,6 +1,9 @@
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { NextResponse } from "next/server";
 
-import { revalidateReadingSurfaces } from "@/lib/revalidate";
+import { refreshCachedPages } from "@/lib/cache-refresh";
+import { reportError } from "@/lib/errors";
+import { readingPagesToRefresh, revalidateReadingSurfaces } from "@/lib/revalidate";
 import { supabaseForToken } from "@/lib/supabase";
 
 /*
@@ -49,6 +52,16 @@ export async function POST(request: Request) {
   }
 
   const revalidated = revalidateReadingSurfaces();
+  // Marking a page stale is not the same as rewriting it, and a reader must never be the one
+  // who pays for the render (see open-next.config.ts). So the desk asks for the rewrite here.
+  // The response does not wait for it: the desk already has its answer, and each page is one
+  // short invocation of its own rather than CPU this request has to find.
+  const { ctx } = getCloudflareContext();
+  ctx.waitUntil(
+    readingPagesToRefresh()
+      .then(refreshCachedPages)
+      .catch((error) => reportError("desk cache refresh", error)),
+  );
   console.log(`Desk invalidation by ${user.user.id}: ${revalidated.join(", ")}`);
   return NextResponse.json(
     { revalidated },

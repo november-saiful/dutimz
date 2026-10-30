@@ -16,7 +16,15 @@
     }
   ],
   "images": { "binding": "IMAGES" },
+  // Every five minutes this Worker asks the portal to rewrite the pages every reader sees. The
+  // portal cannot schedule it itself: its generated entry exports only `fetch`. CACHE_REFRESH_TOKEN
+  // is a secret (set by the release), never a var — anyone who holds it can force the site to
+  // render, which is the one thing the cache exists to prevent.
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
   "vars": {
-    "ALLOWED_ORIGINS": "https://dutimz.com,https://www.dutimz.com"
+    "ALLOWED_ORIGINS": "https://dutimz.com,https://www.dutimz.com",
+    "CACHE_REFRESH_URL": "https://dutimz.com/api/cache/refresh"
   }
 }
