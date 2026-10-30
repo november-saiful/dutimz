@@ -386,6 +386,24 @@ test('the desk invalidates what it changes, through one authenticated door', asy
   }
   assert.match(surfaces, /revalidatePath\(/, 'the surfaces have to actually be invalidated');
 
+  // The pages the desk rewrites follow the last edit, not the last publication: a story can be
+  // edited from any point in the archive, and that story is the one whose page is now wrong. A
+  // publication-ordered list would always name the newest stories and let the edited old one be
+  // rendered for whichever reader arrived next.
+  assert.match(
+    surfaces,
+    /getRecentlyUpdatedArticles/,
+    'the desk must refresh the most recently edited stories, not the newest published ones',
+  );
+  const stories = await readProjectFile('lib/stories.ts');
+  const recent = stories.slice(stories.indexOf('export async function getRecentlyUpdatedArticles'));
+  assert.notEqual(recent.length, 0, 'lib/stories.ts must export getRecentlyUpdatedArticles');
+  assert.match(
+    recent.slice(0, recent.indexOf('\n}')),
+    /\.order\("updated_at"\s*,\s*\{\s*ascending:\s*false\s*\}\)/,
+    'the refresh list must be ordered by updated_at: publication order misses edits to old stories',
+  );
+
   const route = await readProjectFile('app/api/revalidate/route.ts');
   assert.match(route, /revalidateReadingSurfaces\(\)/, 'the route performs the invalidation');
   assert.match(

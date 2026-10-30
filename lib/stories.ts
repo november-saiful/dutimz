@@ -316,6 +316,37 @@ export async function getSitemapArticles(
 }
 
 /**
+ * The stories a desk write most plausibly just changed, newest edit first.
+ *
+ * Ordered by `updated_at` rather than `published_at` on purpose. An approval can change a story
+ * from any point in the archive, and that story is the one whose cached page is now wrong; ordering
+ * by publication would only ever name the newest stories, leaving an edited old one to be
+ * re-rendered for whoever happened to read it next.
+ */
+export async function getRecentlyUpdatedArticles(
+  limit = 12,
+): Promise<{ slug: string }[]> {
+  if (isDemoMode()) return [];
+  try {
+    const supabase = supabaseServer();
+    const { data, error } = await supabase
+      .from("articles")
+      .select("slug")
+      .eq("status", "published")
+      .order("updated_at", { ascending: false })
+      .limit(limit);
+    if (error) {
+      reportError("recently updated article list", error);
+      return [];
+    }
+    return (data ?? []) as { slug: string }[];
+  } catch (error) {
+    reportError("recently updated article list", error);
+    return [];
+  }
+}
+
+/**
  * The masthead's section bar: every active desk in the database in the editor's order, with the
  * front page first. Demo mode and a failed query fall back to the static list so the bar never
  * renders empty.

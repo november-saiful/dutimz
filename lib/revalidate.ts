@@ -1,6 +1,6 @@
 import { revalidatePath } from "next/cache";
 
-import { getSitemapArticles, getSitemapCategorySlugs } from "./stories";
+import { getRecentlyUpdatedArticles, getSitemapCategorySlugs } from "./stories";
 
 /*
   The reading surfaces a desk write invalidates.
@@ -56,7 +56,10 @@ export function revalidateReadingSurfaces(): string[] {
   The list is deliberately not "every article". Re-rendering the whole archive after one approval
   would be the unbounded render rate this design exists to remove, and an old story's cached page
   is not wrong — it changes only when someone edits it, and that goes through the desk as well.
-  The newest stories are the ones an approval can move, so those are the ones refreshed.
+  So the list follows the edits, not the calendar: the most recently *updated* stories are the
+  ones an approval can have changed, whichever point of the archive they sit at. Ordering by
+  publication instead would refresh the newest stories over and over and leave an edited old one
+  to be rendered for its next reader.
 
   The section pages and the sitemap are cheap and included either way; the front page is the one
   every reader sees first.
@@ -71,7 +74,7 @@ export async function readingPagesToRefresh(
     getSitemapCategorySlugs(),
     options.includeArticles === false
       ? Promise.resolve([])
-      : getSitemapArticles(ARTICLES_TO_REFRESH),
+      : getRecentlyUpdatedArticles(ARTICLES_TO_REFRESH),
   ]);
   for (const slug of categories) paths.push(`/category/${slug}/`);
   for (const { slug } of articles) paths.push(`/news/${slug}/`);
