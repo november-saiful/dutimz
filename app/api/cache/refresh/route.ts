@@ -2,7 +2,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { NextResponse } from "next/server";
 
 import { refreshCachedPages } from "@/lib/cache-refresh";
-import { readingPagesToRefresh } from "@/lib/revalidate";
+import { sweepPagesToRefresh } from "@/lib/revalidate";
 
 /*
   The scheduled half of the cache: re-render the pages every reader sees.
@@ -18,7 +18,7 @@ import { readingPagesToRefresh } from "@/lib/revalidate";
   is the one thing this codebase spends its effort preventing.
 
   What it deliberately does not do is invalidate: `revalidatePath` marks every article stale, and
-  the archive is not refreshed (see `readingPagesToRefresh`), so it would only downgrade pages
+  the archive is untouched by it (see `sweepPagesToRefresh`), so it would only downgrade pages
   that are correct. The HEAD request already forces a render; the tag cache is the desk's tool.
 */
 export async function POST(request: Request) {
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     return refusal("Invalid refresh token.", 401);
   }
 
-  const refreshed = await refreshCachedPages(await readingPagesToRefresh({ includeArticles: false }));
+  const refreshed = await refreshCachedPages(await sweepPagesToRefresh());
   return NextResponse.json({ refreshed }, { headers: { "Cache-Control": "no-store" } });
 }
 

@@ -59,9 +59,11 @@ import {
   demand and cached like any other. The desk invalidates what it changes; the window is the
   backstop for an approval whose invalidation never arrives.
 
-  Half an hour, because an article changes only when the desk edits it, and the desk says so.
+  Three hours, matched by the schedule's archive sweep (SWEEP_WINDOW_SECONDS in lib/revalidate.ts):
+  an article changes only when the desk edits it, and the desk says so, so the window is only the
+  width of the sweep that rewrites the pages the desk did not touch.
 */
-export const revalidate = 1800;
+export const revalidate = 10_800;
 
 export async function generateStaticParams(): Promise<{ slug: string }[]> {
   // Slugs only: the render fetches each story itself, and this list is already the one the

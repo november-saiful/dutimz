@@ -199,6 +199,12 @@ test('every render is asked for explicitly, through a door that is not a reader 
   const cron = await readProjectFile('app/api/cache/refresh/route.ts');
   assert.match(cron, /CACHE_REFRESH_TOKEN/, 'the scheduled refresh must be authenticated');
   assert.match(cron, /status: 401|401/, 'a wrong or missing token must be refused');
+  assert.match(
+    cron,
+    /sweepPagesToRefresh/,
+    'the schedule must sweep the archive too: an article the desk never edits would otherwise be ' +
+      'rendered once and never rewritten again',
+  );
   assert.doesNotMatch(
     cron,
     /revalidateReadingSurfaces/,
@@ -346,13 +352,32 @@ test('the fallback windows are wide enough that the desk, not the clock, keeps p
   // which is the load that spent the whole daily Durable Object allowance.
   for (const path of CACHED_READING_ROUTES) {
     const source = await readProjectFile(path);
-    const match = source.match(/export const revalidate = (\d+)/);
+    const match = source.match(/export const revalidate = ([\d_]+)/);
     assert.ok(match, `${path} must declare the window it falls back to`);
+    const seconds = Number(match[1].replace(/_/g, ''));
     assert.ok(
-      Number(match[1]) >= 300,
-      `${path} falls back after ${match[1]}s; a one-minute window regenerates it in the background for nobody`,
+      seconds >= 300,
+      `${path} falls back after ${seconds}s; a one-minute window regenerates it in the background for nobody`,
     );
   }
+
+  // The article window and the schedule's archive sweep are the same number of seconds on purpose:
+  // the sweep is what rewrites a story the desk did not touch, so an entry must not expire before
+  // the sweep that reaches it comes round.
+  const article = await readProjectFile('app/news/[slug]/page.tsx');
+  const articleWindow = Number(
+    article.match(/export const revalidate = ([\d_]+)/)?.[1]?.replace(/_/g, ''),
+  );
+  const sweepSource = await readProjectFile('lib/revalidate.ts');
+  const sweepWindow = Number(
+    sweepSource.match(/SWEEP_WINDOW_SECONDS = ([\d_]+)/)?.[1]?.replace(/_/g, ''),
+  );
+  assert.ok(articleWindow > 0, 'the article window must be declared');
+  assert.ok(sweepWindow > 0, 'the sweep window must be declared');
+  assert.ok(
+    articleWindow >= sweepWindow,
+    `an article falls back after ${articleWindow}s; the sweep must reach it within ${sweepWindow}s`,
+  );
 });
 
 test('a route whose URL space is unbounded is not cached at all', async () => {

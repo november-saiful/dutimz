@@ -1,6 +1,10 @@
 import { revalidatePath } from "next/cache";
 
-import { getRecentlyUpdatedArticles, getSitemapCategorySlugs } from "./stories";
+import {
+  getRecentlyUpdatedArticles,
+  getSitemapArticles,
+  getSitemapCategorySlugs,
+} from "./stories";
 
 /*
   The reading surfaces a desk write invalidates.
@@ -78,5 +82,49 @@ export async function readingPagesToRefresh(
   ]);
   for (const slug of categories) paths.push(`/category/${slug}/`);
   for (const { slug } of articles) paths.push(`/news/${slug}/`);
+  return paths;
+}
+
+/*
+  The pages the schedule rewrites on each tick.
+
+  The fixed surfaces and every section page are cheap and are rewritten every five minutes. The
+  archive is not: re-rendering every story on every tick is the unbounded render rate this design
+  exists to remove, and it would be the largest single thing the site spends CPU on. So the stories
+  are swept a slice at a time, sized so the whole archive is rewritten once per
+  SWEEP_WINDOW_SECONDS — the window the article page itself declares, so an entry is not left
+  expired for long before the sweep reaches it.
+
+  This is not the desk's list. A story changes only when the desk edits it, and that refresh is
+  immediate; the sweep is what keeps the *other* pages current — the latest-story modules and
+  section rails an article page renders are built from the archive, so publishing a story changes
+  every article page a little, not just its own.
+
+  The slice comes from the clock rather than stored state: a tick that never fires is simply
+  skipped, the next one continues where the clock says, and there is nothing to keep in sync.
+*/
+const SWEEP_WINDOW_SECONDS = 10_800;
+const TICK_SECONDS = 300;
+// A cap, so an archive that grows does not turn one tick into an unbounded burst of renders.
+const MAX_ARTICLES_PER_TICK = 12;
+
+export async function sweepPagesToRefresh(now = Date.now()): Promise<string[]> {
+  const paths = ["/", "/statistics/", "/sitemap.xml"];
+  const [categories, articles] = await Promise.all([
+    getSitemapCategorySlugs(),
+    getSitemapArticles(),
+  ]);
+  for (const slug of categories) paths.push(`/category/${slug}/`);
+
+  const ticksPerSweep = Math.ceil(SWEEP_WINDOW_SECONDS / TICK_SECONDS);
+  const size = Math.min(
+    MAX_ARTICLES_PER_TICK,
+    Math.max(1, Math.ceil(articles.length / ticksPerSweep)),
+  );
+  const slices = Math.max(1, Math.ceil(articles.length / size));
+  const slice = Math.floor(now / (TICK_SECONDS * 1000)) % slices;
+  for (const { slug } of articles.slice(slice * size, (slice + 1) * size)) {
+    paths.push(`/news/${slug}/`);
+  }
   return paths;
 }
