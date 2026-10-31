@@ -339,20 +339,21 @@ async function cacheProblems(base) {
     }
 
     if (verdict) {
-      // STALE is a legitimate answer — the page is still served from the cache — but a page that
-      // is STALE *again* once the queue has had time to regenerate it is not stale, it is stuck:
-      // the regeneration is being enqueued and never landing. That is what the Durable Object
-      // queue did silently for as long as it existed — it persisted the failure and answered
-      // STALE forever — so it is worth saying out loud even though it is not a release failure.
+      // STALE is a legitimate answer — the page is still served from the cache — but nothing
+      // regenerates a page in the background any more (open-next.config.ts), so a stale page waits
+      // for the schedule: the front page every five minutes, an article on the archive sweep. A
+      // page that is STALE on every visit *and* still stale after that is not merely old, it is not
+      // being rewritten at all — which is what the Durable Object queue did silently for as long as
+      // it existed. Worth saying out loud even though it is not a release failure.
       if (verdict === 'STALE') {
         await sleep(Math.max(cacheDelayMs, 5000));
         const settled = await visit(url);
         await settled.arrayBuffer().catch(() => undefined);
         if ((settled.headers.get('x-nextjs-cache') ?? 'absent') === 'STALE') {
           console.log(
-            `::warning::${path} is STALE on every visit: the regeneration it enqueues is not ` +
-              'landing, so the page is frozen until the next deploy rather than merely old. ' +
-              'Look for "[cache] revalidation did not land" in the Worker logs',
+            `::warning::${path} is STALE on every visit: the schedule is not rewriting it, so the ` +
+              'page is frozen rather than merely old. Look for "[cache] refresh did not land" and ' +
+              '"refresh failed" in the Worker logs, and for a 503 from /api/cache/refresh',
           );
         }
       }
@@ -374,6 +375,39 @@ async function cacheProblems(base) {
   }
 
   return problems;
+}
+
+/**
+ * The scheduled refresh has to be able to authenticate.
+ *
+ * The door answers 401 to a token it does not recognize, and 503 when the Worker has no
+ * CACHE_REFRESH_TOKEN at all. Only the second is a broken deployment — and nothing else in the
+ * release would notice it: the cron keeps firing every five minutes, is refused every time, and
+ * no page is rewritten between desk actions. That is exactly how it shipped once: the secret was
+ * added to GitHub after the run that deployed had already been created, so that run never saw
+ * it. Hence a failed release rather than a note in the log.
+ */
+async function refreshDoorProblems(base) {
+  const url = `${base}/api/cache/refresh`;
+  const response = await withRetries(url, () =>
+    fetch(url, {
+      method: 'POST',
+      headers: { authorization: 'Bearer release-smoke-check-not-a-real-token' },
+      signal: AbortSignal.timeout(requestTimeoutMs),
+    }),
+  );
+  await response.text().catch(() => undefined);
+  if (response.status === 401) return [];
+  if (response.status === 503) {
+    return [
+      `${url} answers 503: the Worker has no CACHE_REFRESH_TOKEN, so every scheduled refresh is ` +
+        'refused and nothing is rewritten between desk actions. Set the CACHE_REFRESH_TOKEN ' +
+        'repository secret; the next release installs it.',
+    ];
+  }
+  return [
+    `${url} answered HTTP ${response.status} to a bogus token; it must refuse it with 401`,
+  ];
 }
 
 async function routeProblems(base) {
@@ -601,6 +635,15 @@ async function confirmDeployment(base, config) {
     return 1;
   }
   console.log('Live caching OK: revalidated routes are served from the incremental cache.');
+
+  const refreshIssues = await refreshDoorProblems(base);
+  if (refreshIssues.length > 0) {
+    for (const problem of refreshIssues) {
+      console.error(`::error::${problem}`);
+    }
+    return 1;
+  }
+  console.log('Scheduled refresh OK: the five-minute door is armed and refuses a bogus token.');
 
   const visitorIssues = await visitorProblems(config);
   if (visitorIssues.length > 0) {

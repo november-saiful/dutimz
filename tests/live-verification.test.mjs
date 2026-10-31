@@ -77,6 +77,13 @@ async function startStub(fail, homeLinks = [ARTICLE, SECTION, '/statistics/']) {
           }),
           { 'content-type': 'application/json' },
         );
+      // The scheduled-refresh door. 401 is the answer from a Worker that has its secret: the check
+      // sends a token that is not the real one and requires the refusal. 503 is the
+      // missing-secret answer, and the release treats that as a failure.
+      case '/api/cache/refresh':
+        return send(401, '{"error":"Invalid refresh token."}', {
+          'content-type': 'application/json',
+        });
       // The anonymous reads the check makes as a signed-out visitor, plus the table it expects
       // to be refused.
       case '/rest/v1/articles':
@@ -210,6 +217,26 @@ test('a deployment that answers 503 to every attempt still fails the release', a
       stderr,
       /::error::.*sitemap\.xml is advertised by robots\.txt but did not answer 200: 503 \/sitemap\.xml/,
       `the failure must name what was actually broken:\n${stderr}`,
+    );
+  } finally {
+    await stub.close();
+  }
+});
+
+test('a release fails when the refresh secret never reached the Worker', async () => {
+  // The schedule authenticates with a Worker secret. When it is missing the door refuses with 503
+  // and the cron is refused on every tick, so nothing is rewritten between desk actions — and
+  // nothing else in the release says so. It shipped that way once, so it has to be red.
+  const stub = await startStub(({ path }) => path === '/api/cache/refresh');
+  try {
+    const { code, stderr, stdout } = await runCheck(stub.base);
+
+    assert.equal(code, 1, 'a schedule that can never authenticate is a broken deployment');
+    assert.match(stdout, /Live caching OK/, 'the pages themselves were fine');
+    assert.match(
+      stderr,
+      /::error::.*no CACHE_REFRESH_TOKEN/,
+      `the failure must name the missing secret:\n${stderr}`,
     );
   } finally {
     await stub.close();
