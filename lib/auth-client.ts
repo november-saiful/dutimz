@@ -55,3 +55,27 @@ export function consumeReturnPath(): string | null {
     return null;
   }
 }
+
+const DU_POLICY_KEY = "dutimz-du-email-policy";
+
+/**
+ * The one-time warning that only Dhaka-University addresses can open an account.
+ * Acknowledged once per browser session: a returning member is not re-lectured on
+ * every visit, while a fresh visitor always meets the dialog before their first
+ * trip to Google.
+ */
+export function duEmailPolicyAcknowledged(): boolean {
+  try {
+    return sessionStorage.getItem(DU_POLICY_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function acknowledgeDuEmailPolicy() {
+  try {
+    sessionStorage.setItem(DU_POLICY_KEY, "1");
+  } catch {
+    /* private mode can refuse storage; the dialog simply returns next attempt */
+  }
+}

@@ -4,6 +4,7 @@ import * as React from "react";
 import { ArrowBigDown, ArrowBigUp } from "lucide-react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useDuEmailPolicy } from "@/components/auth/du-email-policy";
 import { rememberReturnPath, signInWithGoogle } from "@/lib/auth-client";
 import { errorMessage, reportError } from "@/lib/errors";
 import { supabaseBrowser } from "@/lib/supabase";
@@ -55,6 +56,7 @@ export function ArticleActions({
    */
   const [gateOpen, setGateOpen] = React.useState(false);
   const gateTarget = React.useRef<"up" | "down">("up");
+  const { policyDialog, gated } = useDuEmailPolicy();
 
   React.useEffect(() => {
     let cancelled = false;
@@ -350,13 +352,14 @@ export function ArticleActions({
             </p>
             <button
               type="button"
-              onClick={() => void signInFromGate()}
+              onClick={() => gated(() => void signInFromGate())}
               className="mt-3 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
             >
               গুগল দিয়ে প্রবেশ করুন
             </button>
           </PopoverContent>
         </Popover>
+        {policyDialog}
       </div>
       <button
         type="button"

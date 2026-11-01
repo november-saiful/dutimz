@@ -39,8 +39,9 @@ export function DuSignupNotice() {
     <div role="status" className="border-b border-border bg-muted">
       <div className="mx-auto flex max-w-[var(--maxw)] items-center justify-between gap-3 px-7 py-2.5 text-sm">
         <p className="min-w-0">
-          কেবল ঢাকা বিশ্ববিদ্যালয়ের ইমেইল (@du.ac.bd) দিয়ে অ্যাকাউন্ট খোলা যায়।
-          আপনার বিভাগের ইমেইল দিয়ে আবার চেষ্টা করুন।
+          কেবল ঢাকা বিশ্ববিদ্যালয়ের ইমেইল দিয়ে অ্যাকাউন্ট খোলা যায় — ঠিকানা{" "}
+          du.ac.bd দিয়ে শেষ হতে হয় (যেমন @du.ac.bd বা @mgt.du.ac.bd)। আপনার
+          বিভাগের ইমেইল দিয়ে আবার চেষ্টা করুন।
         </p>
         <button
           type="button"

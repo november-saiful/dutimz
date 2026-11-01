@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/sheet";
 import { SiteMenu, isCurrentSection, sectionHref } from "@/components/dashboard/site-menu";
 import { DuSignupNotice } from "@/components/dashboard/du-signup-notice";
+import { useDuEmailPolicy } from "@/components/auth/du-email-policy";
 import { PushBell } from "@/components/push/PushBell";
 import {
   ACCOUNT_HIDDEN_ACTIONS,
@@ -91,6 +92,7 @@ export function DashboardHeader({
   const [menuUser, setMenuUser] = React.useState<HeaderUser | null | undefined>(
     undefined,
   );
+  const { policyDialog, gated } = useDuEmailPolicy();
 
   React.useEffect(() => {
     /*
@@ -199,11 +201,15 @@ export function DashboardHeader({
   }, [pathname]);
 
   // Google is the only provider and there is no sign-in page, so both the menu's
-  // sign-in button and its session-only rows start the OAuth flow directly.
-  async function startGoogleSignIn() {
-    rememberReturnPath();
-    const { error } = await signInWithGoogle();
-    if (error) reportError("google sign-in", error);
+  // sign-in button and its session-only rows start the OAuth flow directly. The
+  // first attempt of a session is held behind the DU-email policy dialog.
+  function startGoogleSignIn() {
+    gated(() => {
+      rememberReturnPath();
+      void signInWithGoogle().then(({ error }) => {
+        if (error) reportError("google sign-in", error);
+      });
+    });
   }
 
   async function signOut() {
@@ -221,7 +227,7 @@ export function DashboardHeader({
     if (!action) return;
 
     if (action === "sign-in") {
-      await startGoogleSignIn();
+      startGoogleSignIn();
       return;
     }
 
@@ -229,7 +235,7 @@ export function DashboardHeader({
     // picker, so the reader chooses another identity in one step.
     if (action === "switch") {
       await signOut();
-      await startGoogleSignIn();
+      startGoogleSignIn();
       return;
     }
 
@@ -268,6 +274,7 @@ export function DashboardHeader({
   return (
     <>
       <DuSignupNotice />
+      {policyDialog}
       <header className="topbar" data-deck-glass={deckGlass || undefined}>
       <div className="topbar-in">
         <Link href="/" className="logo" aria-label="DUTIMZ মূলপাতা">

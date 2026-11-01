@@ -14,6 +14,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { RelativeTime } from "@/components/ui/relative-time";
+import { useDuEmailPolicy } from "@/components/auth/du-email-policy";
 import { rememberReturnPath, signInWithGoogle } from "@/lib/auth-client";
 import { errorMessage, reportError } from "@/lib/errors";
 import { one, supabaseBrowser } from "@/lib/supabase";
@@ -118,6 +119,7 @@ export function Comments({ articleId }: { articleId: string }) {
   /* A signed-out press opens the sign-in popover by the comment itself; this
    * is the comment it is anchored to, or null when no prompt is showing. */
   const [gateComment, setGateComment] = React.useState<string | null>(null);
+  const { policyDialog, gated } = useDuEmailPolicy();
 
   const load = React.useCallback(async () => {
     try {
@@ -199,26 +201,43 @@ export function Comments({ articleId }: { articleId: string }) {
     if (error) throw error;
     if (!current) {
       // Reddit-style gate: only signed-in readers may write. There is no
-      // sign-in page, so the reader goes straight to Google and back here.
-      rememberReturnPath();
-      const { error: oauthError } = await signInWithGoogle();
-      if (oauthError) throw oauthError;
+      // sign-in page, so the reader goes straight to Google and back here —
+      // but not before the first attempt of the session meets the DU-email
+      // policy dialog.
+      gated(() => {
+        rememberReturnPath();
+        void signInWithGoogle().then(({ error: oauthError }) => {
+          if (oauthError) {
+            setError(
+              errorMessage(
+                "comment sign-in",
+                oauthError,
+                "প্রবেশ করা যায়নি। আবার চেষ্টা করুন।",
+              ),
+            );
+          }
+        });
+      });
       return null;
     }
     setUser(current);
     return current;
   }
 
-  async function signIn() {
-    try {
-      rememberReturnPath();
-      const { error: oauthError } = await signInWithGoogle();
-      if (oauthError) {
-        setError(errorMessage("comment sign-in", oauthError, "প্রবেশ করা যায়নি। আবার চেষ্টা করুন।"));
-      }
-    } catch (err) {
-      setError(errorMessage("comment sign-in", err, "প্রবেশ করা যায়নি। আবার চেষ্টা করুন।"));
-    }
+  function signIn() {
+    gated(() => {
+      void (async () => {
+        try {
+          rememberReturnPath();
+          const { error: oauthError } = await signInWithGoogle();
+          if (oauthError) {
+            setError(errorMessage("comment sign-in", oauthError, "প্রবেশ করা যায়নি। আবার চেষ্টা করুন।"));
+          }
+        } catch (err) {
+          setError(errorMessage("comment sign-in", err, "প্রবেশ করা যায়নি। আবার চেষ্টা করুন।"));
+        }
+      })();
+    });
   }
 
   async function submitTopLevel(event: React.FormEvent) {
@@ -526,6 +545,7 @@ export function Comments({ articleId }: { articleId: string }) {
 
   return (
     <div>
+      {policyDialog}
       <div className="rc-toolbar">
         <span className="rc-count" aria-live="polite">
           {bn(total)}টি মন্তব্য

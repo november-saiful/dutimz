@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import { useDuEmailPolicy } from "@/components/auth/du-email-policy";
 import { rememberReturnPath, signInWithGoogle } from "@/lib/auth-client";
 import { errorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
@@ -12,11 +13,14 @@ const SIGN_IN_FAILED = "প্রবেশ করা যায়নি। আ�
 /**
  * The single Google entry point. It renders inside the account dropdown (and
  * anywhere else a signed-out reader is asked to sign in); it no longer sends
- * anyone to a dedicated sign-in page.
+ * anyone to a dedicated sign-in page. The first attempt of a session is held
+ * behind the DU-email policy dialog, so a gmail reader is warned before Google
+ * ever sees them.
  */
 export function SignInButton({ className }: { className?: string }) {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
+  const { policyDialog, gated } = useDuEmailPolicy();
 
   async function signIn() {
     setBusy(true);
@@ -38,7 +42,12 @@ export function SignInButton({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex w-full flex-col items-center gap-2", className)}>
-      <Button onClick={signIn} disabled={busy} className="w-full" size="lg">
+      <Button
+        onClick={() => gated(() => void signIn())}
+        disabled={busy}
+        className="w-full"
+        size="lg"
+      >
         <svg viewBox="0 0 24 24" aria-hidden className="mr-2 size-5">
           <path
             fill="#4285f4"
@@ -61,6 +70,7 @@ export function SignInButton({ className }: { className?: string }) {
           {error}
         </p>
       )}
+      {policyDialog}
     </div>
   );
 }

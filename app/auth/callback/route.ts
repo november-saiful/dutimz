@@ -15,11 +15,28 @@ export async function GET(request: Request) {
   const code = url.searchParams.get("code");
   const next = url.searchParams.get("next") ?? "/";
 
+  // GoTrue answers a refused sign-up in two shapes, depending on where the
+  // refusal happens. When it lands *here* with an error pair instead of a code
+  // (the trigger fired while GoTrue exchanged the Google token), the failure
+  // reads as "Database error saving new user" — or, if GoTrue leaks the
+  // trigger's own message, the guard's text. Either way the reader is sent
+  // home with the marker that raises the notice.
+  const denialPattern = /saving new user|du_signup_denied|only addresses under du\.ac\.bd/i;
+  const oauthFailure = [
+    url.searchParams.get("error"),
+    url.searchParams.get("error_description"),
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const deniedBeforeExchange = denialPattern.test(oauthFailure);
+
   // There is no sign-in page to fall back to: a callback without a code (a
-  // cancelled or mistyped round-trip) simply returns the reader home, where the
-  // account menu still offers the Google button.
+  // cancelled or mistyped round-trip, or GoTrue's own refusal) simply returns
+  // the reader home, where the account menu still offers the Google button.
   if (!code) {
-    return NextResponse.redirect(new URL("/", request.url));
+    const fallback = new URL("/", request.url);
+    if (deniedBeforeExchange) fallback.searchParams.set("signup", "du-only");
+    return NextResponse.redirect(fallback);
   }
 
   const cookieStore = await cookies();
@@ -63,7 +80,7 @@ export async function GET(request: Request) {
     // The sign-up guard's refusal is the one exchange failure worth a sentence: GoTrue reports
     // the blocked insert as a failed user save. Every other failure (a stale code, a dropped
     // connection) still just sends the reader home, exactly as before.
-    const denied = /saving new user|du_signup_denied/i.test(String(error?.message ?? ""));
+    const denied = denialPattern.test(String(error?.message ?? ""));
     const fallback = new URL("/", request.url);
     if (denied) fallback.searchParams.set("signup", "du-only");
     return NextResponse.redirect(fallback);

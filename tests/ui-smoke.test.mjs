@@ -2193,11 +2193,14 @@ test('only addresses under du.ac.bd can join, and a refused sign-up hears why', 
   const guard = await readProjectFile('supabase/tests/du_signup_guard.test.sql');
   assert.match(guard, /notdu\.ac\.bd/, 'a domain that merely ends in the letters is still refused');
   assert.match(guard, /mgt\.du\.ac\.bd/, 'a departmental subdomain is accepted');
-  // The callback is the only place the refusal is observable: GoTrue reports the blocked
-  // insert as a failed user save, and the reader is sent home with a marker instead of a
-  // silent bounce.
+  // The callback is where the refusal becomes observable. GoTrue reports the blocked
+  // insert as a failed user save, and it arrives in two shapes: as the exchange failure
+  // when a code exists, and as an `error`/`error_description` pair with no code at all
+  // when the insert failed while GoTrue exchanged the Google token. Both are sent home
+  // with the marker that raises the notice instead of a silent bounce.
   const callback = await readProjectFile('app/auth/callback/route.ts');
   assert.match(callback, /saving new user\|du_signup_denied/, 'the guard\'s failure is recognised');
+  assert.match(callback, /get\("error_description"\)/, 'a refusal that lands as an error pair is recognised too');
   assert.match(callback, /searchParams\.set\("signup", "du-only"\)/, 'the refusal reaches the homepage as a marker');
   // The strip says why, reads the address bar without pulling prerendered pages into the
   // request, and dismisses itself.
@@ -2205,9 +2208,35 @@ test('only addresses under du.ac.bd can join, and a refused sign-up hears why', 
   assert.match(notice, /window\.location\.search/, 'the marker is read from the address bar');
   assert.doesNotMatch(notice, /useSearchParams\(/, 'no hook may pull the prerendered pages out of the cache');
   assert.match(notice, /@du\.ac\.bd/, 'the notice names the accepted domain');
+  assert.match(notice, /mgt\.du\.ac\.bd/, 'a departmental subdomain is named as acceptable, not refused');
   assert.match(notice, /history\.replaceState/, 'dismissing clears the marker');
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
   assert.match(header, /<DuSignupNotice \/>/, 'the strip sits above the bar on every page');
+  // The pop-up every reader meets *before* their first trip to Google: the policy
+  // dialog, the once-per-session acknowledgement, and the gate on every entry point.
+  const policy = await readProjectFile('components/auth/du-email-policy.tsx');
+  assert.match(policy, /duEmailPolicyAcknowledged/, 'the dialog is skipped once the policy is acknowledged');
+  assert.match(policy, /mgt\.du\.ac\.bd/, 'the dialog itself names a departmental subdomain');
+  // The dialog opens from inside the menu, so its card and scrim must clear every layer
+  // the site stacks above a dialog's own z-50 (top bar 60, menu 70, route bar 80) — the
+  // warning that was invisible behind the drawer is the bug this asserts against.
+  assert.match(policy, /className="z-\[120\] sm:max-w-md"/, 'the card sits above every site layer');
+  assert.match(policy, /overlayClassName="z-\[120\]"/, 'the scrim rises with the card');
+  const dialog = await readProjectFile('components/ui/dialog.tsx');
+  assert.match(dialog, /overlayClassName/, 'the dialog primitive can lift its overlay with the card');
+  const authClient = await readProjectFile('lib/auth-client.ts');
+  assert.match(authClient, /duEmailPolicyAcknowledged/, 'the acknowledgement survives within the browser session');
+  assert.match(authClient, /acknowledgeDuEmailPolicy/, 'confirming the dialog records the acknowledgement');
+  for (const entry of [
+    'components/auth/sign-in-button.tsx',
+    'components/dashboard/dashboard-header.tsx',
+    'components/article/comments.tsx',
+    'components/article/article-actions.tsx',
+    'components/account/writer-form.tsx',
+  ]) {
+    const source = await readProjectFile(entry);
+    assert.match(source, /gated\(/, `${entry} must hold every sign-in behind the policy dialog`);
+  }
 });
 
 test('the profile editor picks from the real DU academic units and types numbers only', async () => {

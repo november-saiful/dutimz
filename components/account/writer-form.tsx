@@ -32,6 +32,7 @@ import {
 } from "@/components/account/gallery-uploader";
 import { ReporterApplication } from "@/components/account/reporter-application";
 import { SignInButton } from "@/components/auth/sign-in-button";
+import { useDuEmailPolicy } from "@/components/auth/du-email-policy";
 import { rememberReturnPath, signInWithGoogle } from "@/lib/auth-client";
 import { errorMessage, reportError } from "@/lib/errors";
 import { mediaMarkdownFor } from "@/lib/richtext";
@@ -100,6 +101,7 @@ function previewPathFor(url: string): string {
 
 export function WriterForm() {
   const { toast } = useToast();
+  const { policyDialog, gated } = useDuEmailPolicy();
   const [signedIn, setSignedIn] = React.useState<boolean | null>(null);
   // undefined while the role is being read; null when the reader has none (or a
   // plain reader), which is what decides whether the form is shown at all.
@@ -327,11 +329,14 @@ export function WriterForm() {
         return;
       }
       if (!user) {
-        rememberReturnPath();
-        const { error: oauthError } = await signInWithGoogle();
-        if (oauthError) {
-          fail(errorMessage("writer sign-in", oauthError, "প্রবেশ করা যায়নি। আবার চেষ্টা করুন।"));
-        }
+        gated(() => {
+          rememberReturnPath();
+          void signInWithGoogle().then(({ error: oauthError }) => {
+            if (oauthError) {
+              fail(errorMessage("writer sign-in", oauthError, "প্রবেশ করা যায়নি। আবার চেষ্টা করুন।"));
+            }
+          });
+        });
         return;
       }
       // Clients hold no direct write grant on articles: the SECURITY DEFINER
@@ -494,6 +499,7 @@ export function WriterForm() {
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
+      {policyDialog}
       {hadDraft && !draftDismissed && !done && (
         <div
           className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2"

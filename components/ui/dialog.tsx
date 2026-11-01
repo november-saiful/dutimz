@@ -31,10 +31,18 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    /**
+     * The scrim travels with the card, not with the primitive's default. A
+     * dialog that has to rise above the site's own chrome — top bar 60, menu
+     * 70, route bar 80 — must lift its overlay too, or the page behind it
+     * stays undimmed and clickable while the card floats alone.
+     */
+    overlayClassName?: string;
+  }
+>(({ className, overlayClassName, children, ...props }, ref) => (
   <DialogPortal>
-    <DialogOverlay />
+    <DialogOverlay className={overlayClassName} />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
