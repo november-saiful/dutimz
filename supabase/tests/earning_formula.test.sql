@@ -333,7 +333,7 @@ select results_eq(
 );
 select results_eq(
   $$select entry_type::text, amount_tk, (details->>'views')::int, (details->>'rate_per_view')::numeric, view_day = timezone('Asia/Dhaka', now())::date
-     from public.earnings_ledger where article_id = (select id from public.articles where slug = 'earn-view') and entry_type like 'view_earning_%'$$,
+     from public.earnings_ledger where article_id = (select id from public.articles where slug = 'earn-view') and entry_type::text like 'view_earning_%'$$,
   $$values ('view_earning_held', 0.40, 20, 0.02, true)$$,
   'The batch is credited as held view income stamped with its day'
 );
@@ -356,7 +356,7 @@ select results_eq(
   'Their visit completes the carried remainder into one batch'
 );
 select results_eq(
-  $$select count(*)::int, sum(amount_tk) from public.earnings_ledger where article_id = (select id from public.articles where slug = 'earn-view') and entry_type like 'view_earning_%'$$,
+  $$select count(*)::int, sum(amount_tk) from public.earnings_ledger where article_id = (select id from public.articles where slug = 'earn-view') and entry_type::text like 'view_earning_%'$$,
   $$values (2, 0.60)$$,
   'The story holds two batches totalling ৳0.60'
 );
