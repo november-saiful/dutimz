@@ -222,7 +222,7 @@ reset role;
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select hasnt_function('public', 'admin_award_article', array['uuid', 'integer'], 'The manual award function is retired in favour of the automatic fee');
 select results_eq(
-  $$select entry_type, (details->>'version')::int, (details->>'base')::int from public.earnings_ledger where article_id = (select id from public.articles where slug = 'songbad')$$,
+  $$select entry_type::text, (details->>'version')::int, (details->>'base')::int from public.earnings_ledger where article_id = (select id from public.articles where slug = 'songbad')$$,
   $$values ('article_earning_held', 1, 25)$$,
   'Publishing a story credits the automatic formula fee, held until the profile is complete'
 );
@@ -864,16 +864,19 @@ select results_eq(
 );
 select results_eq(
   $$select held_tk, available_tk, reserved_tk from public.admin_member_records('reader_1100000000004000', 10, 0)$$,
-  $$values (0, 0, 0)$$,
+  $$values (0::numeric, 0::numeric, 0)$$,
   'The member row carries the same three wallet figures the member sees on their own balance page'
 );
 
 -- The desk manages sign-in addresses, so the directory carries the GoTrue email and the flag
--- that says the account has been closed by the desk.
+-- that says the account has been closed by the desk. auth.users lives in the auth schema, which
+-- `authenticated` cannot write, so the fixture drops back to the test session's own role.
+reset role;
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, deleted_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
   ('99000000-0000-4000-8000-000000000009', 'authenticated', 'authenticated', 'closed@du.ac.bd', now(), now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"বন্ধ অ্যাকাউন্ট"}', false, false)
 on conflict (id) do nothing;
+set local role authenticated;
 select results_eq(
   $$select email, auth_deleted from public.admin_member_records('reader_1100000000004000', 10, 0)$$,
   $$values ('reader@du.ac.bd', false)$$,
@@ -1955,10 +1958,10 @@ select lives_ok(
   'The desk can award a bonus to a published story'
 );
 select results_eq(
-  $$select entry_type, amount_tk from public.earnings_ledger
+  $$select entry_type::text, amount_tk from public.earnings_ledger
      where article_id = (select id from public.articles where slug = 'songbad')
        and entry_type in ('bonus_earning_available', 'bonus_earning_held')$$,
-  $$values ('bonus_earning_available', 15)$$,
+  $$values ('bonus_earning_available', 15::numeric)$$,
   'A complete profile receives the bonus straight into the available money'
 );
 set local role authenticated;
@@ -1983,10 +1986,10 @@ select lives_ok(
   'The desk can bonus a story whose author has not completed their profile'
 );
 select results_eq(
-  $$select entry_type, amount_tk from public.earnings_ledger
+  $$select entry_type::text, amount_tk from public.earnings_ledger
      where article_id = (select id from public.articles where slug = 'bonus-patro')
        and entry_type in ('bonus_earning_available', 'bonus_earning_held')$$,
-  $$values ('bonus_earning_held', 12)$$,
+  $$values ('bonus_earning_held', 12::numeric)$$,
   'An incomplete profile holds the bonus until the profile completes'
 );
 set local role authenticated;
@@ -2057,10 +2060,10 @@ select lives_ok(
   'The desk can apply a penalty to a published story'
 );
 select results_eq(
-  $$select entry_type, amount_tk from public.earnings_ledger
+  $$select entry_type::text, amount_tk from public.earnings_ledger
      where article_id = (select id from public.articles where slug = 'songbad')
        and entry_type = 'penalty'$$,
-  $$values ('penalty', -15)$$,
+  $$values ('penalty', -15::numeric)$$,
   'The penalty row is negative and anchored to the story'
 );
 set local role authenticated;

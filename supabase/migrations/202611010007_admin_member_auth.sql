@@ -61,7 +61,9 @@ begin
                          'withdrawal_reserve', 'withdrawal_refund', 'manual_adjustment')), 0)::numeric,
            coalesce((select sum(w.amount_tk) from public.withdrawals w
                       where w.user_id = p.id and w.status = 'pending'), 0)::integer,
-           a.email,
+           -- auth.users.email is varchar(255); the declared column is text, and plpgsql
+           -- validates RETURN QUERY columns by exact type, so the cast is load-bearing.
+           a.email::text,
            a.deleted_at is not null,
            p.created_at,
            (select count(*) from matching)

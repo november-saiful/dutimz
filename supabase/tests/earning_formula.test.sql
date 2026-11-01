@@ -154,22 +154,22 @@ insert into public.article_questionnaire_responses (article_id, questionnaire_ve
          (select id from public.article_questionnaire_versions where active),
          '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"হ্যাঁ","crime_type":["অন্যান্য অপরাধ"],"crime_details":"পরীক্ষামূলক বিবরণ","crime_location":"ঢাকা","crime_time":"গতকাল","suspects":{"count":1,"people":[{"name":"অজ্ঞাত"}]}}'::jsonb;
 
-select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-campus-150'))).amount_tk$$, $$values (25)$$, 'The base fee is ৳25 for a plain campus story');
-select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-crime'))).amount_tk$$, $$values (35)$$, 'A crime story adds ৳10');
-select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-151'))).amount_tk$$, $$values (35)$$, 'The first word past 150 earns the first length bonus');
-select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-251'))).amount_tk$$, $$values (45)$$, 'The second hundred words earns the second length bonus');
-select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-hero'))).amount_tk$$, $$values (27)$$, 'A thumbnail adds ৳2');
-select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-g5'))).amount_tk$$, $$values (35)$$, 'The first five gallery images add ৳2 each');
-select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-g6'))).amount_tk$$, $$values (36)$$, 'The sixth gallery image adds ৳1');
-select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-g10'))).amount_tk$$, $$values (40)$$, 'Images six through ten add ৳1 each');
+select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-campus-150'))).amount_tk$$, $$values (25::numeric)$$, 'The base fee is ৳25 for a plain campus story');
+select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-crime'))).amount_tk$$, $$values (35::numeric)$$, 'A crime story adds ৳10');
+select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-151'))).amount_tk$$, $$values (35::numeric)$$, 'The first word past 150 earns the first length bonus');
+select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-251'))).amount_tk$$, $$values (45::numeric)$$, 'The second hundred words earns the second length bonus');
+select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-hero'))).amount_tk$$, $$values (27::numeric)$$, 'A thumbnail adds ৳2');
+select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-g5'))).amount_tk$$, $$values (35::numeric)$$, 'The first five gallery images add ৳2 each');
+select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-g6'))).amount_tk$$, $$values (36::numeric)$$, 'The sixth gallery image adds ৳1');
+select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-g10'))).amount_tk$$, $$values (40::numeric)$$, 'Images six through ten add ৳1 each');
 select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-g11'))).amount_tk$$, $$values (40.50)$$, 'The eleventh gallery image adds ৳0.50');
-select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-hero-g6'))).amount_tk$$, $$values (37)$$, 'A hero attached to the gallery earns its ৳2 once and is not counted again');
-select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-iv'))).amount_tk$$, $$values (35)$$, 'A virtual interview adds ৳10');
-select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-ip'))).amount_tk$$, $$values (45)$$, 'An in-person interview adds ৳20');
-select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-q-full'))).amount_tk$$, $$values (26)$$, 'A fully answered questionnaire adds ৳1');
-select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-q-partial'))).amount_tk$$, $$values (25)$$, 'A questionnaire with a visible question unanswered earns nothing');
-select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-q-hidden'))).amount_tk$$, $$values (26)$$, 'Fields on a hidden branch are not demanded for completeness');
-select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-q-none'))).amount_tk$$, $$values (25)$$, 'A story with no questionnaire response earns no questionnaire bonus');
+select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-hero-g6'))).amount_tk$$, $$values (37::numeric)$$, 'A hero attached to the gallery earns its ৳2 once and is not counted again');
+select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-iv'))).amount_tk$$, $$values (35::numeric)$$, 'A virtual interview adds ৳10');
+select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-ip'))).amount_tk$$, $$values (45::numeric)$$, 'An in-person interview adds ৳20');
+select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-q-full'))).amount_tk$$, $$values (26::numeric)$$, 'A fully answered questionnaire adds ৳1');
+select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-q-partial'))).amount_tk$$, $$values (25::numeric)$$, 'A questionnaire with a visible question unanswered earns nothing');
+select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-q-hidden'))).amount_tk$$, $$values (26::numeric)$$, 'Fields on a hidden branch are not demanded for completeness');
+select results_eq($$select (public.compute_article_earning((select id from public.articles where slug = 'earn-q-none'))).amount_tk$$, $$values (25::numeric)$$, 'A story with no questionnaire response earns no questionnaire bonus');
 select ok(
   (select c.amount_tk = (c.details->>'total')::numeric
      from public.compute_article_earning((select id from public.articles where slug = 'earn-hero-g6')) c),
@@ -239,15 +239,15 @@ insert into public.articles (author_id, category_id, slug, title, excerpt, body,
     from public.categories c where c.slug = 'campus';
 insert into public.article_attributions (article_id, author_id)
   values ((select id from public.articles where slug = 'earn-anon-attr'), '91000000-0000-4000-8000-000000000001');
-update public.articles set status = 'published' where slug = 'earn-anon-attr';
+update public.articles set status = 'published', published_at = now() where slug = 'earn-anon-attr';
 select results_eq(
   $$select count(*)::int, min(user_id::text) from public.earnings_ledger where article_id = (select id from public.articles where slug = 'earn-anon-attr')$$,
   $$values (1, '91000000-0000-4000-8000-000000000001')$$,
   'Publishing an anonymous story credits the attributed author'
 );
-insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, is_anonymous)
+insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, published_at, is_anonymous)
   select null, c.id, 'earn-ownerless', 'মালিকহীন ফর্মুলা পরীক্ষা',
-         'মালিকহীন প্রতিবেদনের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), 'published', true
+         'মালিকহীন প্রতিবেদনের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), 'published', now(), true
     from public.categories c where c.slug = 'campus';
 select results_eq(
   $$select count(*)::int from public.earnings_ledger where article_id = (select id from public.articles where slug = 'earn-ownerless')$$,
@@ -328,7 +328,7 @@ select results_eq(
   'Settling credits the complete ten-view batches'
 );
 select results_eq(
-  $$select entry_type, amount_tk, (details->>'views')::int, (details->>'rate_per_view')::numeric, view_day = timezone('Asia/Dhaka', now())::date
+  $$select entry_type::text, amount_tk, (details->>'views')::int, (details->>'rate_per_view')::numeric, view_day = timezone('Asia/Dhaka', now())::date
      from public.earnings_ledger where article_id = (select id from public.articles where slug = 'earn-view') and entry_type like 'view_earning_%'$$,
   $$values ('view_earning_held', 0.40, 20, 0.02, true)$$,
   'The batch is credited as held view income stamped with its day'
@@ -394,7 +394,7 @@ select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '92000000-0000-4000-8000-000000000002', true);
 select results_eq(
   $$select (public.get_my_wallet() ->> 'held')::numeric, (public.get_my_wallet() ->> 'available')::numeric$$,
-  $$values (0, 25.60)$$,
+  $$values (0::numeric, 25.60)$$,
   'The wallet shows the released money as available and nothing held'
 );
 reset role;
