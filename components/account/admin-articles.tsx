@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { BookOpen, CalendarClock, Eye, EyeOff, Pencil, Search, Trash2 } from "lucide-react";
+import { BookOpen, CalendarClock, Eye, EyeOff, Gavel, Gift, Pencil, Search, Trash2 } from "lucide-react";
 
 import { AuthedMediaImage } from "@/components/article/authed-media-image";
 import { Badge } from "@/components/ui/badge";
@@ -159,6 +159,15 @@ export function AdminArticles() {
   const [earningsLoaded, setEarningsLoaded] = React.useState(false);
   const [earningMessage, setEarningMessage] = React.useState("");
 
+  // The desk's bonus. Whole taka between 10 and 20, published stories only — the server
+  // refuses anything else, so the dialog only has to collect the number.
+  const [bonusing, setBonusing] = React.useState<Article | null>(null);
+  const [bonusAmount, setBonusAmount] = React.useState("");
+
+  // The desk's penalty, the mirror image: whole taka 10–20 docked from the story's owner.
+  const [penalizing, setPenalizing] = React.useState<Article | null>(null);
+  const [penaltyAmount, setPenaltyAmount] = React.useState("");
+
   // The pictures the story's own body already draws. The preview's attachment strip skips them so
   // the desk sees the page the reader will get, not the body plus a duplicate of every inline image.
   const previewInlineMedia = previewing
@@ -171,6 +180,11 @@ export function AdminArticles() {
   const feeRow = earnings.find((row) => row.entry_type.startsWith("article_earning_"));
   const feeBreakdown = feeRow ? earningBreakdown(feeRow.entry_type, feeRow.details) : null;
   const viewRows = earnings.filter((row) => row.entry_type.startsWith("view_earning_"));
+  const bonusRows = earnings.filter((row) => row.entry_type.startsWith("bonus_earning_"));
+  const bonusTotal = bonusRows.reduce((sum, row) => sum + Number(row.amount_tk), 0);
+  const penaltyTotal = earnings
+    .filter((row) => row.entry_type === "penalty")
+    .reduce((sum, row) => sum + Number(row.amount_tk), 0);
   const viewsTotal = viewRows.reduce((sum, row) => sum + Number(row.amount_tk), 0);
   const viewCount = viewRows.reduce((sum, row) => sum + Number(row.details?.views ?? 0), 0);
 
@@ -364,6 +378,72 @@ export function AdminArticles() {
     }
   }
 
+  function openBonus(article: Article) {
+    setBonusing(article);
+    setBonusAmount("");
+  }
+
+  async function awardBonus() {
+    if (!bonusing) return;
+    setError("");
+    setNotice("");
+    const amountTk = Number(bonusAmount);
+    if (!Number.isInteger(amountTk) || amountTk < 10 || amountTk > 20) {
+      setError("বোনাস ১০ থেকে ২০ টাকার মধ্যে একটি পূর্ণসংখ্যা হতে হবে।");
+      return;
+    }
+    setBusy(`bonus-${bonusing.id}`);
+    try {
+      const { error: bonusError } = await supabaseBrowser().rpc("admin_award_bonus", {
+        p_article_id: bonusing.id,
+        p_amount_tk: amountTk,
+      });
+      if (bonusError) {
+        setError(errorMessage("article bonus", bonusError, "বোনাস যোগ করা যায়নি। আবার চেষ্টা করুন।"));
+        return;
+      }
+      setNotice(`৳${bn(amountTk)} বোনাস যোগ করা হয়েছে।`);
+      setBonusing(null);
+    } catch (err) {
+      setError(errorMessage("article bonus", err, "বোনাস যোগ করা যায়নি। আবার চেষ্টা করুন।"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function openPenalty(article: Article) {
+    setPenalizing(article);
+    setPenaltyAmount("");
+  }
+
+  async function applyPenalty() {
+    if (!penalizing) return;
+    setError("");
+    setNotice("");
+    const amountTk = Number(penaltyAmount);
+    if (!Number.isInteger(amountTk) || amountTk < 10 || amountTk > 20) {
+      setError("জরিমানা ১০ থেকে ২০ টাকার মধ্যে একটি পূর্ণসংখ্যা হতে হবে।");
+      return;
+    }
+    setBusy(`penalty-${penalizing.id}`);
+    try {
+      const { error: penaltyError } = await supabaseBrowser().rpc("admin_apply_penalty", {
+        p_article_id: penalizing.id,
+        p_amount_tk: amountTk,
+      });
+      if (penaltyError) {
+        setError(errorMessage("article penalty", penaltyError, "জরিমানা যোগ করা যায়নি। আবার চেষ্টা করুন।"));
+        return;
+      }
+      setNotice(`৳${bn(amountTk)} জরিমানা যোগ করা হয়েছে।`);
+      setPenalizing(null);
+    } catch (err) {
+      setError(errorMessage("article penalty", err, "জরিমানা যোগ করা যায়নি। আবার চেষ্টা করুন।"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function openDelete(article: Article) {
     setDeleting(article);
     setDeleteEarning(null);
@@ -507,6 +587,9 @@ export function AdminArticles() {
           "article_earning_held",
           "view_earning_available",
           "view_earning_held",
+          "bonus_earning_available",
+          "bonus_earning_held",
+          "penalty",
         ]);
       if (readError) {
         setEarningMessage(errorMessage("article earning read", readError, "আয়ের হিসাব দেখানো যাচ্ছে না।"));
@@ -718,6 +801,25 @@ export function AdminArticles() {
                           title={live ? "প্রকাশ থেকে সরান" : "প্রকাশ করুন"}
                         >
                           {live ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openBonus(article)}
+                          aria-label={`${article.title} বোনাস`}
+                          title="বোনাস দিন"
+                        >
+                          <Gift className="size-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => openPenalty(article)}
+                          aria-label={`${article.title} জরিমানা`}
+                          title="জরিমানা দিন"
+                        >
+                          <Gavel className="size-4" />
                         </Button>
                         <Button
                           variant="ghost"
@@ -948,6 +1050,95 @@ export function AdminArticles() {
         </DialogContent>
       </Dialog>
 
+      {/* The desk's discretionary bonus: ৳10–20 whole taka on a published story. The server
+          holds it until the author's profile completes, exactly like automatic earnings. */}
+      <Dialog open={bonusing !== null} onOpenChange={(open) => !open && setBonusing(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>বোনাস দিন</DialogTitle>
+            <DialogDescription>
+              {bonusing && (
+                <>
+                  &ldquo;{bonusing.title}&rdquo; — {bonusing.is_anonymous
+                    ? "নাম প্রকাশে অনিচ্ছুক"
+                    : bonusing.author
+                      ? bonusing.author.display_name?.trim() || `@${bonusing.author.username}`
+                      : "লেখক নেই"}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <Field label="বোনাসের পরিমাণ (টাকা)" htmlFor="bonus-amount" hint="১০ থেকে ২০ টাকার মধ্যে একটি পূর্ণসংখ্যা।">
+              <Input
+                id="bonus-amount"
+                type="number"
+                min={10}
+                max={20}
+                step={1}
+                value={bonusAmount}
+                onChange={(event) => setBonusAmount(event.target.value)}
+                placeholder="১০–২০"
+              />
+            </Field>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBonusing(null)}>
+              বাতিল
+            </Button>
+            <Button onClick={() => void awardBonus()} disabled={busy !== null}>
+              {busy?.startsWith("bonus-") ? "যোগ করা হচ্ছে…" : "বোনাস যোগ করুন"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* The desk's discretionary penalty: ৳10–20 whole taka docked from the story's owner when
+          the story is judged to deserve less than it earned. The deduction is immediate. */}
+      <Dialog open={penalizing !== null} onOpenChange={(open) => !open && setPenalizing(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>জরিমানা দিন</DialogTitle>
+            <DialogDescription>
+              {penalizing && (
+                <>
+                  &ldquo;{penalizing.title}&rdquo; — {penalizing.is_anonymous
+                    ? "নাম প্রকাশে অনিচ্ছুক"
+                    : penalizing.author
+                      ? penalizing.author.display_name?.trim() || `@${penalizing.author.username}`
+                      : "লেখক নেই"}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <p className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+              এই পরিমাণ লেখকের মোট ব্যালেন্স থেকে সঙ্গে সঙ্গে কেটে নেওয়া হবে।
+            </p>
+            <Field label="জরিমানার পরিমাণ (টাকা)" htmlFor="penalty-amount" hint="১০ থেকে ২০ টাকার মধ্যে একটি পূর্ণসংখ্যা।">
+              <Input
+                id="penalty-amount"
+                type="number"
+                min={10}
+                max={20}
+                step={1}
+                value={penaltyAmount}
+                onChange={(event) => setPenaltyAmount(event.target.value)}
+                placeholder="১০–২০"
+              />
+            </Field>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPenalizing(null)}>
+              বাতিল
+            </Button>
+            <Button variant="destructive" onClick={() => void applyPenalty()} disabled={busy !== null}>
+              {busy?.startsWith("penalty-") ? "কাটা হচ্ছে…" : "জরিমানা যোগ করুন"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Erasing a story. The one desk action that cannot be undone, so it names what leaves with
           the story and offers the reversible alternative beside it. */}
       <Dialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
@@ -1094,6 +1285,16 @@ export function AdminArticles() {
                     {viewsTotal > 0 && (
                       <p className="mt-1 text-xs text-muted-foreground">
                         ভিউ আয়: {bnMoney(viewsTotal)} ({bn(viewCount)}টি ভিউ)
+                      </p>
+                    )}
+                    {bonusTotal > 0 && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        বোনাস: {bnMoney(bonusTotal)}
+                      </p>
+                    )}
+                    {penaltyTotal < 0 && (
+                      <p className="mt-1 text-xs text-destructive">
+                        জরিমানা: {bnMoney(penaltyTotal)}
                       </p>
                     )}
                   </div>

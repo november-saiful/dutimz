@@ -1,5 +1,5 @@
 begin;
-select plan(290);
+select plan(312);
 
 -- The publish-time award is a deferred constraint trigger in production, so every publish path
 -- sees the story's final gallery and questionnaire rows. This suite asserts the award rows as it
@@ -1917,6 +1917,173 @@ select isnt_empty(
 select ok(
   not has_function_privilege('anon', 'public.admin_delete_article(uuid)', 'execute'),
   'A signed-out visitor cannot delete a story'
+);
+
+-- The desk bonus. Whole taka between 10 and 20, published stories only, and the same
+-- held/available rule every other earning follows: held until a 100% profile.
+select ok(
+  not has_function_privilege('anon', 'public.admin_award_bonus(uuid, integer)', 'execute'),
+  'A signed-out visitor cannot award a bonus'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '66000000-0000-4000-8000-000000000006', true);
+select throws_ok(
+  $$select public.admin_award_bonus((select id from public.articles where slug = 'songbad'), 10)$$,
+  '42501', null,
+  'A reader cannot award a bonus even to a published story'
+);
+reset role;
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select throws_ok(
+  $$select public.admin_award_bonus((select id from public.articles where slug = 'songbad'), 5)$$,
+  'P0001', null,
+  'A bonus below ৳10 is refused'
+);
+select throws_ok(
+  $$select public.admin_award_bonus((select id from public.articles where slug = 'songbad'), 25)$$,
+  'P0001', null,
+  'A bonus above ৳20 is refused'
+);
+select throws_ok(
+  $$select public.admin_award_bonus((select id from public.articles where slug = 'porikkha-mod'), 15)$$,
+  'P0001', null,
+  'A bonus cannot be awarded to a story that is not published'
+);
+select lives_ok(
+  $$select public.admin_award_bonus((select id from public.articles where slug = 'songbad'), 15)$$,
+  'The desk can award a bonus to a published story'
+);
+select results_eq(
+  $$select entry_type, amount_tk from public.earnings_ledger
+     where article_id = (select id from public.articles where slug = 'songbad')
+       and entry_type in ('bonus_earning_available', 'bonus_earning_held')$$,
+  $$values ('bonus_earning_available', 15)$$,
+  'A complete profile receives the bonus straight into the available money'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select results_eq(
+  $$select (select (public.get_my_wallet() ->> 'available')::numeric) -
+           (select coalesce(sum(amount_tk), 0) from public.earnings_ledger
+             where user_id = '22000000-0000-4000-8000-000000000002'
+               and entry_type in ('article_earning_available', 'view_earning_available', 'profile_release',
+                                  'withdrawal_reserve', 'withdrawal_refund', 'manual_adjustment'))$$,
+  $$values (15::numeric)$$,
+  'The wallet counts the desk bonus in the available money'
+);
+reset role;
+insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, published_at)
+  select '11000000-0000-4000-8000-000000000001', c.id, 'bonus-patro', 'বোনাসের অপেক্ষমাণ প্রতিবেদন',
+         'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('পরীক্ষামূলক প্রতিবেদনের অংশ। ', 6), 'published', now()
+    from public.categories c where c.slug = 'porikkha';
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select lives_ok(
+  $$select public.admin_award_bonus((select id from public.articles where slug = 'bonus-patro'), 12)$$,
+  'The desk can bonus a story whose author has not completed their profile'
+);
+select results_eq(
+  $$select entry_type, amount_tk from public.earnings_ledger
+     where article_id = (select id from public.articles where slug = 'bonus-patro')
+       and entry_type in ('bonus_earning_available', 'bonus_earning_held')$$,
+  $$values ('bonus_earning_held', 12)$$,
+  'An incomplete profile holds the bonus until the profile completes'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '11000000-0000-4000-8000-000000000001', true);
+select results_eq(
+  $$select (public.get_my_wallet() ->> 'held')::numeric$$,
+  $$values (37::numeric)$$,
+  'A held bonus sits in the held wallet figure beside the formula fee'
+);
+reset role;
+update public.profile_details set
+  department = 'পরীক্ষামূলক বিভাগ', session = '২০২০-২১', du_registration_number = '২০২১-১২৩৪৫',
+  residency_status = 'off_campus', whatsapp_na = true, payout_method = 'bkash', payout_number = '01800000000'
+  where user_id = '11000000-0000-4000-8000-000000000001';
+select results_eq(
+  $$select count(*)::int from public.earnings_ledger rel
+      join public.earnings_ledger held on rel.released_from = held.id
+     where held.user_id = '11000000-0000-4000-8000-000000000001'
+       and held.entry_type = 'bonus_earning_held'
+       and rel.entry_type = 'profile_release'$$,
+  $$values (1)$$,
+  'Completing the profile releases the held bonus against its own row'
+);
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select results_eq(
+  $$select (select available_tk from public.admin_member_records('reader_2200000000004000', 10, 0)) -
+           (select coalesce(sum(amount_tk), 0) from public.earnings_ledger
+             where user_id = '22000000-0000-4000-8000-000000000002'
+               and entry_type in ('article_earning_available', 'view_earning_available', 'profile_release',
+                                  'withdrawal_reserve', 'withdrawal_refund', 'manual_adjustment'))$$,
+  $$values (15::numeric)$$,
+  'The desk directory counts the bonus in the available figure'
+);
+
+-- The desk penalty. Whole taka between 10 and 20, published stories only, docked from the
+-- story's owner's available money at once — a punishment is not something a profile unlocks.
+select ok(
+  not has_function_privilege('anon', 'public.admin_apply_penalty(uuid, integer)', 'execute'),
+  'A signed-out visitor cannot apply a penalty'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '66000000-0000-4000-8000-000000000006', true);
+select throws_ok(
+  $$select public.admin_apply_penalty((select id from public.articles where slug = 'songbad'), 10)$$,
+  '42501', null,
+  'A reader cannot apply a penalty even to a published story'
+);
+reset role;
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select throws_ok(
+  $$select public.admin_apply_penalty((select id from public.articles where slug = 'songbad'), 5)$$,
+  'P0001', null,
+  'A penalty below ৳10 is refused'
+);
+select throws_ok(
+  $$select public.admin_apply_penalty((select id from public.articles where slug = 'songbad'), 25)$$,
+  'P0001', null,
+  'A penalty above ৳20 is refused'
+);
+select throws_ok(
+  $$select public.admin_apply_penalty((select id from public.articles where slug = 'porikkha-mod'), 15)$$,
+  'P0001', null,
+  'A penalty cannot be applied to a story that is not published'
+);
+select lives_ok(
+  $$select public.admin_apply_penalty((select id from public.articles where slug = 'songbad'), 15)$$,
+  'The desk can apply a penalty to a published story'
+);
+select results_eq(
+  $$select entry_type, amount_tk from public.earnings_ledger
+     where article_id = (select id from public.articles where slug = 'songbad')
+       and entry_type = 'penalty'$$,
+  $$values ('penalty', -15)$$,
+  'The penalty row is negative and anchored to the story'
+);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select results_eq(
+  $$select (select (public.get_my_wallet() ->> 'available')::numeric) -
+           (select coalesce(sum(amount_tk), 0) from public.earnings_ledger
+             where user_id = '22000000-0000-4000-8000-000000000002'
+               and entry_type in ('article_earning_available', 'view_earning_available', 'bonus_earning_available',
+                                  'profile_release', 'withdrawal_reserve', 'withdrawal_refund', 'manual_adjustment'))$$,
+  $$values (-15::numeric)$$,
+  'The wallet docks the penalty from the available money'
+);
+reset role;
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select results_eq(
+  $$select (select available_tk from public.admin_member_records('reader_2200000000004000', 10, 0)) -
+           (select coalesce(sum(amount_tk), 0) from public.earnings_ledger
+             where user_id = '22000000-0000-4000-8000-000000000002'
+               and entry_type in ('article_earning_available', 'view_earning_available', 'bonus_earning_available',
+                                  'profile_release', 'withdrawal_reserve', 'withdrawal_refund', 'manual_adjustment'))$$,
+  $$values (-15::numeric)$$,
+  'The desk directory docks the penalty in the available figure'
 );
 
 select * from finish();

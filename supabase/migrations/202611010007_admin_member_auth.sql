@@ -4,6 +4,9 @@ begin;
 -- member's GoTrue email and whether the account has been closed by the desk. Both live in
 -- auth.users, which no public role may read — but this function is security definer and already
 -- gated on is_admin(), so the two columns ride the same door the rest of the directory uses.
+-- The return type gains two columns, and a return type is not replaceable in place.
+drop function if exists public.admin_member_records(text, integer, integer);
+
 create or replace function public.admin_member_records(p_query text default null, p_limit integer default 50, p_offset integer default 0)
 returns table (
   id uuid,
