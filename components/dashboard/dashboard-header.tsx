@@ -14,6 +14,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { SiteMenu, isCurrentSection, sectionHref } from "@/components/dashboard/site-menu";
+import { DuSignupNotice } from "@/components/dashboard/du-signup-notice";
 import { PushBell } from "@/components/push/PushBell";
 import {
   ACCOUNT_HIDDEN_ACTIONS,
@@ -265,7 +266,9 @@ export function DashboardHeader({
   }
 
   return (
-    <header className="topbar" data-deck-glass={deckGlass || undefined}>
+    <>
+      <DuSignupNotice />
+      <header className="topbar" data-deck-glass={deckGlass || undefined}>
       <div className="topbar-in">
         <Link href="/" className="logo" aria-label="DUTIMZ মূলপাতা">
           {/*
@@ -396,5 +399,6 @@ export function DashboardHeader({
         </div>
       </div>
     </header>
+    </>
   );
 }

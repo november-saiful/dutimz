@@ -1497,10 +1497,11 @@ test('an upload never sends an expired access token', async () => {
 
 test('only lib/supabase.ts and the OAuth callback touch the Supabase SDKs', async () => {
   // Two clients exist by design: `lib/supabase.ts` owns the anonymous server client and the one
-  // memoized browser client, and the OAuth callback builds a cookie-writing server client it
-  // must have. Any other file that reaches into @supabase/* chooses a session store the app does
-  // not write to — which is exactly how the uploader decided a signed-in reporter was signed
-  // out. This walks the source tree so a new surface cannot quietly reintroduce the mismatch.
+  // memoized browser client, and the OAuth callback and the admin member route each build the
+  // cookie-writing server client they must have to identify the caller. Any other file that
+  // reaches into @supabase/* chooses a session store the app does not write to — which is
+  // exactly how the uploader decided a signed-in reporter was signed out. This walks the source
+  // tree so a new surface cannot quietly reintroduce the mismatch.
   const walk = (url) =>
     readdirSync(url, { withFileTypes: true }).flatMap((entry) => {
       const child = new URL(`${entry.name}${entry.isDirectory() ? '/' : ''}`, url);
@@ -1509,9 +1510,11 @@ test('only lib/supabase.ts and the OAuth callback touch the Supabase SDKs', asyn
   const roots = ['../app/', '../components/', '../lib/'];
   const sources = roots.flatMap((root) => walk(new URL(root, import.meta.url)));
   const allowed = new Set(
-    ['../lib/supabase.ts', '../app/auth/callback/route.ts'].map((path) =>
-      fileURLToPath(new URL(path, import.meta.url)),
-    ),
+    [
+      '../lib/supabase.ts',
+      '../app/auth/callback/route.ts',
+      '../app/api/admin/members/[id]/route.ts',
+    ].map((path) => fileURLToPath(new URL(path, import.meta.url))),
   );
   let scanned = 0;
   for (const url of sources) {
@@ -2113,4 +2116,158 @@ test('the write form proposes the slug from the title and lets the writer edit i
   assert.match(migration, /slug_base/, 'the server normalises a typed address');
   assert.match(migration, /slugify_title\(slug_base\)/, 'a typed address keeps the title rules');
   assert.match(migration, /attempt = 1 then slug_base/, 'a taken typed address takes a suffix');
+});
+
+test('the automatic earning formula replaces the manual award button', async () => {
+  // The desk no longer prices a story by hand: the publish trigger is the only way an article
+  // earns, and the retired function is gone from the schema.
+  const migration = await readProjectFile('supabase/migrations/202611010003_formula_award_functions.sql');
+  assert.match(migration, /create constraint trigger award_article_earning_on_publish/, 'publishing credits through a trigger');
+  assert.match(migration, /drop function if exists public\.admin_award_article\(uuid, integer\)/, 'the manual award function is retired');
+  assert.match(migration, /on conflict \(article_id\) where entry_type in \('article_earning_available', 'article_earning_held'\) do nothing/, 'the one-fee backstop survives republishing');
+  // The console reads the recorded rows instead of awarding: a formula breakdown, view income
+  // beside the fee, and a deletion guard that checks any ledger row rather than a shortlist.
+  const articles = await readProjectFile('components/account/admin-articles.tsx');
+  assert.doesNotMatch(articles, /admin_award_article/, 'the console never names the retired function');
+  assert.match(articles, /earningBreakdown\(feeRow\.entry_type, feeRow\.details\)/, 'the preview explains the formula fee');
+  assert.match(articles, /startsWith\("view_earning_"\)/, 'the preview collects the view income rows');
+  assert.match(articles, /\.select\("id"\)[\s\S]*?\.eq\("article_id", article\.id\)[\s\S]*?\.limit\(1\)/, 'the delete guard checks for any ledger row');
+  assert.match(articles, /\.select\("article_id"\)[\s\S]*?\.in\("article_id", \[\.\.\.selected\]\)/, 'the bulk guard also checks any ledger row');
+  assert.match(articles, /আয় নথিভুক্ত হয়েছে/, 'the paid story is refused with its own sentence');
+  // The balance page and the member console share the same labels, including the two view types.
+  const labels = await readProjectFile('lib/earning-details.ts');
+  assert.match(labels, /view_earning_held: "ভিউ আয় \(আটকে\)"/, 'held view income has a label');
+  assert.match(labels, /view_earning_available: "ভিউ আয় \(উত্তোলনযোগ্য\)"/, 'available view income has a label');
+  const balance = await readProjectFile('components/account/balance-view.tsx');
+  assert.match(balance, /LEDGER_LABELS\[entry\.entry_type\]/, 'the balance page names every entry type');
+  assert.match(balance, /earningBreakdown\(entry\.entry_type, entry\.details\)/, 'and explains the formula behind each row');
+  const dashboard = await readProjectFile('components/account/admin-dashboard.tsx');
+  assert.match(dashboard, /earningBreakdown\(entry\.entry_type, entry\.details\)/, 'the member console explains the formula too');
+});
+
+test('the crime desk, twenty-image gallery and view beacon are wired in', async () => {
+  const site = await readProjectFile('lib/site.ts');
+  const categories = site.slice(site.indexOf('export const CATEGORIES'), site.indexOf('];', site.indexOf('export const CATEGORIES')) + 2);
+  assert.match(categories, /\{ label: "অপরাধ", slug: "crime" \}/, 'crime is a first-class desk the formula can recognise');
+  assert.match(site, /maximumFractionDigits: 2/, 'money renders the two decimals fractional view income has');
+  const form = await readProjectFile('components/account/writer-form.tsx');
+  assert.match(form, /সর্বোচ্চ ২০টি/, 'the write form promises a twenty-image gallery');
+  const uploader = await readProjectFile('components/account/gallery-uploader.tsx');
+  assert.match(uploader, /const MAX_FILES = 20;/, 'the uploader admits twenty files');
+  // The published page carries the beacon with the resolved author, and the beacon sends one
+  // device-stable token after a short pause, skipping the author and the demo build.
+  const page = await readProjectFile('app/news/[slug]/page.tsx');
+  assert.match(page, /import \{ ViewBeacon \} from "@\/components\/article\/view-beacon"/, 'the story page mounts the beacon');
+  assert.match(page, /<ViewBeacon articleId=\{article\.id\} authorId=\{authorId\} \/>/, 'the beacon receives the article and its resolved author');
+  const beacon = await readProjectFile('components/article/view-beacon.tsx');
+  assert.match(beacon, /window\.localStorage\.getItem\(VIEWER_ID_KEY\)/, 'the device id persists across pages');
+  assert.match(beacon, /crypto\.randomUUID\(\)/, 'a fresh visitor gets a stable random id');
+  assert.match(beacon, /data\.session\?\.user\?\.id === authorId/, 'the author’s own visit is never sent');
+  assert.match(beacon, /fetch\("\/api\/views"/, 'the beacon posts to the view endpoint');
+  assert.match(beacon, /if \(DEMO_MODE\) return;/, 'the demo build records nothing');
+  // The endpoint records through the RPC and always answers 204 without caching.
+  const route = await readProjectFile('app/api/views/route.ts');
+  assert.match(route, /rpc\("record_article_view"/, 'the endpoint reaches the recording RPC');
+  assert.match(route, /status: 204/, 'every request is answered 204');
+  assert.match(route, /"Cache-Control": "no-store"/, 'and is never cached');
+  // The settlement runs on its own cron, not on the reader's request.
+  const worker = await readProjectFile('worker/src/index.ts');
+  assert.match(worker, /VIEWS_SETTLE_URL/, 'the worker knows the settlement address');
+});
+
+test('only addresses under du.ac.bd can join, and a refused sign-up hears why', async () => {
+  // The guard lives on the insert itself, so every entry path (Google today, any provider
+  // later) is covered, and it is insert-only: existing accounts keep signing in whatever
+  // their address, and the desk's manual email corrections are UPDATEs it never sees.
+  const migration = await readProjectFile('supabase/migrations/202611010006_du_email_signup_guard.sql');
+  assert.match(migration, /before insert on auth\.users/, 'the guard fires on the auth insert');
+  assert.doesNotMatch(migration, /before update/, 'signing in or correcting an email is never blocked');
+  assert.match(migration, /du\\.ac\\.bd\$/, 'the domain must sit at the very end of the address');
+  assert.match(migration, /\[\[:alnum:\]-\]\+\\./, 'any subdomain label (mgt., mkt., ...) is admitted');
+  assert.match(migration, /DU_SIGNUP_DENIED/, 'the refusal carries a recognisable sentence');
+  assert.match(migration, /revoke all on function public\.guard_du_email_signup/, 'the guard follows the write-protection convention');
+  // The test fixtures live in the same world: every fixture address now ends in du.ac.bd, so
+  // the guard passes them instead of failing the suite it belongs to.
+  const suite = await readProjectFile('supabase/tests/dutimiz_rls.test.sql');
+  assert.doesNotMatch(suite, /@test\.dutimz\.com/, 'no fixture keeps an address the guard would refuse');
+  const guard = await readProjectFile('supabase/tests/du_signup_guard.test.sql');
+  assert.match(guard, /notdu\.ac\.bd/, 'a domain that merely ends in the letters is still refused');
+  assert.match(guard, /mgt\.du\.ac\.bd/, 'a departmental subdomain is accepted');
+  // The callback is the only place the refusal is observable: GoTrue reports the blocked
+  // insert as a failed user save, and the reader is sent home with a marker instead of a
+  // silent bounce.
+  const callback = await readProjectFile('app/auth/callback/route.ts');
+  assert.match(callback, /saving new user\|du_signup_denied/, 'the guard\'s failure is recognised');
+  assert.match(callback, /searchParams\.set\("signup", "du-only"\)/, 'the refusal reaches the homepage as a marker');
+  // The strip says why, reads the address bar without pulling prerendered pages into the
+  // request, and dismisses itself.
+  const notice = await readProjectFile('components/dashboard/du-signup-notice.tsx');
+  assert.match(notice, /window\.location\.search/, 'the marker is read from the address bar');
+  assert.doesNotMatch(notice, /useSearchParams\(/, 'no hook may pull the prerendered pages out of the cache');
+  assert.match(notice, /@du\.ac\.bd/, 'the notice names the accepted domain');
+  assert.match(notice, /history\.replaceState/, 'dismissing clears the marker');
+  const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
+  assert.match(header, /<DuSignupNotice \/>/, 'the strip sits above the bar on every page');
+});
+
+test('the profile editor picks from the real DU academic units and types numbers only', async () => {
+  const academics = await readProjectFile('lib/du-academics.ts');
+  for (const unit of [
+    'গণযোগাযোগ ও সাংবাদিকতা',
+    'ব্যবসায় প্রশাসন ইনস্টিটিউট',
+    'ফলিত পরিসংখ্যান ও ডেটা সায়েন্স ইনস্টিটিউট',
+    'মেডিসিন ও সার্জারি',
+    'রোবোটিক্স অ্যান্ড মেকাট্রনিক্স ইঞ্জিনিয়ারিং',
+  ]) {
+    assert.ok(academics.includes(unit), `${unit} is offered`);
+  }
+  assert.match(academics, /০১২৩৪৫৬৭৮৯/, 'sessions are written in Bengali digits');
+  assert.match(academics, /SESSION_FIRST_YEAR/, 'the session list has a declared start year');
+  // The editor offers both as dropdowns: the department grouped by faculty with the
+  // institutes as their own group, the session from the generated list.
+  const dialog = await readProjectFile('components/profile/profile-edit-dialog.tsx');
+  assert.match(dialog, /<optgroup key=\{academic\.group\} label=\{academic\.group\}/, 'the department dropdown groups by faculty');
+  assert.match(dialog, /DU_ACADEMIC_UNITS\.map/, 'the dropdown is driven by the academic list');
+  assert.match(dialog, /DU_SESSIONS\.map/, 'the session dropdown is driven by the generated list');
+  assert.doesNotMatch(dialog, /id="edit-department">\s*<Input/, 'the department is no longer free text');
+  assert.doesNotMatch(dialog, /id="edit-session">\s*<Input/, 'the session is no longer free text');
+  // The label is the university's own term, and the three number fields accept digits only.
+  assert.match(dialog, /রেজিস্ট্রেশন নাম্বার/, 'the registration box uses the plain name');
+  assert.doesNotMatch(dialog, /ডু রেজিস্ট্রেশন/, 'the stray ডু prefix is gone');
+  assert.match(dialog, /function digitsOnly/, 'one helper folds Bengali numerals into ASCII digits');
+  const digitFields = dialog.match(/digitsOnly\(e\.target\.value\)/g) ?? [];
+  assert.equal(digitFields.length, 3, 'registration, WhatsApp and payout number all filter through it');
+  const numericKeyboards = dialog.match(/inputMode="numeric"/g) ?? [];
+  assert.equal(numericKeyboards.length, 3, 'each of the three raises a numeric keyboard');
+});
+
+test('the desk changes sign-in emails and closes accounts through its own route', async () => {
+  const migration = await readProjectFile('supabase/migrations/202611010007_admin_member_auth.sql');
+  assert.match(migration, /email text,/, 'the member directory carries the sign-in address');
+  assert.match(migration, /auth_deleted boolean/, 'the member directory carries the closed-account flag');
+  assert.match(migration, /left join auth\.users a on a\.id = p\.id/, 'the auth row is joined through the qualified schema');
+  assert.match(migration, /a\.deleted_at is not null/, 'a closed account is exactly the deleted_at flag');
+  const route = await readProjectFile('app/api/admin/members/[id]/route.ts');
+  assert.match(route, /auth\.admin\.updateUserById/, 'the email change goes through the GoTrue admin API');
+  assert.match(route, /email_confirm:\s*true/, 'the new address applies without a confirmation round-trip');
+  assert.match(route, /auth\.admin\.deleteUser\(id,\s*true\)/, 'closing an account is a soft delete, not a row erase');
+  assert.match(route, /\.rpc\("is_admin"\)/, 'the route defers to the database role check');
+  assert.match(route, /supabaseForToken/, 'the caller is verified with their own token');
+  assert.match(route, /id === gate/, 'the desk cannot close its own account through the route');
+  assert.match(route, /ইতোমধ্যে আরেকটি অ্যাকাউন্ট আছে/, 'a taken address gets its own fixed refusal');
+  assert.doesNotMatch(route, /error\.message/, 'no provider message is ever rendered');
+  const dashboard = await readProjectFile('components/account/admin-dashboard.tsx');
+  assert.match(dashboard, /member\.email \?\? "ইমেইল নেই"/, 'the row shows the sign-in address');
+  assert.match(dashboard, /নিষ্ক্রিয়/, 'a closed account is labelled on the row');
+  assert.match(dashboard, /fetch\(`\/api\/admin\/members\/\$\{emailTarget\.id\}`/, 'the email change calls the member route');
+  assert.match(dashboard, /method: "PATCH"/, 'an email change is a PATCH');
+  assert.match(dashboard, /method: "DELETE"/, 'a close is a DELETE');
+  assert.match(dashboard, /অ্যাকাউন্ট বন্ধ করুন/, 'closing asks for the destructive confirmation');
+  assert.match(dashboard, /member\.id !== selfId/, 'the desk cannot close its own account from the table');
+  assert.match(dashboard, /!member\.auth_deleted &&/, 'a closed account has no second close button');
+  assert.doesNotMatch(dashboard, /\.message/, 'no provider message leaks into the panel');
+  const rls = await readProjectFile('supabase/tests/dutimiz_rls.test.sql');
+  assert.match(rls, /select email, auth_deleted from public\.admin_member_records\('reader_1100000000004000'/, 'an open account is asserted with its email');
+  assert.match(rls, /closed@du\.ac\.bd/, 'a closed fixture account exists');
+  assert.match(rls, /'A closed account is still listed, with its flag raised'/, 'the closed flag is covered by pgTAP');
 });

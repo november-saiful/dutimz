@@ -23,6 +23,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { errorMessage, reportError } from "@/lib/errors";
+import { DU_ACADEMIC_UNITS, DU_SESSIONS } from "@/lib/du-academics";
 import {
   IMAGE_ACCEPT,
   MAX_IMAGE_BYTES,
@@ -65,6 +66,23 @@ const EMPTY: Values = {
 type Images = { avatar_url: string | null; cover_url: string | null };
 
 const NO_IMAGES: Images = { avatar_url: null, cover_url: null };
+
+const ASCII_DIGITS = "0123456789";
+const BN_DIGITS = "০১২৩৪৫৬৭৮৯";
+
+/**
+ * Digits only, Bengali numerals folded into ASCII — the one shape the payout APIs and the
+ * registration record expect. Anything else typed (spaces, dashes, letters) is dropped.
+ */
+function digitsOnly(value: string): string {
+  let out = "";
+  for (const char of value) {
+    const bnIndex = BN_DIGITS.indexOf(char);
+    if (bnIndex >= 0) out += ASCII_DIGITS[bnIndex];
+    else if (ASCII_DIGITS.includes(char)) out += char;
+  }
+  return out;
+}
 
 /**
  * The one place a member completes their profile — and the one place they upload
@@ -475,13 +493,27 @@ export function ProfileEditDialog({
             <FieldSection title="শিক্ষার্থী তথ্য">
               <FieldGrid>
                 <Field label="বিভাগ" htmlFor="edit-department">
-                  <Input id="edit-department" value={values.department} maxLength={100} onChange={(e) => set("department", e.target.value)} />
+                  <Select id="edit-department" value={values.department} onChange={(e) => set("department", e.target.value)}>
+                    <option value="">বিভাগ বেছে নিন</option>
+                    {DU_ACADEMIC_UNITS.map((academic) => (
+                      <optgroup key={academic.group} label={academic.group}>
+                        {academic.units.map((unit) => (
+                          <option key={unit} value={unit}>{unit}</option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </Select>
                 </Field>
                 <Field label="শিক্ষাবর্ষ / সেশন" htmlFor="edit-session">
-                  <Input id="edit-session" value={values.session} maxLength={24} onChange={(e) => set("session", e.target.value)} />
+                  <Select id="edit-session" value={values.session} onChange={(e) => set("session", e.target.value)}>
+                    <option value="">সেশন বেছে নিন</option>
+                    {DU_SESSIONS.map((session) => (
+                      <option key={session} value={session}>{session}</option>
+                    ))}
+                  </Select>
                 </Field>
-                <Field label="ডু রেজিস্ট্রেশন নম্বর" htmlFor="edit-registration">
-                  <Input id="edit-registration" value={values.du_registration_number} maxLength={40} onChange={(e) => set("du_registration_number", e.target.value)} />
+                <Field label="রেজিস্ট্রেশন নাম্বার" htmlFor="edit-registration">
+                  <Input id="edit-registration" inputMode="numeric" value={values.du_registration_number} maxLength={40} onChange={(e) => set("du_registration_number", digitsOnly(e.target.value))} />
                 </Field>
                 <Field label="আবাসিক অবস্থা" htmlFor="edit-residency">
                   <Select id="edit-residency" value={values.residency_status} onChange={(e) => set("residency_status", e.target.value)}>
@@ -496,7 +528,7 @@ export function ProfileEditDialog({
                   </Field>
                 )}
                 <Field label="হোয়াটসঅ্যাপ নম্বর" htmlFor="edit-whatsapp" hint="শিক্ষার্থী কল্যাণে যোগাযোগের জন্য।">
-                  <Input id="edit-whatsapp" value={values.whatsapp_number} maxLength={24} onChange={(e) => set("whatsapp_number", e.target.value)} />
+                  <Input id="edit-whatsapp" inputMode="numeric" value={values.whatsapp_number} maxLength={24} onChange={(e) => set("whatsapp_number", digitsOnly(e.target.value))} />
                 </Field>
                 <div className="flex items-center gap-2 pt-6">
                   <input
@@ -520,7 +552,7 @@ export function ProfileEditDialog({
                   </Select>
                 </Field>
                 <Field label="পেমেন্ট নম্বর" htmlFor="edit-payout-number">
-                  <Input id="edit-payout-number" value={values.payout_number} maxLength={24} onChange={(e) => set("payout_number", e.target.value)} />
+                  <Input id="edit-payout-number" inputMode="numeric" value={values.payout_number} maxLength={24} onChange={(e) => set("payout_number", digitsOnly(e.target.value))} />
                 </Field>
               </FieldGrid>
             </FieldSection>

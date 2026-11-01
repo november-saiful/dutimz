@@ -87,7 +87,7 @@ test('the anonymity rules keep their pgTAP coverage', () => {
     'The reporter can read back their own attribution',
     'A moderator cannot read the attribution either; it belongs to the desk administrator',
     'A signed-out visitor cannot read the attribution table',
-    'Approving an anonymous story credits nothing: the desk sets any amount for it',
+    'Approving an anonymous story credits the attributed author the automatic fee',
     'Public search still finds an anonymous story and exposes no author with it',
   ];
   const missing = required.filter((description) => !suite.includes(description));

@@ -26,6 +26,25 @@ export function supabaseServer() {
 }
 
 /**
+ * Server-side client that carries the database's own service role.
+ *
+ * The only caller is the scheduled settlement of view earnings, which credits money into the
+ * ledger and must not run as a reader: no account can be allowed to settle its own view income.
+ * The key lives in `SUPABASE_SERVICE_ROLE_KEY` on the portal Worker, and this module is imported
+ * from route handlers only, so the secret never reaches a browser bundle.
+ */
+export function supabaseAdmin() {
+  return createSupabaseClient(
+    supabaseUrl,
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+    {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { "X-Client-Info": "dutimz-next-admin" } },
+    },
+  );
+}
+
+/**
  * Server-side client that acts as the owner of an access token: every PostgREST read and every
  * RPC through it runs under that reader's own row level security policies.
  *

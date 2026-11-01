@@ -20,6 +20,7 @@ export type Category = { label: string; slug: string };
 export const CATEGORIES: Category[] = [
   { label: "সব খবর", slug: "all" },
   { label: "ক্যাম্পাস", slug: "campus" },
+  { label: "অপরাধ", slug: "crime" },
   { label: "শিক্ষার্থী জীবন", slug: "student-life" },
   { label: "সংস্কৃতি", slug: "culture" },
   { label: "মতামত", slug: "opinion" },
@@ -91,8 +92,15 @@ export function bn(n: number | null | undefined): string {
   return bnDigits.format(Number(n ?? 0));
 }
 
+// Money carries decimals now (view income arrives in 0.2 TK steps), so amounts are shown with
+// up to two places and whole takas without a tail.
+const bnMoneyDigits = new Intl.NumberFormat("bn-BD", {
+  maximumFractionDigits: 2,
+  minimumFractionDigits: 0,
+});
+
 export function bnMoney(amount: number): string {
-  return `৳${bn(amount)}`;
+  return `৳${bnMoneyDigits.format(amount)}`;
 }
 
 export function relativeTimeBn(value: string | null | undefined): string {

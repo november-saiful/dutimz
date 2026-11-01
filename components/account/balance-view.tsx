@@ -9,6 +9,11 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { errorMessage, reportError } from "@/lib/errors";
+import {
+  earningBreakdown,
+  LEDGER_LABELS,
+  type EarningDetails,
+} from "@/lib/earning-details";
 import { one, supabaseBrowser } from "@/lib/supabase";
 import { bn, bnMoney, formatDateBn } from "@/lib/site";
 
@@ -17,6 +22,8 @@ type LedgerEntry = {
   amount_tk: number;
   entry_type: string;
   created_at: string;
+  details: EarningDetails | null;
+  view_day: string | null;
   articles: { title: string } | { title: string }[] | null;
   withdrawals: { method: string; status: string } | null;
 };
@@ -106,7 +113,7 @@ export function BalanceView() {
           supabase
             .from("earnings_ledger")
             .select(
-              "id,amount_tk,entry_type,created_at,articles(title),withdrawals(method,status)",
+              "id,amount_tk,entry_type,created_at,details,view_day,articles(title),withdrawals(method,status)",
             )
             .eq("user_id", user.id)
             .order("created_at", { ascending: false })
@@ -265,11 +272,13 @@ export function BalanceView() {
           )}
           {entries.map((entry) => {
             const title = one(entry.articles)?.title;
+            const typeLabel = LEDGER_LABELS[entry.entry_type];
             const label =
               title ??
               (entry.entry_type === "withdrawal_reserve"
                 ? "উত্তোলন অনুরোধ"
-                : "অ্যাকাউন্ট লেনদেন");
+                : (typeLabel ?? "অ্যাকাউন্ট লেনদেন"));
+            const breakdown = earningBreakdown(entry.entry_type, entry.details);
             const amount = Number(entry.amount_tk);
             return (
               <article
@@ -279,6 +288,9 @@ export function BalanceView() {
                 <span aria-hidden>{amount >= 0 ? "↗" : "↙"}</span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{label}</p>
+                  {breakdown && (
+                    <p className="text-xs text-muted-foreground">{breakdown}</p>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     {formatDateBn(entry.created_at)}
                   </p>
@@ -287,7 +299,7 @@ export function BalanceView() {
                   className={`text-sm font-semibold tabular-nums ${amount < 0 ? "text-destructive" : ""}`}
                 >
                   {amount > 0 ? "+" : ""}
-                  {bnMoney(amount).replace("৳", "৳")}
+                  {bnMoney(amount)}
                 </span>
               </article>
             );

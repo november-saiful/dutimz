@@ -1,12 +1,18 @@
 begin;
-select plan(288);
+select plan(290);
+
+-- The publish-time award is a deferred constraint trigger in production, so every publish path
+-- sees the story's final gallery and questionnaire rows. This suite asserts the award rows as it
+-- goes, so the trigger fires at statement end here; none of the stories it credits gain gallery or
+-- questionnaire rows later in the same statement.
+set constraints public.award_article_earning_on_publish immediate;
 
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
-  ('11000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'reader@test.dutimz.com', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"পরীক্ষা পাঠক"}', false, false),
-  ('22000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'reporter@test.dutimz.com', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"পরীক্ষা সাংবাদিক"}', false, false),
-  ('33000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'mod@test.dutimz.com', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"পরীক্ষা মডারেটর"}', false, false),
-  ('44000000-0000-4000-8000-000000000004', 'authenticated', 'authenticated', 'admin@test.dutimz.com', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"পরীক্ষা অ্যাডমিন"}', false, false)
+  ('11000000-0000-4000-8000-000000000001', 'authenticated', 'authenticated', 'reader@du.ac.bd', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"পরীক্ষা পাঠক"}', false, false),
+  ('22000000-0000-4000-8000-000000000002', 'authenticated', 'authenticated', 'reporter@du.ac.bd', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"পরীক্ষা সাংবাদিক"}', false, false),
+  ('33000000-0000-4000-8000-000000000003', 'authenticated', 'authenticated', 'mod@du.ac.bd', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"পরীক্ষা মডারেটর"}', false, false),
+  ('44000000-0000-4000-8000-000000000004', 'authenticated', 'authenticated', 'admin@du.ac.bd', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"পরীক্ষা অ্যাডমিন"}', false, false)
 on conflict (id) do nothing;
 
 update public.user_roles set role = 'reporter', reporter_tier = 'junior' where user_id = '22000000-0000-4000-8000-000000000002';
@@ -20,8 +26,8 @@ select results_eq($$select cardinality(public.bootstrap_admin_list())$$, $$value
 -- Two accounts sign in before any list exists: both are ordinary readers.
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
-  ('77000000-0000-4000-8000-000000000007', 'authenticated', 'authenticated', 'late-admin@test.dutimz.com', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"দেরিতে যোগ দেওয়া প্রশাসক"}', false, false),
-  ('88000000-0000-4000-8000-000000000008', 'authenticated', 'authenticated', 'reconciled-admin@test.dutimz.com', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"পুনর্মিলিত প্রশাসক"}', false, false)
+  ('77000000-0000-4000-8000-000000000007', 'authenticated', 'authenticated', 'late-admin@du.ac.bd', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"দেরিতে যোগ দেওয়া প্রশাসক"}', false, false),
+  ('88000000-0000-4000-8000-000000000008', 'authenticated', 'authenticated', 'reconciled-admin@du.ac.bd', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"পুনর্মিলিত প্রশাসক"}', false, false)
 on conflict (id) do nothing;
 select results_eq(
   $$select role from public.user_roles where user_id = '77000000-0000-4000-8000-000000000007'$$,
@@ -45,11 +51,11 @@ select results_eq(
 );
 
 -- A configured list is parsed, normalised and applied.
-update public.app_settings set value = 'du-admin@test.dutimz.com, late-admin@test.dutimz.com, reconciled-admin@test.dutimz.com' where key = 'bootstrap_admin_emails';
+update public.app_settings set value = 'du-admin@du.ac.bd, late-admin@du.ac.bd, reconciled-admin@du.ac.bd' where key = 'bootstrap_admin_emails';
 insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
 values
-  ('55000000-0000-4000-8000-000000000005', 'authenticated', 'authenticated', 'du-admin@test.dutimz.com', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"প্রথম প্রশাসক"}', false, false),
-  ('66000000-0000-4000-8000-000000000006', 'authenticated', 'authenticated', 'plain-reader@test.dutimz.com', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"সাধারণ পাঠক"}', false, false)
+  ('55000000-0000-4000-8000-000000000005', 'authenticated', 'authenticated', 'du-admin@du.ac.bd', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"প্রথম প্রশাসক"}', false, false),
+  ('66000000-0000-4000-8000-000000000006', 'authenticated', 'authenticated', 'plain-reader@du.ac.bd', now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"সাধারণ পাঠক"}', false, false)
 on conflict (id) do nothing;
 select results_eq(
   $$select role from public.user_roles where user_id = '55000000-0000-4000-8000-000000000005'$$,
@@ -62,7 +68,7 @@ select results_eq(
   'An address outside the list still signs in as a reader'
 );
 select ok(
-  public.bootstrap_admin_list() @> array['late-admin@test.dutimz.com', 'reconciled-admin@test.dutimz.com'],
+  public.bootstrap_admin_list() @> array['late-admin@du.ac.bd', 'reconciled-admin@du.ac.bd'],
   'Every address in the configured list is recognised, including the last one'
 );
 
@@ -97,20 +103,20 @@ select results_eq(
 select hasnt_function('public', 'bootstrap_first_admin', 'The single-shot administrator claim is retired');
 
 -- Normalisation, and the list as the single source of administrators.
-update public.app_settings set value = 'du-admin@test.dutimz.com, not-an-address, DU-ADMIN@test.dutimz.com' where key = 'bootstrap_admin_emails';
+update public.app_settings set value = 'du-admin@du.ac.bd, not-an-address, DU-ADMIN@du.ac.bd' where key = 'bootstrap_admin_emails';
 select results_eq(
   $$select public.bootstrap_admin_list()$$,
-  $$select array['du-admin@test.dutimz.com']::text[]$$,
+  $$select array['du-admin@du.ac.bd']::text[]$$,
   'A malformed entry is ignored and a repeated address collapses into one'
 );
 select is_empty(
   $$select key from public.app_settings where key in ('initial_admin_email', 'initial_admin_claimed')$$,
   'The retired single-address settings are gone, so the list is the only administrator source'
 );
-insert into public.app_settings (key, value) values ('initial_admin_email', 'stray@test.dutimz.com');
+insert into public.app_settings (key, value) values ('initial_admin_email', 'stray@du.ac.bd');
 select results_eq(
   $$select public.bootstrap_admin_list()$$,
-  $$select array['du-admin@test.dutimz.com']::text[]$$,
+  $$select array['du-admin@du.ac.bd']::text[]$$,
   'A stray legacy address cannot smuggle an administrator into the list'
 );
 
@@ -120,7 +126,7 @@ select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select results_eq(
   $$select public.admin_bootstrap_addresses()$$,
-  $$select array['du-admin@test.dutimz.com']::text[]$$,
+  $$select array['du-admin@du.ac.bd']::text[]$$,
   'An administrator can read the configured administrator addresses'
 );
 select set_config('request.jwt.claim.sub', '11000000-0000-4000-8000-000000000001', true);
@@ -208,22 +214,28 @@ select throws_ok(
 
 -- Earnings, withdrawal, and moderation rules from the launch plan. These run
 -- against the fixtures above: article 'songbad' belongs to the junior reporter
--- (10000000-...-0002), 'porikkha-mod' belongs to the moderator (...-0003).
--- Publishing never credits a reporter by itself: the desk assigns the amount for each story.
+-- (22000000-...-0002), 'porikkha-mod' belongs to the moderator (...-0003).
+-- Publishing credits the formula fee by itself; the desk can no longer set an amount.
+-- 'songbad' carries no gallery, questionnaire or interview rows, so the formula reads it
+-- the same here as at its publish moment.
 reset role;
-select results_eq(
-  $$select count(*)::int from public.earnings_ledger where article_id = (select id from public.articles where slug = 'songbad')$$,
-  $$values (0)$$,
-  'Publishing a story credits nothing automatically'
-);
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
-select throws_ok($$select public.admin_award_article((select id from public.articles where slug = 'songbad'), 0)$$, 'P0001', null, 'An award below ৳1 is refused');
-select public.admin_award_article((select id from public.articles where slug = 'songbad'), 90);
-select throws_ok($$select public.admin_award_article((select id from public.articles where slug = 'songbad'), 90)$$, 'P0001', null, 'A story can be awarded only once');
+select hasnt_function('public', 'admin_award_article', array['uuid', 'integer'], 'The manual award function is retired in favour of the automatic fee');
 select results_eq(
-  $$select count(*)::int, coalesce(sum(amount_tk), 0)::int from public.earnings_ledger where article_id = (select id from public.articles where slug = 'songbad') and entry_type = 'article_earning_available'$$,
-  $$values (1, 90)$$,
-  'The desk awards the chosen amount exactly once'
+  $$select entry_type, (details->>'version')::int, (details->>'base')::int from public.earnings_ledger where article_id = (select id from public.articles where slug = 'songbad')$$,
+  $$values ('article_earning_held', 1, 25)$$,
+  'Publishing a story credits the automatic formula fee, held until the profile is complete'
+);
+select ok(
+  (select amount_tk = (select (public.compute_article_earning((select id from public.articles where slug = 'songbad'))).amount_tk)
+     from public.earnings_ledger where article_id = (select id from public.articles where slug = 'songbad')),
+  'The credited amount matches the formula computed over the published story'
+);
+select throws_ok(
+  $$insert into public.earnings_ledger (user_id, article_id, entry_type, amount_tk)
+     values ('22000000-0000-4000-8000-000000000002', (select id from public.articles where slug = 'songbad'), 'article_earning_available', 90)$$,
+  '23505', null,
+  'The one-fee backstop refuses a second credit for the same story'
 );
 
 update public.profile_details set
@@ -235,9 +247,10 @@ select results_eq(
   'Every applicable field filled reaches 100% without a hall or a WhatsApp number'
 );
 select results_eq(
-  $$select count(*)::int from public.earnings_ledger where article_id = (select id from public.articles where slug = 'songbad') and entry_type = 'profile_release'$$,
-  $$values (0)$$,
-  'Completing the profile releases nothing: no held fee exists for a story the desk paid'
+  $$select count(*)::int, bool_and(released_from is not null) from public.earnings_ledger
+     where article_id = (select id from public.articles where slug = 'songbad') and entry_type = 'profile_release'$$,
+  $$values (1, true)$$,
+  'Completing the profile releases the held formula fee against its own row'
 );
 
 set local role authenticated;
@@ -505,11 +518,11 @@ select results_eq(
   'The approved anonymous story is published with no author on its public row'
 );
 select results_eq(
-  $$select count(*)::int, coalesce(sum(amount_tk), 0)::int from public.earnings_ledger
+  $$select count(*)::int, min(entry_type::text) from public.earnings_ledger
      where article_id = (select id from public.articles where title = 'নামহীন পরীক্ষামূলক প্রতিবেদন')
        and user_id = '22000000-0000-4000-8000-000000000002'$$,
-  $$values (0, 0)$$,
-  'Approving an anonymous story credits nothing: the desk sets any amount for it'
+  $$values (1, 'article_earning_available')$$,
+  'Approving an anonymous story credits the attributed author the automatic fee'
 );
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
@@ -675,12 +688,12 @@ select results_eq(
 );
 reset role;
 select results_eq(
-  $$select count(*)::int, coalesce(sum(amount_tk), 0)::int from public.earnings_ledger
+  $$select count(*)::int, min(entry_type::text) from public.earnings_ledger
      where article_id = (select id from public.articles where title = 'অন্যের নামে প্রকাশিত প্রতিবেদন')
        and user_id = '22000000-0000-4000-8000-000000000002'
        and entry_type in ('article_earning_held', 'article_earning_available')$$,
-  $$values (0, 0)$$,
-  'Publishing a story on another reporter behalf credits nothing automatically'
+  $$values (1, 'article_earning_available')$$,
+  'Publishing a story on another reporter behalf credits the named author the automatic fee'
 );
 
 -- Re-bylining an already published story: the credited row moves and no stale attribution is
@@ -853,6 +866,23 @@ select results_eq(
   $$select held_tk, available_tk, reserved_tk from public.admin_member_records('reader_1100000000004000', 10, 0)$$,
   $$values (0, 0, 0)$$,
   'The member row carries the same three wallet figures the member sees on their own balance page'
+);
+
+-- The desk manages sign-in addresses, so the directory carries the GoTrue email and the flag
+-- that says the account has been closed by the desk.
+insert into auth.users (id, aud, role, email, email_confirmed_at, created_at, updated_at, deleted_at, raw_app_meta_data, raw_user_meta_data, is_sso_user, is_anonymous)
+values
+  ('99000000-0000-4000-8000-000000000009', 'authenticated', 'authenticated', 'closed@du.ac.bd', now(), now(), now(), now(), '{"provider":"google","providers":["google"]}', '{"full_name":"বন্ধ অ্যাকাউন্ট"}', false, false)
+on conflict (id) do nothing;
+select results_eq(
+  $$select email, auth_deleted from public.admin_member_records('reader_1100000000004000', 10, 0)$$,
+  $$values ('reader@du.ac.bd', false)$$,
+  'The directory carries each member''s sign-in address, open accounts unflagged'
+);
+select results_eq(
+  $$select email, auth_deleted from public.admin_member_records('reader_9900000000004000', 10, 0)$$,
+  $$values ('closed@du.ac.bd', true)$$,
+  'A closed account is still listed, with its flag raised'
 );
 select lives_ok(
   $$select public.admin_update_member('11000000-0000-4000-8000-000000000001', '{"username":"staff_reader","display_name":"সংশোধিত পাঠক নাম"}'::jsonb, '{"department":"সংশোধিত বিভাগ","session":"২০২৪-২৫"}'::jsonb)$$,
@@ -1840,17 +1870,17 @@ select has_function(
 -- never once money has been recorded against it: the ledger is the author's proof of what they
 -- earned and points at the story with `on delete restrict`.
 -- ---------------------------------------------------------------------------
-insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, published_at)
-  select '22000000-0000-4000-8000-000000000002', c.id, 'muchhe-felar-songbad', 'মুছে ফেলার প্রতিবেদন',
-         'মুছে ফেলার জন্য লেখা সংক্ষিপ্ত পরিচিতি', repeat('অস্থায়ী প্রতিবেদনের অংশ। ', 6), 'published', now()
+-- The deletable story is filed anonymously with no attribution, so publishing credits it to no
+-- one and no ledger row blocks the desk. The paid story earns its automatic fee at publish; the
+-- manual insert that used to stand in for it would now collide with the one-fee backstop.
+insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, published_at, is_anonymous)
+  select null, c.id, 'muchhe-felar-songbad', 'মুছে ফেলার প্রতিবেদন',
+         'মুছে ফেলার জন্য লেখা সংক্ষিপ্ত পরিচিতি', repeat('অস্থায়ী প্রতিবেদনের অংশ। ', 6), 'published', now(), true
     from public.categories c where c.slug = 'porikkha';
 insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, published_at)
   select '22000000-0000-4000-8000-000000000002', c.id, 'artha-thaka-songbad', 'অর্থযুক্ত প্রতিবেদন',
          'অর্থ নির্ধারিত হয়েছে এমন প্রতিবেদন', repeat('অস্থায়ী প্রতিবেদনের অংশ। ', 6), 'published', now()
     from public.categories c where c.slug = 'porikkha';
-insert into public.earnings_ledger (user_id, article_id, entry_type, amount_tk)
-  select '22000000-0000-4000-8000-000000000002', a.id, 'article_earning_available', 500
-    from public.articles a where a.slug = 'artha-thaka-songbad';
 
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);

@@ -8,6 +8,7 @@ import { QuestionnaireSummary } from "@/components/article/questionnaire-summary
 import { Comments } from "@/components/article/comments";
 import { PendingArticle } from "@/components/article/pending-article";
 import { ReadingProgress } from "@/components/article/reading-progress";
+import { ViewBeacon } from "@/components/article/view-beacon";
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
 import { Flag } from "@/components/dashboard/flag";
 import { StoryCarousel } from "@/components/dashboard/story-carousel";
@@ -31,6 +32,7 @@ import {
 import { inlineMediaIds } from "@/lib/richtext";
 import {
   articleSlugExists,
+  getArticleAuthorOfRecord,
   getArticleQuestionnaire,
   getLatestStories,
   getSitemapArticles,
@@ -141,6 +143,10 @@ export default async function ArticlePage({
 
   const category = storyCategory(article);
   const credit = storyCredit(article);
+  // The account the view count belongs to, resolved the same way the database resolves it: an
+  // anonymous story's author lives in `article_attributions`, not on the article row.
+  const authorId =
+    article.author_id ?? (await getArticleAuthorOfRecord(article.id));
   // The interview desk's second step: virtual vs in-person, shown beside the desk tag.
   const interviewSection =
     category.slug === "interview"
@@ -390,6 +396,7 @@ export default async function ArticlePage({
           }),
         }}
       />
+      <ViewBeacon articleId={article.id} authorId={authorId} />
     </DutimzShell>
   );
 }

@@ -60,7 +60,13 @@ export async function GET(request: Request) {
 
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
-    return NextResponse.redirect(new URL("/", request.url));
+    // The sign-up guard's refusal is the one exchange failure worth a sentence: GoTrue reports
+    // the blocked insert as a failed user save. Every other failure (a stale code, a dropped
+    // connection) still just sends the reader home, exactly as before.
+    const denied = /saving new user|du_signup_denied/i.test(String(error?.message ?? ""));
+    const fallback = new URL("/", request.url);
+    if (denied) fallback.searchParams.set("signup", "du-only");
+    return NextResponse.redirect(fallback);
   }
 
   // A protocol-relative `//evil.com` also starts with a slash, and `new URL` would

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Banknote, BookOpen, CalendarClock, Eye, EyeOff, Pencil, Search, Trash2 } from "lucide-react";
+import { BookOpen, CalendarClock, Eye, EyeOff, Pencil, Search, Trash2 } from "lucide-react";
 
 import { AuthedMediaImage } from "@/components/article/authed-media-image";
 import { Badge } from "@/components/ui/badge";
@@ -29,10 +29,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextContent } from "@/components/ui/rich-text-content";
 import { revalidateReaders } from "@/lib/desk-client";
+import { earningBreakdown, type EarningDetails } from "@/lib/earning-details";
 import { errorMessage, reportError } from "@/lib/errors";
 import { inlineMediaIds } from "@/lib/richtext";
 import { supabaseBrowser } from "@/lib/supabase";
-import { bn, formatDateBn } from "@/lib/site";
+import { bn, bnMoney, formatDateBn } from "@/lib/site";
 
 type Article = {
   id: string;
@@ -52,8 +53,14 @@ type Article = {
 
 type Member = { id: string; username: string; display_name: string };
 
-/** The one ledger row that records what the desk assigned to a story. */
-type Award = { id: string; amount_tk: number; created_at: string };
+/** Ledger rows that record what a story earned: the automatic formula fee and view income. */
+type Earning = {
+  id: string;
+  amount_tk: number;
+  entry_type: string;
+  created_at: string;
+  details: EarningDetails | null;
+};
 
 const STATUS_LABELS: Record<string, string> = {
   published: "প্রকাশিত",
@@ -113,8 +120,8 @@ export function AdminArticles() {
   // dialog; it is cleared whenever the list itself is replaced.
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = React.useState(false);
-  // Which of the ticked stories already paid their author. `null` while the read is in flight, so
-  // the confirm button cannot be pressed before the answer is known.
+  // Which of the ticked stories already have ledger rows pinning them. `null` while the read is in
+  // flight, so the confirm button cannot be pressed before the answer is known.
   const [bulkPaid, setBulkPaid] = React.useState<Set<string> | null>(null);
   const [bulkBusy, setBulkBusy] = React.useState(false);
   const selectAllRef = React.useRef<HTMLInputElement>(null);
@@ -142,23 +149,30 @@ export function AdminArticles() {
   // `on delete restrict` — and that refusal is read here, because `errorMessage` deliberately
   // hides the server's own sentence.
   const [deleting, setDeleting] = React.useState<Article | null>(null);
-  const [deleteAward, setDeleteAward] = React.useState<Award | null>(null);
+  const [deleteEarning, setDeleteEarning] = React.useState<boolean | null>(null);
   const [deleteChecking, setDeleteChecking] = React.useState(false);
 
-  // The preview shows the story as a reader sees it, with the desk's money decision floating at its
-  // foot. The award is read once when the preview opens, and the CTA stays off until that read finishes.
+  // The preview shows the story as a reader sees it, with what the story has earned floating at its
+  // foot. The earning rows are read once when the preview opens, and the total stays off until then.
   const [previewing, setPreviewing] = React.useState<Article | null>(null);
-  const [award, setAward] = React.useState<Award | null>(null);
-  const [awardLoaded, setAwardLoaded] = React.useState(false);
-  const [awarding, setAwarding] = React.useState(false);
-  const [awardAmount, setAwardAmount] = React.useState("");
-  const [awardMessage, setAwardMessage] = React.useState("");
+  const [earnings, setEarnings] = React.useState<Earning[]>([]);
+  const [earningsLoaded, setEarningsLoaded] = React.useState(false);
+  const [earningMessage, setEarningMessage] = React.useState("");
 
   // The pictures the story's own body already draws. The preview's attachment strip skips them so
   // the desk sees the page the reader will get, not the body plus a duplicate of every inline image.
   const previewInlineMedia = previewing
     ? inlineMediaIds(previewing.body, "article")
     : [];
+
+  // The automatic earning rows behind the preview's money line: one formula fee at publish plus
+  // whatever the view settlements have added since. The sum is the story's whole income.
+  const income = earnings.reduce((sum, row) => sum + Number(row.amount_tk), 0);
+  const feeRow = earnings.find((row) => row.entry_type.startsWith("article_earning_"));
+  const feeBreakdown = feeRow ? earningBreakdown(feeRow.entry_type, feeRow.details) : null;
+  const viewRows = earnings.filter((row) => row.entry_type.startsWith("view_earning_"));
+  const viewsTotal = viewRows.reduce((sum, row) => sum + Number(row.amount_tk), 0);
+  const viewCount = viewRows.reduce((sum, row) => sum + Number(row.details?.views ?? 0), 0);
 
   const load = React.useCallback(
     async (nextStatus: string, nextQuery: string, nextOffset = 0, append = false) => {
@@ -352,25 +366,25 @@ export function AdminArticles() {
 
   async function openDelete(article: Article) {
     setDeleting(article);
-    setDeleteAward(null);
+    setDeleteEarning(null);
     setDeleteChecking(true);
     try {
+      // Any ledger row — the automatic fee, view income or its release — pins the story through
+      // `on delete restrict`, so existence is the question, not the entry type.
       const { data, error: readError } = await supabaseBrowser()
         .from("earnings_ledger")
-        .select("id,amount_tk,created_at")
+        .select("id")
         .eq("article_id", article.id)
-        .in("entry_type", ["article_earning_available", "article_earning_held"])
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
       if (readError) {
         setError(
-          errorMessage("article delete award read", readError, "অর্থ নির্ধারিত হয়েছে কি না দেখা যায়নি।"),
+          errorMessage("article delete earning read", readError, "আয় নথিভুক্ত হয়েছে কি না দেখা যায়নি।"),
         );
         return;
       }
-      setDeleteAward((data as Award | null) ?? null);
+      setDeleteEarning(((data as { id: string }[] | null) ?? []).length > 0);
     } catch (err) {
-      setError(errorMessage("article delete award read", err, "অর্থ নির্ধারিত হয়েছে কি না দেখা যায়নি।"));
+      setError(errorMessage("article delete earning read", err, "আয় নথিভুক্ত হয়েছে কি না দেখা যায়নি।"));
     } finally {
       setDeleteChecking(false);
     }
@@ -413,11 +427,10 @@ export function AdminArticles() {
       const { data, error: readError } = await supabaseBrowser()
         .from("earnings_ledger")
         .select("article_id")
-        .in("article_id", [...selected])
-        .in("entry_type", ["article_earning_available", "article_earning_held"]);
+        .in("article_id", [...selected]);
       if (readError) {
         setError(
-          errorMessage("bulk delete award read", readError, "অর্থ নির্ধারিত হয়েছে কি না দেখা যায়নি।"),
+          errorMessage("bulk delete earning read", readError, "আয় নথিভুক্ত হয়েছে কি না দেখা যায়নি।"),
         );
         return;
       }
@@ -429,13 +442,13 @@ export function AdminArticles() {
         ),
       );
     } catch (err) {
-      setError(errorMessage("bulk delete award read", err, "অর্থ নির্ধারিত হয়েছে কি না দেখা যায়নি।"));
+      setError(errorMessage("bulk delete earning read", err, "আয় নথিভুক্ত হয়েছে কি না দেখা যায়নি।"));
     }
   }
 
   async function deleteSelected() {
     if (bulkPaid === null) return;
-    // A story that has been paid is refused by the server, so it is left out here and named in the
+    // A story with ledger rows is refused by the server, so it is left out here and named in the
     // dialog instead of failing halfway through the batch.
     const deletable = [...selected].filter((id) => !bulkPaid.has(id));
     if (deletable.length === 0) return;
@@ -460,7 +473,7 @@ export function AdminArticles() {
         setNotice(
           [
             `${countLabel(removed)}টি প্রতিবেদন স্থায়ীভাবে মুছে ফেলা হয়েছে।`,
-            skipped > 0 ? `${countLabel(skipped)}টিতে অর্থ নির্ধারিত থাকায় ছাড়া হয়েছে।` : "",
+            skipped > 0 ? `${countLabel(skipped)}টির আয়ের হিসাব থাকায় ছাড়া হয়েছে।` : "",
           ]
             .filter(Boolean)
             .join(" "),
@@ -481,57 +494,29 @@ export function AdminArticles() {
 
   async function openPreview(article: Article) {
     setPreviewing(article);
-    setAward(null);
-    setAwardLoaded(false);
-    setAwarding(false);
-    setAwardAmount("");
-    setAwardMessage("");
+    setEarnings([]);
+    setEarningsLoaded(false);
+    setEarningMessage("");
     try {
       const { data, error: readError } = await supabaseBrowser()
         .from("earnings_ledger")
-        .select("id,amount_tk,created_at")
+        .select("id,amount_tk,entry_type,created_at,details")
         .eq("article_id", article.id)
-        .in("entry_type", ["article_earning_available", "article_earning_held"])
-        .limit(1)
-        .maybeSingle();
+        .in("entry_type", [
+          "article_earning_available",
+          "article_earning_held",
+          "view_earning_available",
+          "view_earning_held",
+        ]);
       if (readError) {
-        setAwardMessage(errorMessage("article award read", readError, "নির্ধারিত অর্থ দেখানো যাচ্ছে না।"));
+        setEarningMessage(errorMessage("article earning read", readError, "আয়ের হিসাব দেখানো যাচ্ছে না।"));
         return;
       }
-      setAward((data as Award | null) ?? null);
+      setEarnings((data as unknown as Earning[]) ?? []);
     } catch (err) {
-      setAwardMessage(errorMessage("article award read", err, "নির্ধারিত অর্থ দেখানো যাচ্ছে না।"));
+      setEarningMessage(errorMessage("article earning read", err, "আয়ের হিসাব দেখানো যাচ্ছে না।"));
     } finally {
-      setAwardLoaded(true);
-    }
-  }
-
-  async function saveAward() {
-    if (!previewing) return;
-    setAwardMessage("");
-    const amount = Number(awardAmount);
-    if (!Number.isInteger(amount) || amount < 1 || amount > 1000000) {
-      setAwardMessage("টাকার পরিমাণ ১ থেকে ১০,০০,০০০ টাকার মধ্যে লিখুন।");
-      return;
-    }
-    setBusy(`award-${previewing.id}`);
-    try {
-      const { data, error: awardError } = await supabaseBrowser().rpc("admin_award_article", {
-        p_article_id: previewing.id,
-        p_amount_tk: amount,
-      });
-      if (awardError) {
-        setAwardMessage(errorMessage("article award", awardError, "অর্থ নির্ধারণ করা যায়নি। আবার চেষ্টা করুন।"));
-        return;
-      }
-      const row = data as unknown as Award | null;
-      setAward(row ?? { id: "", amount_tk: amount, created_at: new Date().toISOString() });
-      setAwarding(false);
-      setNotice(`প্রতিবেদনটির জন্য ৳${bn(amount)} নির্ধারণ করা হয়েছে।`);
-    } catch (err) {
-      setAwardMessage(errorMessage("article award", err, "অর্থ নির্ধারণ করা যায়নি। আবার চেষ্টা করুন।"));
-    } finally {
-      setBusy(null);
+      setEarningsLoaded(true);
     }
   }
 
@@ -982,12 +967,12 @@ export function AdminArticles() {
             মুছে যাবে। শুধু পাঠকের চোখ থেকে সরাতে চাইলে বদলে &ldquo;প্রকাশ থেকে সরান&rdquo; ব্যবহার করুন।
           </p>
           {deleteChecking && (
-            <p className="text-sm text-muted-foreground">অর্থ নির্ধারিত হয়েছে কি না দেখা হচ্ছে…</p>
+            <p className="text-sm text-muted-foreground">আয় নথিভুক্ত হয়েছে কি না দেখা হচ্ছে…</p>
           )}
-          {deleteAward && (
+          {deleteEarning === true && (
             <p className="text-sm text-destructive" role="alert">
-              এই প্রতিবেদনে ৳{bn(deleteAward.amount_tk)} নির্ধারিত হয়েছে। অর্থের হিসাব রক্ষার জন্য এটি
-              স্থায়ীভাবে মুছে ফেলা যায় না — প্রকাশ থেকে সরিয়ে রাখুন।
+              এই প্রতিবেদনের জন্য আয় নথিভুক্ত হয়েছে। অর্থের হিসাব রক্ষার জন্য এটি স্থায়ীভাবে মুছে
+              ফেলা যায় না — প্রকাশ থেকে সরিয়ে রাখুন।
             </p>
           )}
           <DialogFooter>
@@ -997,7 +982,7 @@ export function AdminArticles() {
             <Button
               variant="destructive"
               onClick={() => void deleteArticle()}
-              disabled={busy !== null || deleteChecking || deleteAward !== null}
+              disabled={busy !== null || deleteChecking || deleteEarning === true}
             >
               {busy?.startsWith("delete-") ? "মুছে ফেলা হচ্ছে…" : "স্থায়ীভাবে মুছুন"}
             </Button>
@@ -1020,11 +1005,11 @@ export function AdminArticles() {
             স্থায়ীভাবে মুছে যাবে।
           </p>
           {bulkPaid === null && (
-            <p className="text-sm text-muted-foreground">অর্থ নির্ধারিত হয়েছে কি না দেখা হচ্ছে…</p>
+            <p className="text-sm text-muted-foreground">আয় নথিভুক্ত হয়েছে কি না দেখা হচ্ছে…</p>
           )}
           {bulkPaid !== null && bulkPaid.size > 0 && (
             <p className="text-sm text-destructive" role="alert">
-              এর মধ্যে {countLabel(bulkPaid.size)}টিতে অর্থ নির্ধারিত হয়েছে; অর্থের হিসাব রক্ষার জন্য
+              এর মধ্যে {countLabel(bulkPaid.size)}টির জন্য আয় নথিভুক্ত হয়েছে; অর্থের হিসাব রক্ষার জন্য
               সেগুলো বাদ যাবে — শুধু প্রকাশ থেকে সরিয়ে রাখা যাবে।
             </p>
           )}
@@ -1091,51 +1076,28 @@ export function AdminArticles() {
                   />
                 ))}
 
-              {/* Floating call to action: sticks to the bottom of the dialog while it scrolls. */}
+              {/* The story's automatic earnings, read-only: the formula credited the fee at publish
+                  and the settlements keep adding view income. Corrections belong to the wallet's
+                  adjustment tool, not to the story. */}
               <div className="sticky bottom-0 flex flex-col items-end gap-2 pt-2">
-                {awardMessage && (
+                {earningMessage && (
                   <p className="text-sm text-destructive" role="alert">
-                    {awardMessage}
+                    {earningMessage}
                   </p>
                 )}
-                {awarding && (
-                  <div className="flex w-full flex-col gap-3 rounded-lg border bg-background p-4 shadow-lg">
-                    <Field
-                      label="টাকার পরিমাণ"
-                      htmlFor="award-amount"
-                      hint="১ থেকে ১০,০০,০০০ টাকার মধ্যে। এটি সরাসরি লেখকের উপলব্ধ অর্থে যুক্ত হবে।"
-                    >
-                      <Input
-                        id="award-amount"
-                        type="number"
-                        inputMode="numeric"
-                        min={1}
-                        max={1000000}
-                        step={1}
-                        value={awardAmount}
-                        onChange={(event) => setAwardAmount(event.target.value)}
-                      />
-                    </Field>
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => setAwarding(false)}>
-                        বাতিল
-                      </Button>
-                      <Button onClick={() => void saveAward()} disabled={busy !== null}>
-                        {busy?.startsWith("award-") ? "সংরক্ষণ হচ্ছে…" : "অর্থ নির্ধারণ করুন"}
-                      </Button>
-                    </div>
+                {earningsLoaded && (
+                  <div className="w-full rounded-lg border bg-background p-4 shadow-lg">
+                    <p className="text-sm font-medium">আয়: {bnMoney(income)}</p>
+                    {feeBreakdown && (
+                      <p className="mt-1 text-xs text-muted-foreground">{feeBreakdown}</p>
+                    )}
+                    {viewsTotal > 0 && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        ভিউ আয়: {bnMoney(viewsTotal)} ({bn(viewCount)}টি ভিউ)
+                      </p>
+                    )}
                   </div>
                 )}
-                <Button
-                  className="rounded-full shadow-lg"
-                  onClick={() => setAwarding(true)}
-                  disabled={!awardLoaded || award !== null || awarding || busy !== null}
-                >
-                  <Banknote className="size-4" aria-hidden />
-                  {award
-                    ? `নির্ধারিত: ৳${bn(award.amount_tk)}`
-                    : "অর্থ নির্ধারণ করুন"}
-                </Button>
               </div>
             </>
           )}

@@ -12,7 +12,7 @@ import {
   uploadImage,
 } from "@/lib/media-upload";
 
-const MAX_FILES = 10;
+const MAX_FILES = 20;
 
 export type GalleryItem = { id: string; objectUrl: string; name: string };
 

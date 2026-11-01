@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ArrowDown, ArrowUp, ArrowUpDown, CalendarClock, Pencil, Wallet } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, CalendarClock, Mail, Pencil, Trash2, Wallet } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,11 @@ import {
 } from "@/components/ui/table";
 import { AdminArticles } from "@/components/account/admin-articles";
 import { revalidateReaders } from "@/lib/desk-client";
+import {
+  earningBreakdown,
+  LEDGER_LABELS,
+  type EarningDetails,
+} from "@/lib/earning-details";
 import { errorMessage } from "@/lib/errors";
 import { one, supabaseBrowser } from "@/lib/supabase";
 import { bn, bnMoney, formatDateBn } from "@/lib/site";
@@ -45,6 +50,8 @@ type Member = {
   available_tk: number;
   reserved_tk: number;
   created_at: string;
+  email: string | null;
+  auth_deleted: boolean;
   total_count: number;
 };
 
@@ -53,17 +60,9 @@ type LedgerEntry = {
   amount_tk: number;
   entry_type: string;
   created_at: string;
+  details: EarningDetails | null;
+  view_day: string | null;
   articles: { title: string } | { title: string }[] | null;
-};
-
-// The ledger enum is the money's own vocabulary; the desk should read it in Bengali.
-const LEDGER_LABELS: Record<string, string> = {
-  article_earning_held: "প্রতিবেদনের আয় (আটকে)",
-  article_earning_available: "প্রতিবেদনের আয় (উত্তোলনযোগ্য)",
-  profile_release: "প্রোফাইল সম্পূর্ণ হওয়ায় আয় ছাড়",
-  withdrawal_reserve: "উত্তোলনের জন্য সংরক্ষিত",
-  withdrawal_refund: "উত্তোলন বাতিল — অর্থ ফেরত",
-  manual_adjustment: "কর্তৃপক্ষের সমন্বয়",
 };
 
 type Withdrawal = {
@@ -211,6 +210,10 @@ export function AdminDashboard() {
   const [editUsername, setEditUsername] = React.useState("");
   const [editRole, setEditRole] = React.useState("reporter");
   const [editTier, setEditTier] = React.useState("general");
+  const [selfId, setSelfId] = React.useState<string | null>(null);
+  const [emailTarget, setEmailTarget] = React.useState<Member | null>(null);
+  const [editEmail, setEditEmail] = React.useState("");
+  const [deleteTarget, setDeleteTarget] = React.useState<Member | null>(null);
 
   const pageSize = 20;
 
@@ -329,6 +332,7 @@ export function AdminDashboard() {
           return;
         }
         setAllowed(true);
+        setSelfId(user.id);
         await loadMembers(0, "");
         await loadWithdrawals();
         await loadSpotlight();
@@ -465,7 +469,7 @@ export function AdminDashboard() {
     try {
       const { data, error: ledgerError } = await supabaseBrowser()
         .from("earnings_ledger")
-        .select("id,amount_tk,entry_type,created_at,articles(title)")
+        .select("id,amount_tk,entry_type,created_at,details,view_day,articles(title)")
         .eq("user_id", member.id)
         .order("created_at", { ascending: false })
         .limit(40);
@@ -774,6 +778,74 @@ export function AdminDashboard() {
     }
   }
 
+  function openEmail(member: Member) {
+    setEmailTarget(member);
+    setEditEmail(member.email ?? "");
+  }
+
+  // The sign-in address is GoTrue's, so the change goes through the desk's own route, which
+  // holds the service key and verifies the caller as an administrator.
+  async function saveEmail() {
+    if (!emailTarget) return;
+    setError("");
+    setNotice("");
+    const email = editEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError("সঠিক ইমেইল ঠিকানা লিখুন।");
+      return;
+    }
+    setBusy("email");
+    try {
+      const response = await fetch(`/api/admin/members/${emailTarget.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      if (!response.ok) {
+        setError(payload?.error ?? "ইমেইল পরিবর্তন করা যায়নি। আবার চেষ্টা করুন।");
+        return;
+      }
+      setNotice("সাইন-ইন ইমেইল পরিবর্তিত হয়েছে।");
+      setEmailTarget(null);
+      await loadMembers(offset, query);
+    } catch {
+      setError("ইমেইল পরিবর্তন করা যায়নি। আবার চেষ্টা করুন।");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // Closing an account is a soft delete: the member can never sign in again, while everything
+  // they wrote and earned stays in place, which is also why the row remains listed — flagged.
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setError("");
+    setNotice("");
+    setBusy("delete");
+    try {
+      const response = await fetch(`/api/admin/members/${deleteTarget.id}`, {
+        method: "DELETE",
+      });
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      if (!response.ok) {
+        setError(payload?.error ?? "অ্যাকাউন্ট বন্ধ করা যায়নি। আবার চেষ্টা করুন।");
+        return;
+      }
+      setNotice("অ্যাকাউন্ট বন্ধ করা হয়েছে।");
+      setDeleteTarget(null);
+      await loadMembers(offset, query);
+    } catch {
+      setError("অ্যাকাউন্ট বন্ধ করা যায়নি। আবার চেষ্টা করুন।");
+    } finally {
+      setBusy(null);
+    }
+  }
+
   if (allowed === null) {
     return (
       <Card>
@@ -930,6 +1002,9 @@ export function AdminDashboard() {
                               <p className="truncate text-xs text-muted-foreground">
                                 @{member.username}
                               </p>
+                              <p className="truncate text-xs text-muted-foreground">
+                                {member.email ?? "ইমেইল নেই"}
+                              </p>
                             </div>
                           </div>
                         </TableCell>
@@ -937,6 +1012,11 @@ export function AdminDashboard() {
                           <Badge variant={roleBadgeVariant(member.role)}>
                             {ROLE_LABELS[member.role] ?? member.role}
                           </Badge>
+                          {member.auth_deleted && (
+                            <Badge variant="destructive" className="ml-1">
+                              নিষ্ক্রিয়
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
                           {member.reporter_tier ? (
@@ -952,9 +1032,9 @@ export function AdminDashboard() {
                           {bn(member.completion_percent)}%
                         </TableCell>
                         <TableCell className="tabular-nums">
-                          <p className="text-sm font-medium">{bn(member.available_tk)}</p>
+                          <p className="text-sm font-medium">{bnMoney(member.available_tk)}</p>
                           <p className="whitespace-nowrap text-xs text-muted-foreground">
-                            আটকে {bn(member.held_tk)} · অপেক্ষমাণ {bn(member.reserved_tk)}
+                            আটকে {bnMoney(member.held_tk)} · অপেক্ষমাণ {bn(member.reserved_tk)}
                           </p>
                           {member.reserved_tk > 0 && (
                             <Badge variant="secondary" className="mt-1">
@@ -985,6 +1065,27 @@ export function AdminDashboard() {
                             >
                               <Pencil className="size-4" />
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => openEmail(member)}
+                              aria-label={`${name}-এর সাইন-ইন ইমেইল পরিবর্তন`}
+                              title="সাইন-ইন ইমেইল পরিবর্তন"
+                            >
+                              <Mail className="size-4" />
+                            </Button>
+                            {!member.auth_deleted && member.id !== selfId && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setDeleteTarget(member)}
+                                aria-label={`${name}-এর অ্যাকাউন্ট বন্ধ`}
+                                title="অ্যাকাউন্ট বন্ধ"
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1093,6 +1194,82 @@ export function AdminDashboard() {
                 </Button>
                 <Button onClick={() => void saveRole()} disabled={busy !== null}>
                   {busy !== null ? "সংরক্ষণ হচ্ছে…" : "ভূমিকা সংরক্ষণ করুন"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={emailTarget !== null}
+            onOpenChange={(open) => {
+              if (!open) setEmailTarget(null);
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>সাইন-ইন ইমেইল পরিবর্তন</DialogTitle>
+                <DialogDescription>
+                  {emailTarget && (
+                    <>
+                      @{emailTarget.username} — বর্তমান ইমেইল{" "}
+                      {emailTarget.email ?? "নেই"}। নতুন ঠিকানাটি এখনই প্রযোজ্য
+                      হবে।
+                    </>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3">
+                <Field label="নতুন ইমেইল" htmlFor="edit-email">
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    placeholder="name@du.ac.bd"
+                  />
+                </Field>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setEmailTarget(null)}>
+                  বাতিল
+                </Button>
+                <Button onClick={() => void saveEmail()} disabled={busy !== null}>
+                  {busy === "email" ? "সংরক্ষণ হচ্ছে…" : "ইমেইল সংরক্ষণ করুন"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={deleteTarget !== null}
+            onOpenChange={(open) => {
+              if (!open) setDeleteTarget(null);
+            }}
+          >
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>অ্যাকাউন্ট বন্ধ করুন</DialogTitle>
+                <DialogDescription>
+                  {deleteTarget && (
+                    <>
+                      {deleteTarget.display_name?.trim() ||
+                        `@${deleteTarget.username}`}{" "}
+                      — এই সদস্য আর সাইন-ইন করতে পারবেন না। লেখা, মন্তব্য ও
+                      আয়ের হিসাব অক্ষত থাকবে।
+                    </>
+                  )}
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+                  বাতিল
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => void confirmDelete()}
+                  disabled={busy !== null}
+                >
+                  {busy === "delete" ? "বন্ধ হচ্ছে…" : "অ্যাকাউন্ট বন্ধ করুন"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -1286,7 +1463,7 @@ export function AdminDashboard() {
                       >
                         <span>{member.display_name?.trim() || `@${member.username}`}</span>
                         <span className="tabular-nums text-muted-foreground">
-                          ৳{bn(member.available_tk)}
+                          {bnMoney(member.available_tk)}
                         </span>
                       </Button>
                     </li>
@@ -1315,8 +1492,8 @@ export function AdminDashboard() {
               {adjustTarget && (
                 <>
                   {adjustTarget.display_name?.trim() || `@${adjustTarget.username}`} — বর্তমানে পাওয়া
-                  যাবে ৳{bn(adjustTarget.available_tk)} (আটকে ৳{bn(adjustTarget.held_tk)}, অপেক্ষমাণ
-                  ৳{bn(adjustTarget.reserved_tk)})।
+                  যাবে {bnMoney(adjustTarget.available_tk)} (আটকে {bnMoney(adjustTarget.held_tk)},
+                  অপেক্ষমাণ {bn(adjustTarget.reserved_tk)})।
                 </>
               )}
             </DialogDescription>
@@ -1379,6 +1556,7 @@ export function AdminDashboard() {
                 ledgerEntries.map((entry) => {
                   const amount = Number(entry.amount_tk);
                   const title = one(entry.articles)?.title;
+                  const breakdown = earningBreakdown(entry.entry_type, entry.details);
                   const detail = title ?? "";
                   return (
                     <div
@@ -1392,6 +1570,11 @@ export function AdminDashboard() {
                         <p className="truncate text-sm font-medium">
                           {LEDGER_LABELS[entry.entry_type] ?? entry.entry_type}
                         </p>
+                        {breakdown && (
+                          <p className="text-xs text-muted-foreground">
+                            {breakdown}
+                          </p>
+                        )}
                         <p className="truncate text-xs text-muted-foreground">
                           {detail ? `${detail} · ` : ""}
                           {formatDateBn(entry.created_at)}

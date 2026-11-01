@@ -38,6 +38,34 @@ export function shareImageFor(
   return key ? mediaUrlFor(key) : "/og-banner.png";
 }
 
+/**
+ * The author a published story's earnings and view counts belong to — the same rule the database
+ * applies. Anonymous stories carry no `author_id`; their byline is the attribution row, which is
+ * also the account the view beacon must not count.
+ */
+export async function getArticleAuthorOfRecord(
+  articleId: string,
+): Promise<string | null> {
+  if (isDemoMode()) return null;
+  try {
+    const supabase = supabaseServer();
+    const { data, error } = await supabase
+      .from("article_attributions")
+      .select("author_id")
+      .eq("article_id", articleId)
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      reportError("article attribution", error);
+      return null;
+    }
+    return data?.author_id ?? null;
+  } catch (error) {
+    reportError("article attribution", error);
+    return null;
+  }
+}
+
 export async function getLatestStories(limit = 25): Promise<Story[]> {
   if (isDemoMode()) return [];
   try {

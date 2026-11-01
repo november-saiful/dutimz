@@ -7,6 +7,8 @@ interface Env {
   ALLOWED_ORIGINS: string;
   CACHE_REFRESH_URL?: string;
   CACHE_REFRESH_TOKEN?: string;
+  VIEWS_SETTLE_URL?: string;
+  VIEWS_SETTLE_TOKEN?: string;
 }
 
 type Scope = 'article' | 'spotlight' | 'profile';
@@ -352,16 +354,43 @@ export default {
   },
 
   /**
-   * The only thing on a schedule in this project: ask the portal to rewrite the pages every
-   * reader sees.
+   * The two things on a schedule in this project, told apart by which cron fired.
    *
-   * It lives here rather than on the portal Worker because the generated OpenNext worker exports
+   * They live here rather than on the portal Worker because the generated OpenNext worker exports
    * only `fetch`, so a cron trigger on it fails with "Handler does not export a scheduled()
-   * function". This Worker is ours from top to bottom, so the trigger is one fetch every five
-   * minutes and nothing else — the render happens in the portal, in an invocation of its own,
-   * which is the point: no reader ever pays for it (see open-next.config.ts).
+   * function". This Worker is ours from top to bottom, so a trigger is one fetch and nothing
+   * else — the work happens in the portal, in an invocation of its own, which is the point: no
+   * reader ever pays for it (see open-next.config.ts).
    */
-  async scheduled(_event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+  async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (event.cron === '0 * * * *') {
+      // Every hour: ask the portal to settle complete ten-view batches into the ledger.
+      const url = env.VIEWS_SETTLE_URL;
+      if (!url || !env.VIEWS_SETTLE_TOKEN) {
+        console.error('[views] VIEWS_SETTLE_URL and VIEWS_SETTLE_TOKEN must be set: nothing was settled');
+        return;
+      }
+      ctx.waitUntil((async () => {
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { authorization: `Bearer ${env.VIEWS_SETTLE_TOKEN}` },
+            signal: AbortSignal.timeout(45_000),
+          });
+          const body = await response.text();
+          if (!response.ok) {
+            console.error(`[views] settlement failed: ${response.status} ${body.slice(0, 500)}`);
+            return;
+          }
+          console.log(`[views] settlement: ${body.slice(0, 500)}`);
+        } catch (error) {
+          console.error('[views] settlement request failed', error);
+        }
+      })());
+      return;
+    }
+
+    // Every five minutes: ask the portal to rewrite the pages every reader sees.
     const url = env.CACHE_REFRESH_URL;
     if (!url || !env.CACHE_REFRESH_TOKEN) {
       console.error('[cache] CACHE_REFRESH_URL and CACHE_REFRESH_TOKEN must be set: nothing was refreshed');
