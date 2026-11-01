@@ -21,6 +21,7 @@ export function GalleryUploader({
   onChange,
   scope = "article",
   onInsert,
+  required = false,
 }: {
   items: GalleryItem[];
   onChange: (items: GalleryItem[]) => void;
@@ -33,6 +34,11 @@ export function GalleryUploader({
    * gains no button — a proof photo is attached to the decision, not written into a body.
    */
   onInsert?: (item: GalleryItem) => void;
+  /**
+   * Filing a story or a Spotlight post needs a picture; editing one that already has them does not,
+   * which is why the dialogs that reuse this uploader leave the flag off.
+   */
+  required?: boolean;
 }) {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState("");
@@ -100,7 +106,7 @@ export function GalleryUploader({
 
   return (
     <Field
-      label="ছবি (ঐচ্ছিক) — প্রথম ছবিটিই প্রচ্ছদ হবে"
+      label={required ? "ছবি (আবশ্যক) — প্রথম ছবিটিই প্রচ্ছদ হবে" : "ছবি (ঐচ্ছিক) — প্রথম ছবিটিই প্রচ্ছদ হবে"}
       htmlFor="write-gallery"
       hint={`সর্বোচ্চ ${MAX_FILES}টি, প্রতিটি সর্বোচ্চ ২০ MB (JPEG, PNG, WebP, GIF, AVIF)। HEIC/HEIF সমর্থিত নয়।${onInsert ? " লেখার মধ্যে বসাতে ছবির উপরের + চাপুন।" : ""}`}
       wide

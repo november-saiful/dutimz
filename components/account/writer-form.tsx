@@ -35,7 +35,7 @@ import { SignInButton } from "@/components/auth/sign-in-button";
 import { useDuEmailPolicy } from "@/components/auth/du-email-policy";
 import { rememberReturnPath, signInWithGoogle } from "@/lib/auth-client";
 import { errorMessage, reportError } from "@/lib/errors";
-import { mediaMarkdownFor } from "@/lib/richtext";
+import { inlineMediaIds, mediaMarkdownFor } from "@/lib/richtext";
 import { supabaseBrowser } from "@/lib/supabase";
 import { CATEGORIES, INTERVIEW_SECTIONS, SITE_URL } from "@/lib/site";
 
@@ -318,6 +318,13 @@ export function WriterForm() {
     }
     if (body.length < 100) {
       fail("পূর্ণ প্রতিবেদন কমপক্ষে ১০০ অক্ষরের হতে হবে।");
+      return;
+    }
+    // A picture in the body counts the same as one in the gallery, so the check matches what
+    // `submit_article` accepts rather than insisting on the uploader specifically.
+    if (gallery.length === 0 && inlineMediaIds(body, "article").length === 0) {
+      fail("প্রতিবেদনের সঙ্গে অন্তত একটি ছবি যুক্ত করুন।");
+      focusGallery();
       return;
     }
     setBusy(true);
@@ -629,7 +636,7 @@ export function WriterForm() {
 
           <FieldSection
             title="পূর্ণ প্রতিবেদন"
-            description="প্রতিবেদন জমা দিতে রিপোর্টার অনুমতি প্রয়োজন — জুনিয়র রিপোর্টারের লেখা অনুমোদনের অপেক্ষায় থাকে। ছবি আপলোড শুধু image/* ধরনের জন্য (সর্বোচ্চ ২০টি)।"
+            description="প্রতিবেদন জমা দিতে রিপোর্টার অনুমতি প্রয়োজন — জুনিয়র রিপোর্টারের লেখা অনুমোদনের অপেক্ষায় থাকে। অন্তত একটি ছবি আবশ্যক (শুধু image/*, সর্বোচ্চ ২০টি)।"
           >
             <FieldGrid>
               <Field
@@ -685,6 +692,7 @@ export function WriterForm() {
           <GalleryUploader
             items={gallery}
             onChange={setGallery}
+            required
             onInsert={(item) =>
               editorRef.current?.insertAtCaret(
                 mediaMarkdownFor(item.id, item.name, "article"),

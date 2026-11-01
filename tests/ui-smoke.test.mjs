@@ -2351,3 +2351,50 @@ test('the desk docks a ৳10–20 penalty from a story owner', async () => {
   assert.match(rls, /'A penalty below ৳10 is refused'/, 'the range refusals are covered by pgTAP');
   assert.match(rls, /'The wallet docks the penalty from the available money'/, 'the wallet deduction is covered by pgTAP');
 });
+
+test('every news story and Spotlight post needs at least one photo', async () => {
+  // The rule is enforced in two places. The composer stops the writer before the request leaves the
+  // browser, and the SECURITY DEFINER write path refuses any direct call that carries no picture.
+  // Both accept a picture the body places inline, which is why the check reads `inlineMediaIds`
+  // rather than insisting on the uploader specifically.
+  const form = await readProjectFile('components/account/writer-form.tsx');
+  assert.match(
+    form,
+    /import \{ inlineMediaIds, mediaMarkdownFor \} from "@\/lib\/richtext"/,
+    'the writer form counts the pictures its body places',
+  );
+  assert.match(
+    form,
+    /gallery\.length === 0 && inlineMediaIds\(body, "article"\)\.length === 0/,
+    'the writer form refuses a story with no picture at all',
+  );
+  assert.match(form, /প্রতিবেদনের সঙ্গে অন্তত একটি ছবি যুক্ত করুন।/, 'and says so in Bengali');
+  assert.match(form, /onChange=\{setGallery\}\r?\n\s*required/, 'the write gallery is marked required');
+
+  const forum = await readProjectFile('components/forum/spotlight-forum.tsx');
+  assert.match(
+    forum,
+    /gallery\.length === 0 && inlineMediaIds\(trimmedDescription, "spotlight"\)\.length === 0/,
+    'the composer refuses a post with no picture at all',
+  );
+  assert.match(forum, /পোস্টের সঙ্গে অন্তত একটি ছবি যুক্ত করুন।/, 'and says so in Bengali');
+  assert.match(forum, /scope="spotlight"\r?\n\s*required/, 'the composer gallery is marked required');
+
+  const uploader = await readProjectFile('components/account/gallery-uploader.tsx');
+  assert.match(uploader, /required = false,/, 'editing dialogs reuse the uploader without the rule');
+  assert.match(uploader, /required \? "ছবি \(আবশ্যক\)/, 'a required gallery says so; an edit dialog stays optional');
+
+  const migration = await readProjectFile('supabase/migrations/202611010012_required_photo_on_submission.sql');
+  assert.match(
+    migration,
+    /coalesce\(array_length\(gallery, 1\), 0\) = 0 and coalesce\(array_length\(inline_media, 1\), 0\) = 0/,
+    'the article RPC counts a body picture as well as the gallery',
+  );
+  assert.match(migration, /প্রতিবেদনের সঙ্গে অন্তত একটি ছবি যুক্ত করুন/, 'the article RPC refuses a photo-less story');
+  assert.match(migration, /coalesce\(array_length\(attached, 1\), 0\) = 0/, 'the Spotlight RPC refuses a photo-less post');
+  assert.match(migration, /পোস্টের সঙ্গে অন্তত একটি ছবি যুক্ত করুন/, 'and names its own refusal');
+  for (const fn of ['submit_article', 'submit_spotlight_post']) {
+    assert.match(migration, new RegExp(`revoke all on function public\\.${fn}`), `${fn} stays revoked past its guard`);
+  }
+  assert.ok(migration.trimEnd().endsWith('commit;'), 'the migration is atomic');
+});

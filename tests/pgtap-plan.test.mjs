@@ -146,7 +146,7 @@ test('the excerpt, visibility and spotlight rules keep their pgTAP coverage', ()
     'A hidden post is gone from the public feed',
     'The author can still read their own hidden post',
     'A member cannot reverse a desk decision',
-    'A member can post without photos',
+    'A member can post with a photo',
     'A second member can post too',
     "A member cannot delete another member''s post",
     'An author can delete their own post',
@@ -157,6 +157,18 @@ test('the excerpt, visibility and spotlight rules keep their pgTAP coverage', ()
   ];
   const missing = required.filter((description) => !suite.includes(description));
   assert.deepEqual(missing, [], `excerpt/visibility/spotlight coverage disappeared: ${missing.join('; ')}`);
+});
+
+test('the photo requirement keeps its pgTAP coverage', () => {
+  // Both write paths refuse a submission with no picture at all, and a picture placed in the body
+  // counts: the inline submission above only succeeds because it carries one.
+  const required = [
+    'A story without any photo is refused',
+    'A Spotlight post without any photo is refused',
+    'A member can post with a photo',
+  ];
+  const missing = required.filter((description) => !suite.includes(description));
+  assert.deepEqual(missing, [], `photo requirement coverage disappeared: ${missing.join('; ')}`);
 });
 
 test('spotlight moderation stays behind the audited RPCs and keeps media keys private', async () => {

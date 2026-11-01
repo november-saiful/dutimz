@@ -50,6 +50,12 @@ insert into public.media_assets (id, owner_id, original_key, mime_type, original
   select ('c1000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid, '92000000-0000-4000-8000-000000000002',
          'earn-test-' || g, 'image/jpeg', 1000 + g
     from generate_series(1, 11) g;
+-- The junior reporter's own picture, on a fresh id: a submission cannot be filed without a photo,
+-- and this asset must exist before the junior files at the publish boundary below.
+insert into public.media_assets (id, owner_id, original_key, mime_type, original_bytes) values
+  ('c0000000-0000-4000-8000-000000000001', '91000000-0000-4000-8000-000000000001',
+   'junior-first-photo', 'image/jpeg', 1200)
+on conflict (id) do nothing;
 
 insert into public.articles (author_id, category_id, slug, title, excerpt, body, status)
   select '92000000-0000-4000-8000-000000000002', c.id, 'earn-campus-150', 'ভিত্তি ফি পরীক্ষা',
@@ -184,7 +190,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '91000000-0000-4000-8000-000000000001', true);
 select lives_ok(
-  $$select public.submit_article('campus', 'জুনিয়র প্রতিবেদকের জমা', 'জুনিয়র প্রতিবেদকের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"অন্যান্য","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active))$$,
+  $$select public.submit_article('campus', 'জুনিয়র প্রতিবেদকের জমা', 'জুনিয়র প্রতিবেদকের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, array['c0000000-0000-4000-8000-000000000001'], '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"অন্যান্য","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active))$$,
   'A junior reporter files a story for the desk'
 );
 select results_eq(

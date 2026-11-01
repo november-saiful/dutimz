@@ -397,6 +397,14 @@ export function SpotlightForum() {
       toast({ tone: "error", title: "শিরোনাম ও বিবরণ আবশ্যক।" });
       return;
     }
+    // A picture placed in the description counts the same as one in the gallery, matching what
+    // `submit_spotlight_post` accepts.
+    if (gallery.length === 0 && inlineMediaIds(trimmedDescription, "spotlight").length === 0) {
+      setError("পোস্টের সঙ্গে অন্তত একটি ছবি যুক্ত করুন।");
+      toast({ tone: "error", title: "পোস্টের সঙ্গে অন্তত একটি ছবি যুক্ত করুন।" });
+      focusGallery();
+      return;
+    }
     setBusy(true);
     try {
       const supabase = supabaseBrowser();
@@ -473,7 +481,7 @@ export function SpotlightForum() {
           <DialogHeader>
             <DialogTitle>নতুন ইস্যু প্রকাশ করুন</DialogTitle>
             <DialogDescription>
-              শিরোনাম, বিবরণ ও চাইলে ছবিসহ আপনার ইস্যুটি লিখুন।
+              শিরোনাম, বিবরণ ও অন্তত একটি ছবিসহ আপনার ইস্যুটি লিখুন।
             </DialogDescription>
           </DialogHeader>
           {signedIn === false ? (
@@ -485,7 +493,7 @@ export function SpotlightForum() {
             </div>
           ) : (
             <form onSubmit={submit} className="flex flex-col gap-4">
-              <FieldSection title="পোস্ট" description="শিরোনাম, বিবরণ ও চাইলে ছবি।">
+              <FieldSection title="পোস্ট" description="শিরোনাম, বিবরণ ও অন্তত একটি ছবি।">
                 <FieldGrid>
                   <Field label="শিরোনাম" htmlFor="spotlight-title" wide>
                     <Input
@@ -520,6 +528,7 @@ export function SpotlightForum() {
                 items={gallery}
                 onChange={setGallery}
                 scope="spotlight"
+                required
                 onInsert={(item) =>
                   editorRef.current?.insertAtCaret(
                     mediaMarkdownFor(item.id, item.name, "spotlight"),

@@ -1,5 +1,5 @@
 begin;
-select plan(312);
+select plan(314);
 
 -- The publish-time award is a deferred constraint trigger in production, so every publish path
 -- sees the story's final gallery and questionnaire rows. This suite asserts the award rows as it
@@ -300,7 +300,8 @@ select has_table('public', 'article_media', 'A story gallery of R2 images is mod
 select has_table('public', 'article_questionnaire_responses', 'Sensitive questionnaire responses are stored separately from public story rows');
 insert into public.media_assets (id, owner_id, original_key, mime_type, original_bytes) values
   ('91000000-0000-4000-8000-000000000001', '22000000-0000-4000-8000-000000000002', 'originals/reporter/gallery-songbad.jpg', 'image/jpeg', 123456),
-  ('91000000-0000-4000-8000-000000000002', '33000000-0000-4000-8000-000000000003', 'originals/mod/gallery-pending.jpg', 'image/jpeg', 234567)
+  ('91000000-0000-4000-8000-000000000002', '33000000-0000-4000-8000-000000000003', 'originals/mod/gallery-pending.jpg', 'image/jpeg', 234567),
+  ('91000000-0000-4000-8000-000000000003', '44000000-0000-4000-8000-000000000004', 'originals/admin/gallery-desk.jpg', 'image/jpeg', 345678)
 on conflict (id) do nothing;
 insert into public.article_media (article_id, media_id, position)
   select a.id, '91000000-0000-4000-8000-000000000001', 0 from public.articles a where a.slug = 'songbad'
@@ -355,6 +356,11 @@ select throws_ok(
   'P0001', null,
   'A reporter cannot pin another author upload to a story'
 );
+select throws_ok(
+  $$select public.submit_article('porikkha', 'ছবি ছাড়া প্রতিবেদন', 'ছবি ছাড়া প্রতিবেদনের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active))$$,
+  'P0001', null,
+  'A story without any photo is refused'
+);
 
 set local role anon;
 select set_config('request.jwt.claim.role', 'anon', true);
@@ -404,7 +410,7 @@ select throws_ok(
   'A non-interview desk refuses an interview section'
 );
 select lives_ok(
-  $$select public.submit_article('interview', 'ভার্চুয়াল সাক্ষাৎকার', 'ভার্চুয়াল সাক্ষাৎকারের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active), false, null, null, 'virtual')$$,
+  $$select public.submit_article('interview', 'ভার্চুয়াল সাক্ষাৎকার', 'ভার্চুয়াল সাক্ষাৎকারের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, array['91000000-0000-4000-8000-000000000001'], '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active), false, null, null, 'virtual')$$,
   'A reporter files an interview with its section'
 );
 select results_eq(
@@ -414,7 +420,7 @@ select results_eq(
 );
 -- Editable slug. The writer may type the Latin address; the title only proposes it.
 select lives_ok(
-  $$select public.submit_article('porikkha', 'নিজের ঠিকানার প্রতিবেদন', 'নিজের ঠিকানার সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, 'amar-nijer-thikana', null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active))$$,
+  $$select public.submit_article('porikkha', 'নিজের ঠিকানার প্রতিবেদন', 'নিজের ঠিকানার সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, 'amar-nijer-thikana', array['91000000-0000-4000-8000-000000000001'], '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active))$$,
   'A typed address is kept instead of the title derivation'
 );
 select results_eq(
@@ -423,7 +429,7 @@ select results_eq(
   'The filed story carries the typed address'
 );
 select lives_ok(
-  $$select public.submit_article('porikkha', 'একই ঠিকানার দ্বিতীয় প্রতিবেদন', 'দ্বিতীয় প্রতিবেদনের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, 'amar-nijer-thikana', null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active))$$,
+  $$select public.submit_article('porikkha', 'একই ঠিকানার দ্বিতীয় প্রতিবেদন', 'দ্বিতীয় প্রতিবেদনের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, 'amar-nijer-thikana', array['91000000-0000-4000-8000-000000000001'], '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active))$$,
   'A taken typed address takes the next free suffix'
 );
 select results_eq(
@@ -475,7 +481,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
 select results_eq(
-  $$select author_id is null, is_anonymous from public.submit_article('porikkha', 'নামহীন পরীক্ষামূলক প্রতিবেদন', 'নামহীন প্রতিবেদনের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active), true)$$,
+  $$select author_id is null, is_anonymous from public.submit_article('porikkha', 'নামহীন পরীক্ষামূলক প্রতিবেদন', 'নামহীন প্রতিবেদনের সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, array['91000000-0000-4000-8000-000000000001'], '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active), true)$$,
   $$values (true, true)$$,
   'An anonymous submission comes back with no author on it and the flag set'
 );
@@ -682,7 +688,7 @@ select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select results_eq(
-  $$select author_id, is_anonymous from public.submit_article('porikkha', 'অন্যের নামে প্রকাশিত প্রতিবেদন', 'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active), false, '22000000-0000-4000-8000-000000000002')$$,
+  $$select author_id, is_anonymous from public.submit_article('porikkha', 'অন্যের নামে প্রকাশিত প্রতিবেদন', 'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('প্রতিবেদনের অংশ। ', 8), null, null, array['91000000-0000-4000-8000-000000000003'], '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active), false, '22000000-0000-4000-8000-000000000002')$$,
   $$values ('22000000-0000-4000-8000-000000000002'::uuid, false)$$,
   'The desk can publish a story credited to another reporter'
 );
@@ -990,7 +996,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
 select lives_ok(
-  $$select public.submit_article('porikkha', 'সংক্ষিপ্ত বর্ণনা ছাড়া প্রতিবেদন', null, repeat('প্রতিবেদনের অংশ। ', 8), null, null, null, '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active))$$,
+  $$select public.submit_article('porikkha', 'সংক্ষিপ্ত বর্ণনা ছাড়া প্রতিবেদন', null, repeat('প্রতিবেদনের অংশ। ', 8), null, null, array['91000000-0000-4000-8000-000000000001'], '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb, (select id from public.article_questionnaire_versions where active))$$,
   'A submission without a short description is accepted'
 );
 reset role;
@@ -1163,6 +1169,11 @@ select throws_ok(
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select throws_ok(
+  $$select public.submit_spotlight_post('ছবি ছাড়া পোস্ট', 'ফটো ছাড়া একটি পোস্ট পাঠানোর চেষ্টা।')$$,
+  'P0001', null,
+  'A Spotlight post without any photo is refused'
+);
 select lives_ok(
   $$select public.submit_spotlight_post('স্পটলাইট পরীক্ষামূলক পোস্ট', 'এই পোস্টটি স্বয়ংক্রিয় পরীক্ষার জন্য তৈরি। ' || E'\\n\\n![গ্যালারির ছবিও লেখার মধ্যে](/spotlight/media/93000000-0000-4000-8000-000000000011)', array['93000000-0000-4000-8000-000000000011'])$$,
   'Any signed-in member can raise an issue in Spotlight'
@@ -1236,8 +1247,8 @@ select throws_ok(
   'A member cannot reverse a desk decision'
 );
 select lives_ok(
-  $$select public.submit_spotlight_post('মুছে ফেলার পোস্ট', 'লেখক নিজেই মুছে ফেলবেন এই পোস্টটি।')$$,
-  'A member can post without photos'
+  $$select public.submit_spotlight_post('মুছে ফেলার পোস্ট', 'লেখক নিজেই মুছে ফেলবেন এই পোস্টটি।', array['93000000-0000-4000-8000-000000000003'])$$,
+  'A member can post with a photo'
 );
 reset role;
 
@@ -1246,7 +1257,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
 select lives_ok(
-  $$select public.submit_spotlight_post('মডারেটরের পোস্ট', 'অন্য একজন সদস্যের পোস্ট, মুছে ফেলা যাবে না।')$$,
+  $$select public.submit_spotlight_post('মডারেটরের পোস্ট', 'অন্য একজন সদস্যের পোস্ট, মুছে ফেলা যাবে না।', array['93000000-0000-4000-8000-000000000002'])$$,
   'A second member can post too'
 );
 reset role;
@@ -1594,7 +1605,7 @@ select throws_ok(
 select set_config('request.jwt.claim.sub', '33000000-0000-4000-8000-000000000003', true);
 select lives_ok(
   $$select public.submit_article('porikkha', 'মডারেটরের নিজের সম্পাদনার প্রতিবেদন',
-      'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('পরীক্ষামূলক বাক্য। ', 10), null, null, null,
+      'পরীক্ষামূলক সংক্ষিপ্ত পরিচিতি', repeat('পরীক্ষামূলক বাক্য। ', 10), null, null, array['91000000-0000-4000-8000-000000000002'],
       '{"verification_status":"একাধিক নির্ভরযোগ্য সূত্রে যাচাই করা","verification_notes":"দুটি স্বাধীন সূত্রে তথ্য যাচাই করা হয়েছে","criminal_activity":"না","activity_type":"প্রতিবাদ","activity_details":"পরীক্ষা"}'::jsonb,
       (select id from public.article_questionnaire_versions where active))$$,
   'The desk publishes a story of its own to carry the self-approval check'
