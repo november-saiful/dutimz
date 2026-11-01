@@ -109,6 +109,9 @@ begin
       end loop;
     end if;
     if not visible then continue; end if;
+    -- A missing answer reads as SQL NULL, and every type check below would then return
+    -- NULL, which `if not non_empty` skips: an unanswered visible question would pass.
+    if answer is null then return false; end if;
     visible_ids := array_append(visible_ids, field_id);
     non_empty := false;
     if field->>'type' = 'single' then

@@ -274,14 +274,16 @@ select lives_ok(
   $$select public.record_article_view((select id from public.articles where slug = 'earn-view'), '1.1.1.1', 'viewer-' || g) from generate_series(1, 25) g$$,
   'Twenty-five distinct readers can each view a published story'
 );
+select lives_ok(
+  $$select public.record_article_view((select id from public.articles where slug = 'earn-view'), '1.1.1.1', 'viewer-7')$$,
+  'The same reader can revisit their story'
+);
+-- The view log is readable by nobody, so the counts are read back by the test session.
+reset role;
 select results_eq(
   $$select count(*)::int from public.article_views where article_id = (select id from public.articles where slug = 'earn-view')$$,
   $$values (25)$$,
   'Every distinct reader counts once'
-);
-select lives_ok(
-  $$select public.record_article_view((select id from public.articles where slug = 'earn-view'), '1.1.1.1', 'viewer-7')$$,
-  'The same reader can revisit their story'
 );
 select results_eq(
   $$select count(*)::int from public.article_views where article_id = (select id from public.articles where slug = 'earn-view')$$,
@@ -295,6 +297,7 @@ select lives_ok(
   $$select public.record_article_view((select id from public.articles where slug = 'earn-view'), '1.1.1.1', 'author-reads-own')$$,
   'The author can open their own published story'
 );
+reset role;
 select results_eq(
   $$select count(*)::int from public.article_views where article_id = (select id from public.articles where slug = 'earn-view')$$,
   $$values (25)$$,
@@ -311,6 +314,7 @@ select lives_ok(
   $$select public.record_article_view((select id from public.articles where slug = 'earn-draft-view'), '1.1.1.1', 'reads-a-draft')$$,
   'A view on an unpublished draft is ignored'
 );
+reset role;
 select results_eq(
   $$select count(*)::int from public.article_views where article_id = (select id from public.articles where slug = 'earn-draft-view')$$,
   $$values (0)$$,
@@ -416,6 +420,7 @@ select lives_ok(
   $$select public.record_article_view((select id from public.articles where slug = 'earn-cap'), '2.2.2.2', 'the-thousand-first')$$,
   'A story can still take the thousand-and-first reader'
 );
+reset role;
 select results_eq(
   $$select count(*)::int from public.article_views where article_id = (select id from public.articles where slug = 'earn-cap')$$,
   $$values (1000)$$,
