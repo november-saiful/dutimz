@@ -10,6 +10,22 @@
 -- reference instead of blocking the delete.
 begin;
 
+-- The ledger is append-only by trigger, but erasing a story has to detach its history and forfeit
+-- the money it still held. The desk's erase runs inside a SECURITY DEFINER function owned by the
+-- database owner (`postgres`), and no client is ever that role, so the history stays append-only
+-- for everyone who can reach the table through the API. The desk's erase is the only runtime path
+-- that mutates these rows; a migration that resets wallets drops the trigger for its transaction.
+create or replace function public.prevent_ledger_mutation()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  if current_user = 'postgres' then
+    if tg_op = 'DELETE' then return old; end if;
+    return new;
+  end if;
+  raise exception 'আয়ের ইতিহাস পরিবর্তন বা মুছে ফেলা যাবে না';
+end;
+$$;
+
 alter table public.earnings_ledger drop constraint if exists earnings_ledger_article_id_fkey;
 alter table public.earnings_ledger add constraint earnings_ledger_article_id_fkey
   foreign key (article_id) references public.articles(id) on delete set null;

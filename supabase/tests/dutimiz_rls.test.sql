@@ -1918,13 +1918,20 @@ select results_eq(
   'The paid story credits its complete-profile author before the desk erases it'
 );
 
--- A penalty belongs to the owner, not to the story, so it must survive the erase.
+-- A penalty belongs to the owner, not to the story, so it must survive the erase. It sits on the
+-- held-fee author instead of the paid one so the paid author's later wallet figures stay exact.
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select lives_ok(
   $$select public.admin_apply_penalty(
-      (select id from public.articles where slug = 'artha-thaka-songbad'), 10)$$,
+      (select id from public.articles where slug = 'held-muchar-songbad'), 10)$$,
   'The desk docks a penalty from the story before erasing it'
 );
+
+-- An earlier test left a request pending. It has to settle before the author can ask again, and
+-- paying it does not refund the reserved money, so the whole balance is still there to withdraw.
+select public.review_withdrawal(w.id, 'paid')
+  from public.withdrawals w
+ where w.user_id = '22000000-0000-4000-8000-000000000002' and w.status = 'pending';
 
 -- The author withdraws the whole balance first, so the clawback has nothing left to come out of
 -- and has to take the balance below zero.
@@ -1986,9 +1993,9 @@ select results_eq(
 select results_eq(
   $$select entry_type::text, amount_tk, article_id is null, details->>'deleted_article_title'
       from public.earnings_ledger
-     where user_id = '22000000-0000-4000-8000-000000000002'
+     where user_id = '11000000-0000-4000-8000-000000000001'
        and entry_type = 'penalty'$$,
-  $$values ('penalty', -10::numeric, true, 'অর্থযুক্ত প্রতিবেদন'::text)$$,
+  $$values ('penalty', -10::numeric, true, 'আটকে থাকা আয়ের প্রতিবেদন'::text)$$,
   'A penalty stays with its owner and keeps the erased story''s title'
 );
 select results_eq(
