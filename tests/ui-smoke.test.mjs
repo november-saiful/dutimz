@@ -1028,10 +1028,11 @@ test('the desk can tick several stories and erase them in one action', async () 
   assert.match(articles, /type="checkbox"/, 'a story can be ticked');
   assert.match(articles, /indeterminate/, 'the header box reports a partial selection');
   assert.match(articles, /নির্বাচিতগুলো মুছুন/, 'the batch action is labelled');
-  // The batch is the same audited decision, once per story, and a paid story is named and left
-  // out before the batch starts rather than failing halfway through it.
+  // The batch is the same audited decision, once per story. A story that already paid its author
+  // is erased too: the money it produced is clawed back, which the dialog states up front.
   assert.match(articles, /admin_delete_article/, 'the batch uses the audited delete');
-  assert.match(articles, /earnings_ledger/, 'the batch reads which stories have been paid first');
+  assert.doesNotMatch(articles, /bulkPaid/, 'the batch no longer skips a paid story');
+  assert.match(articles, /শূন্যের নিচে নেমে ঋণাত্মক/, 'the batch warns that the clawback can leave a negative balance');
   assert.doesNotMatch(articles, /\.delete\(/, 'still no client table write');
 });
 
@@ -2126,14 +2127,15 @@ test('the automatic earning formula replaces the manual award button', async () 
   assert.match(migration, /drop function if exists public\.admin_award_article\(uuid, integer\)/, 'the manual award function is retired');
   assert.match(migration, /on conflict \(article_id\) where entry_type in \('article_earning_available', 'article_earning_held'\) do nothing/, 'the one-fee backstop survives republishing');
   // The console reads the recorded rows instead of awarding: a formula breakdown, view income
-  // beside the fee, and a deletion guard that checks any ledger row rather than a shortlist.
+  // beside the fee, and a deletion that no longer refuses a paid story — the story's money is
+  // clawed back with it, even when it was already withdrawn.
   const articles = await readProjectFile('components/account/admin-articles.tsx');
   assert.doesNotMatch(articles, /admin_award_article/, 'the console never names the retired function');
   assert.match(articles, /earningBreakdown\(feeRow\.entry_type, feeRow\.details\)/, 'the preview explains the formula fee');
   assert.match(articles, /startsWith\("view_earning_"\)/, 'the preview collects the view income rows');
-  assert.match(articles, /\.select\("id"\)[\s\S]*?\.eq\("article_id", article\.id\)[\s\S]*?\.limit\(1\)/, 'the delete guard checks for any ledger row');
-  assert.match(articles, /\.select\("article_id"\)[\s\S]*?\.in\("article_id", \[\.\.\.selected\]\)/, 'the bulk guard also checks any ledger row');
-  assert.match(articles, /আয় নথিভুক্ত হয়েছে/, 'the paid story is refused with its own sentence');
+  assert.doesNotMatch(articles, /deleteEarning|bulkPaid/, 'the desk no longer blocks a story for having earned');
+  assert.match(articles, /তোলা হয়ে থাকলেও/, 'the delete warning covers money already withdrawn');
+  assert.match(articles, /শূন্যের নিচে নেমে ঋণাত্মক/, 'the delete warning says the balance may go negative');
   // The balance page and the member console share the same labels, including the two view types.
   const labels = await readProjectFile('lib/earning-details.ts');
   assert.match(labels, /view_earning_held: "ভিউ আয় \(আটকে\)"/, 'held view income has a label');
@@ -2143,6 +2145,31 @@ test('the automatic earning formula replaces the manual award button', async () 
   assert.match(balance, /earningBreakdown\(entry\.entry_type, entry\.details\)/, 'and explains the formula behind each row');
   const dashboard = await readProjectFile('components/account/admin-dashboard.tsx');
   assert.match(dashboard, /earningBreakdown\(entry\.entry_type, entry\.details\)/, 'the member console explains the formula too');
+  // A story's money that outlives the story reads the same way everywhere: a labelled clawback
+  // row, the erased title in its breakdown, and a leading minus on a negative balance.
+  assert.match(labels, /article_deletion_clawback: "মুছে ফেলা প্রতিবেদনের আয় ফেরত নেওয়া"/, 'a clawback has a label');
+  assert.match(labels, /entryType === "article_deletion_clawback"/, 'the clawback breakdown names the erased story');
+  const site = await readProjectFile('lib/site.ts');
+  assert.match(site, /amount < 0 \? "-" : ""/, 'negative money is written with a leading minus');
+});
+
+test('deleting a story takes its earnings back, even from money already withdrawn', async () => {
+  const enumMigration = await readProjectFile('supabase/migrations/202611030001_deletion_clawback_enum.sql');
+  assert.match(enumMigration, /add value if not exists 'article_deletion_clawback'/, 'the clawback type joins the enum in its own migration');
+  const migration = await readProjectFile('supabase/migrations/202611030002_deletion_clawback.sql');
+  assert.match(migration, /on delete set null/, 'the ledger keeps its rows when the story row is erased');
+  assert.match(migration, /create or replace function public\.admin_delete_article\(p_article_id uuid\)/, 'the delete RPC is the one door');
+  assert.match(migration, /delete from public\.earnings_ledger held[\s\S]*?article_earning_held/, 'money still held for the story is forfeited');
+  assert.match(migration, /'article_deletion_clawback', -paid\.total/, 'the clawback row is negative and per paying member');
+  assert.match(migration, /where paid\.total <> 0/, 'a story that paid nobody writes no clawback row');
+  assert.match(migration, /deleted_article_id/, 'every surviving row keeps the erased story\'s identity');
+  assert.ok(
+    (migration.match(/'article_deletion_clawback'/g) ?? []).length >= 5,
+    'the rule and every available sum learn the clawback',
+  );
+  const rls = await readProjectFile('supabase/tests/dutimiz_rls.test.sql');
+  assert.match(rls, /'Money already withdrawn still leaves the balance, which turns negative'/, 'pgTAP covers the negative balance');
+  assert.match(rls, /'A deleted story forfeits money still held and does not also deduct it from the balance'/, 'pgTAP covers the forfeited held money');
 });
 
 test('the crime desk, twenty-image gallery and view beacon are wired in', async () => {

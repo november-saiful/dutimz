@@ -218,7 +218,7 @@ test('the admin console migration puts the wallet on the row and audits the stat
   assert.ok(migration.trimEnd().endsWith('commit;'), 'the migration should be atomic');
 });
 
-test('the permanent delete is audited before the story disappears, and refuses a paid one', async () => {
+test('the original permanent delete was audited before the story disappeared', async () => {
   const migration = await readProjectFile('supabase/migrations/202610250001_admin_delete_article.sql');
   assert.ok(
     migration.includes('function public.admin_delete_article'),
@@ -231,11 +231,12 @@ test('the permanent delete is audited before the story disappears, and refuses a
   assert.ok(migration.includes("using errcode = '42501'"), 'a caller who is not an administrator is refused');
   assert.ok(migration.includes("set search_path = ''"), 'a SECURITY DEFINER function must pin its search path');
   assert.ok(migration.includes("'delete_article'"), 'the deletion is written to the accountability log');
-  // `earnings_ledger.article_id` is `on delete restrict`, so a paid story cannot be erased. The
-  // function has to name that refusal instead of letting a foreign-key error surface.
+  // This first version refused a paid story because `earnings_ledger.article_id` was
+  // `on delete restrict`. A later migration replaced the refusal with a clawback; the historical
+  // file still has to explain the refusal rather than let a foreign-key error surface.
   assert.ok(
     migration.includes('from public.earnings_ledger'),
-    'a story that has already paid its author is refused in the function, not by the constraint',
+    'a story that had already paid its author was refused in the function, not by the constraint',
   );
   // The audit row is written while the row still exists: it carries the title, the address and the
   // counts the cascade is about to take, and the log's target has no foreign key to follow.

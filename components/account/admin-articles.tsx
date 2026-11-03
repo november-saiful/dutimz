@@ -120,9 +120,6 @@ export function AdminArticles() {
   // dialog; it is cleared whenever the list itself is replaced.
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = React.useState(false);
-  // Which of the ticked stories already have ledger rows pinning them. `null` while the read is in
-  // flight, so the confirm button cannot be pressed before the answer is known.
-  const [bulkPaid, setBulkPaid] = React.useState<Set<string> | null>(null);
   const [bulkBusy, setBulkBusy] = React.useState(false);
   const selectAllRef = React.useRef<HTMLInputElement>(null);
 
@@ -145,12 +142,9 @@ export function AdminArticles() {
   const [deciding, setDeciding] = React.useState<Article | null>(null);
 
   // Erasing a story is the only decision the desk cannot undo, so the dialog says what leaves with
-  // it. A story that has been paid cannot be erased at all — the ledger points at it with
-  // `on delete restrict` — and that refusal is read here, because `errorMessage` deliberately
-  // hides the server's own sentence.
+  // it: the row and its pictures, and any money the story earned — clawed back even when it was
+  // already withdrawn, which can leave the author's balance below zero.
   const [deleting, setDeleting] = React.useState<Article | null>(null);
-  const [deleteEarning, setDeleteEarning] = React.useState<boolean | null>(null);
-  const [deleteChecking, setDeleteChecking] = React.useState(false);
 
   // The preview shows the story as a reader sees it, with what the story has earned floating at its
   // foot. The earning rows are read once when the preview opens, and the total stays off until then.
@@ -444,30 +438,8 @@ export function AdminArticles() {
     }
   }
 
-  async function openDelete(article: Article) {
+  function openDelete(article: Article) {
     setDeleting(article);
-    setDeleteEarning(null);
-    setDeleteChecking(true);
-    try {
-      // Any ledger row — the automatic fee, view income or its release — pins the story through
-      // `on delete restrict`, so existence is the question, not the entry type.
-      const { data, error: readError } = await supabaseBrowser()
-        .from("earnings_ledger")
-        .select("id")
-        .eq("article_id", article.id)
-        .limit(1);
-      if (readError) {
-        setError(
-          errorMessage("article delete earning read", readError, "আয় নথিভুক্ত হয়েছে কি না দেখা যায়নি।"),
-        );
-        return;
-      }
-      setDeleteEarning(((data as { id: string }[] | null) ?? []).length > 0);
-    } catch (err) {
-      setError(errorMessage("article delete earning read", err, "আয় নথিভুক্ত হয়েছে কি না দেখা যায়নি।"));
-    } finally {
-      setDeleteChecking(false);
-    }
   }
 
   async function deleteArticle() {
@@ -499,65 +471,31 @@ export function AdminArticles() {
     }
   }
 
-  async function openBulkDelete() {
+  function openBulkDelete() {
     if (selected.size === 0) return;
     setBulkOpen(true);
-    setBulkPaid(null);
-    try {
-      const { data, error: readError } = await supabaseBrowser()
-        .from("earnings_ledger")
-        .select("article_id")
-        .in("article_id", [...selected]);
-      if (readError) {
-        setError(
-          errorMessage("bulk delete earning read", readError, "আয় নথিভুক্ত হয়েছে কি না দেখা যায়নি।"),
-        );
-        return;
-      }
-      setBulkPaid(
-        new Set(
-          ((data as { article_id: string | null }[] | null) ?? [])
-            .map((row) => row.article_id)
-            .filter((id): id is string => Boolean(id)),
-        ),
-      );
-    } catch (err) {
-      setError(errorMessage("bulk delete earning read", err, "আয় নথিভুক্ত হয়েছে কি না দেখা যায়নি।"));
-    }
   }
 
   async function deleteSelected() {
-    if (bulkPaid === null) return;
-    // A story with ledger rows is refused by the server, so it is left out here and named in the
-    // dialog instead of failing halfway through the batch.
-    const deletable = [...selected].filter((id) => !bulkPaid.has(id));
-    if (deletable.length === 0) return;
+    if (selected.size === 0) return;
     setBulkBusy(true);
     setError("");
     setNotice("");
     try {
       const supabase = supabaseBrowser();
       let failed = 0;
-      for (const id of deletable) {
+      for (const id of selected) {
         const { error: deleteError } = await supabase.rpc("admin_delete_article", { p_article_id: id });
         if (deleteError) {
           failed += 1;
           reportError("article bulk delete", deleteError);
         }
       }
-      const removed = deletable.length - failed;
-      const skipped = selected.size - deletable.length;
+      const removed = selected.size - failed;
       // One invalidation covers the batch: every story in it may have been live somewhere.
       if (removed > 0) void revalidateReaders();
       if (removed > 0) {
-        setNotice(
-          [
-            `${countLabel(removed)}টি প্রতিবেদন স্থায়ীভাবে মুছে ফেলা হয়েছে।`,
-            skipped > 0 ? `${countLabel(skipped)}টির আয়ের হিসাব থাকায় ছাড়া হয়েছে।` : "",
-          ]
-            .filter(Boolean)
-            .join(" "),
-        );
+        setNotice(`${countLabel(removed)}টি প্রতিবেদন স্থায়ীভাবে মুছে ফেলা হয়েছে।`);
       }
       if (failed > 0) {
         setError(`${countLabel(failed)}টি প্রতিবেদন মোছা যায়নি। আবার চেষ্টা করুন।`);
@@ -1157,15 +1095,10 @@ export function AdminArticles() {
             প্রতিবেদনটির সঙ্গে তার ছবি, মন্তব্য, প্রতিক্রিয়া, বুকমার্ক ও সংশোধনের ইতিহাসও স্থায়ীভাবে
             মুছে যাবে। শুধু পাঠকের চোখ থেকে সরাতে চাইলে বদলে &ldquo;প্রকাশ থেকে সরান&rdquo; ব্যবহার করুন।
           </p>
-          {deleteChecking && (
-            <p className="text-sm text-muted-foreground">আয় নথিভুক্ত হয়েছে কি না দেখা হচ্ছে…</p>
-          )}
-          {deleteEarning === true && (
-            <p className="text-sm text-destructive" role="alert">
-              এই প্রতিবেদনের জন্য আয় নথিভুক্ত হয়েছে। অর্থের হিসাব রক্ষার জন্য এটি স্থায়ীভাবে মুছে
-              ফেলা যায় না — প্রকাশ থেকে সরিয়ে রাখুন।
-            </p>
-          )}
+          <p className="text-sm text-muted-foreground">
+            এই প্রতিবেদনের আয় ইতিমধ্যে লেখকের ব্যালেন্সে যোগ হয়ে থাকলে সেটিও কেটে নেওয়া হবে — টাকা
+            তোলা হয়ে থাকলেও। ফলে লেখকের ব্যালেন্স শূন্যের নিচে নেমে ঋণাত্মক হতে পারে।
+          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>
               বাতিল
@@ -1173,7 +1106,7 @@ export function AdminArticles() {
             <Button
               variant="destructive"
               onClick={() => void deleteArticle()}
-              disabled={busy !== null || deleteChecking || deleteEarning === true}
+              disabled={busy !== null}
             >
               {busy?.startsWith("delete-") ? "মুছে ফেলা হচ্ছে…" : "স্থায়ীভাবে মুছুন"}
             </Button>
@@ -1181,8 +1114,8 @@ export function AdminArticles() {
         </DialogContent>
       </Dialog>
 
-      {/* The same decision for a batch. It names the stories that will be left behind before the
-          desk confirms, so a paid story cannot look like it was erased with the rest. */}
+      {/* The same decision for a batch. Every selected story goes, and the dialog says what the
+          money behind them does before the desk confirms. */}
       <Dialog open={bulkOpen} onOpenChange={(open) => !open && setBulkOpen(false)}>
         <DialogContent>
           <DialogHeader>
@@ -1195,15 +1128,11 @@ export function AdminArticles() {
             প্রতিটি প্রতিবেদনের সঙ্গে তার ছবি, মন্তব্য, প্রতিক্রিয়া, বুকমার্ক ও সংশোধনের ইতিহাসও
             স্থায়ীভাবে মুছে যাবে।
           </p>
-          {bulkPaid === null && (
-            <p className="text-sm text-muted-foreground">আয় নথিভুক্ত হয়েছে কি না দেখা হচ্ছে…</p>
-          )}
-          {bulkPaid !== null && bulkPaid.size > 0 && (
-            <p className="text-sm text-destructive" role="alert">
-              এর মধ্যে {countLabel(bulkPaid.size)}টির জন্য আয় নথিভুক্ত হয়েছে; অর্থের হিসাব রক্ষার জন্য
-              সেগুলো বাদ যাবে — শুধু প্রকাশ থেকে সরিয়ে রাখা যাবে।
-            </p>
-          )}
+          <p className="text-sm text-muted-foreground">
+            নির্বাচিত প্রতিবেদনগুলো থেকে যে আয় ইতিমধ্যে লেখকদের ব্যালেন্সে যোগ হয়েছে, সেটিও কেটে
+            নেওয়া হবে — টাকা তোলা হয়ে থাকলেও। ফলে তাদের ব্যালেন্স শূন্যের নিচে নেমে ঋণাত্মক হতে
+            পারে।
+          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBulkOpen(false)}>
               বাতিল
@@ -1211,7 +1140,7 @@ export function AdminArticles() {
             <Button
               variant="destructive"
               onClick={() => void deleteSelected()}
-              disabled={bulkBusy || bulkPaid === null || bulkPaid.size === selected.size}
+              disabled={bulkBusy}
             >
               {bulkBusy ? "মুছে ফেলা হচ্ছে…" : "স্থায়ীভাবে মুছুন"}
             </Button>

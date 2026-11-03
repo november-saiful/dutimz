@@ -100,7 +100,7 @@ const bnMoneyDigits = new Intl.NumberFormat("bn-BD", {
 });
 
 export function bnMoney(amount: number): string {
-  return `৳${bnMoneyDigits.format(amount)}`;
+  return `${amount < 0 ? "-" : ""}৳${bnMoneyDigits.format(Math.abs(amount))}`;
 }
 
 export function relativeTimeBn(value: string | null | undefined): string {

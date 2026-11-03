@@ -18,6 +18,9 @@ export type EarningDetails = {
   total?: number;
   views?: number;
   rate_per_view?: number;
+  article_title?: string;
+  deleted_article_id?: string;
+  deleted_article_title?: string;
 };
 
 export const LEDGER_LABELS: Record<string, string> = {
@@ -32,6 +35,7 @@ export const LEDGER_LABELS: Record<string, string> = {
   withdrawal_reserve: "উত্তোলনের জন্য সংরক্ষিত",
   withdrawal_refund: "উত্তোলন বাতিল — অর্থ ফেরত",
   manual_adjustment: "কর্তৃপক্ষের সমন্বয়",
+  article_deletion_clawback: "মুছে ফেলা প্রতিবেদনের আয় ফেরত নেওয়া",
 };
 
 /**
@@ -43,6 +47,15 @@ export function earningBreakdown(
   details: EarningDetails | null | undefined,
 ): string | null {
   if (!details) return null;
+  if (entryType === "article_deletion_clawback") {
+    const title = details.deleted_article_title ?? details.article_title;
+    return title ? `প্রতিবেদন: ${title}` : null;
+  }
+  if (entryType === "penalty") {
+    return typeof details.deleted_article_title === "string"
+      ? `প্রতিবেদন: ${details.deleted_article_title}`
+      : null;
+  }
   if (entryType === "view_earning_available" || entryType === "view_earning_held") {
     if (typeof details.views !== "number") return null;
     const rate =
@@ -56,6 +69,8 @@ export function earningBreakdown(
     entryType === "article_earning_held"
   ) {
     const parts: string[] = [];
+    if (typeof details.deleted_article_title === "string")
+      parts.push(`প্রতিবেদন: ${details.deleted_article_title}`);
     if (typeof details.base === "number") parts.push(`ভিত্তি ৳${details.base}`);
     if (typeof details.crime === "number" && details.crime > 0)
       parts.push(`অপরাধ +৳${details.crime}`);

@@ -1,5 +1,5 @@
 begin;
-select plan(314);
+select plan(323);
 
 -- The publish-time award is a deferred constraint trigger in production, so every publish path
 -- sees the story's final gallery and questionnaire rows. This suite asserts the award rows as it
@@ -1890,13 +1890,14 @@ select has_function(
 );
 
 -- ---------------------------------------------------------------------------
--- Permanent deletion. A story can leave the archive for good, but only the desk may do it, and
--- never once money has been recorded against it: the ledger is the author's proof of what they
--- earned and points at the story with `on delete restrict`.
+-- Permanent deletion. A story can leave the archive for good, but only the desk may do it, and its
+-- money leaves with it: earnings already in the available balance are clawed back even when they
+-- were withdrawn (the balance can go negative), money still held for the story is forfeited rather
+-- than left to be released later, and a penalty stays with its owner.
 -- ---------------------------------------------------------------------------
--- The deletable story is filed anonymously with no attribution, so publishing credits it to no
--- one and no ledger row blocks the desk. The paid story earns its automatic fee at publish; the
--- manual insert that used to stand in for it would now collide with the one-fee backstop.
+-- Three stories: one filed anonymously with no attribution (no ledger rows at all), one that paid
+-- its complete-profile author's automatic fee into the available money, and one whose
+-- incomplete-profile author still has the fee held.
 insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, published_at, is_anonymous)
   select null, c.id, 'muchhe-felar-songbad', 'মুছে ফেলার প্রতিবেদন',
          'মুছে ফেলার জন্য লেখা সংক্ষিপ্ত পরিচিতি', repeat('অস্থায়ী প্রতিবেদনের অংশ। ', 6), 'published', now(), true
@@ -1905,6 +1906,41 @@ insert into public.articles (author_id, category_id, slug, title, excerpt, body,
   select '22000000-0000-4000-8000-000000000002', c.id, 'artha-thaka-songbad', 'অর্থযুক্ত প্রতিবেদন',
          'অর্থ নির্ধারিত হয়েছে এমন প্রতিবেদন', repeat('অস্থায়ী প্রতিবেদনের অংশ। ', 6), 'published', now()
     from public.categories c where c.slug = 'porikkha';
+insert into public.articles (author_id, category_id, slug, title, excerpt, body, status, published_at)
+  select '11000000-0000-4000-8000-000000000001', c.id, 'held-muchar-songbad', 'আটকে থাকা আয়ের প্রতিবেদন',
+         'প্রোফাইল সম্পূর্ণ নয় এমন লেখকের প্রতিবেদন', repeat('অস্থায়ী প্রতিবেদনের অংশ। ', 6), 'published', now()
+    from public.categories c where c.slug = 'porikkha';
+
+select results_eq(
+  $$select entry_type::text, amount_tk from public.earnings_ledger
+     where article_id = (select id from public.articles where slug = 'artha-thaka-songbad')$$,
+  $$values ('article_earning_available', 25::numeric)$$,
+  'The paid story credits its complete-profile author before the desk erases it'
+);
+
+-- A penalty belongs to the owner, not to the story, so it must survive the erase.
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select lives_ok(
+  $$select public.admin_apply_penalty(
+      (select id from public.articles where slug = 'artha-thaka-songbad'), 10)$$,
+  'The desk docks a penalty from the story before erasing it'
+);
+
+-- The author withdraws the whole balance first, so the clawback has nothing left to come out of
+-- and has to take the balance below zero.
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select lives_ok(
+  $$select public.request_withdrawal(
+      (public.get_my_wallet() ->> 'available')::numeric::integer, 'bkash', '01700000000')$$,
+  'The author withdraws the whole balance before the desk erases the story'
+);
+reset role;
+select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
+select public.review_withdrawal(
+  (select id from public.withdrawals where user_id = '22000000-0000-4000-8000-000000000002' and status = 'pending'),
+  'paid');
 
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
@@ -1917,27 +1953,74 @@ select throws_ok(
 );
 
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
-select throws_ok(
+select lives_ok(
   $$select public.admin_delete_article(
       (select id from public.articles where slug = 'artha-thaka-songbad'))$$,
-  'P0001', null,
-  'A story that already paid its author cannot be erased'
+  'The desk can erase a story that already paid its author'
 );
 select lives_ok(
   $$select public.admin_delete_article(
       (select id from public.articles where slug = 'muchhe-felar-songbad'))$$,
-  'The desk can delete a story for good'
+  'The desk can delete an unpaid story for good'
+);
+select lives_ok(
+  $$select public.admin_delete_article(
+      (select id from public.articles where slug = 'held-muchar-songbad'))$$,
+  'The desk can erase a story whose fee is still held'
 );
 reset role;
 
 select is_empty(
-  $$select 1 from public.articles where slug = 'muchhe-felar-songbad'$$,
-  'The deleted story is gone from the archive'
+  $$select 1 from public.articles
+     where slug in ('artha-thaka-songbad', 'muchhe-felar-songbad', 'held-muchar-songbad')$$,
+  'The deleted stories are gone from the archive'
 );
-select isnt_empty(
-  $$select 1 from public.articles where slug = 'artha-thaka-songbad'$$,
-  'The story that paid its author is still there to be withheld instead'
+select results_eq(
+  $$select entry_type::text, amount_tk, article_id is null, details->>'deleted_article_title'
+      from public.earnings_ledger
+     where user_id = '22000000-0000-4000-8000-000000000002'
+       and entry_type = 'article_deletion_clawback'$$,
+  $$values ('article_deletion_clawback', -25::numeric, true, 'অর্থযুক্ত প্রতিবেদন'::text)$$,
+  'Deleting a paid story takes its earnings back with a negative clawback row'
 );
+select results_eq(
+  $$select entry_type::text, amount_tk, article_id is null, details->>'deleted_article_title'
+      from public.earnings_ledger
+     where user_id = '22000000-0000-4000-8000-000000000002'
+       and entry_type = 'penalty'$$,
+  $$values ('penalty', -10::numeric, true, 'অর্থযুক্ত প্রতিবেদন'::text)$$,
+  'A penalty stays with its owner and keeps the erased story''s title'
+);
+select results_eq(
+  $$select count(*)::int, count(article_id)::int from public.earnings_ledger
+     where user_id = '22000000-0000-4000-8000-000000000002'
+       and entry_type = 'article_earning_available'
+       and details ? 'deleted_article_id'$$,
+  $$values (1, 0)$$,
+  'The erased story''s earning history stays in the ledger, detached from the row'
+);
+select is_empty(
+  $$select 1 from public.earnings_ledger
+     where user_id = '11000000-0000-4000-8000-000000000001'
+       and entry_type in ('article_earning_held', 'article_deletion_clawback')$$,
+  'A deleted story forfeits money still held and does not also deduct it from the balance'
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '22000000-0000-4000-8000-000000000002', true);
+select results_eq(
+  $$select (public.get_my_wallet() ->> 'available')::numeric$$,
+  $$values (-25::numeric)$$,
+  'Money already withdrawn still leaves the balance, which turns negative'
+);
+select set_config('request.jwt.claim.sub', '11000000-0000-4000-8000-000000000001', true);
+select results_eq(
+  $$select (public.get_my_wallet() ->> 'held')::numeric$$,
+  $$values (0::numeric)$$,
+  'A deleted story''s held money never becomes available later'
+);
+reset role;
 select ok(
   not has_function_privilege('anon', 'public.admin_delete_article(uuid)', 'execute'),
   'A signed-out visitor cannot delete a story'
@@ -1992,7 +2075,8 @@ select results_eq(
            (select coalesce(sum(amount_tk), 0) from public.earnings_ledger
              where user_id = '22000000-0000-4000-8000-000000000002'
                and entry_type in ('article_earning_available', 'view_earning_available', 'profile_release',
-                                  'withdrawal_reserve', 'withdrawal_refund', 'manual_adjustment'))$$,
+                                  'withdrawal_reserve', 'withdrawal_refund', 'manual_adjustment',
+                                  'article_deletion_clawback'))$$,
   $$values (15::numeric)$$,
   'The wallet counts the desk bonus in the available money'
 );
@@ -2040,7 +2124,8 @@ select results_eq(
            (select coalesce(sum(amount_tk), 0) from public.earnings_ledger
              where user_id = '22000000-0000-4000-8000-000000000002'
                and entry_type in ('article_earning_available', 'view_earning_available', 'profile_release',
-                                  'withdrawal_reserve', 'withdrawal_refund', 'manual_adjustment'))$$,
+                                  'withdrawal_reserve', 'withdrawal_refund', 'manual_adjustment',
+                                  'article_deletion_clawback'))$$,
   $$values (15::numeric)$$,
   'The desk directory counts the bonus in the available figure'
 );
@@ -2094,7 +2179,8 @@ select results_eq(
            (select coalesce(sum(amount_tk), 0) from public.earnings_ledger
              where user_id = '22000000-0000-4000-8000-000000000002'
                and entry_type in ('article_earning_available', 'view_earning_available', 'bonus_earning_available',
-                                  'profile_release', 'withdrawal_reserve', 'withdrawal_refund', 'manual_adjustment'))$$,
+                                  'profile_release', 'withdrawal_reserve', 'withdrawal_refund', 'manual_adjustment',
+                                  'article_deletion_clawback'))$$,
   $$values (-15::numeric)$$,
   'The wallet docks the penalty from the available money'
 );
@@ -2105,7 +2191,8 @@ select results_eq(
            (select coalesce(sum(amount_tk), 0) from public.earnings_ledger
              where user_id = '22000000-0000-4000-8000-000000000002'
                and entry_type in ('article_earning_available', 'view_earning_available', 'bonus_earning_available',
-                                  'profile_release', 'withdrawal_reserve', 'withdrawal_refund', 'manual_adjustment'))$$,
+                                  'profile_release', 'withdrawal_reserve', 'withdrawal_refund', 'manual_adjustment',
+                                  'article_deletion_clawback'))$$,
   $$values (-15::numeric)$$,
   'The desk directory docks the penalty in the available figure'
 );
