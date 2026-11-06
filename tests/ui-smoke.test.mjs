@@ -617,7 +617,15 @@ test('the homepage carries the wide edition and the phone deck over the real arc
   const feedCard = await readProjectFile('components/dashboard/feed-card.tsx');
   assert.match(feedCard, /bn\(item\.upvotes\)/);
   assert.match(feedCard, /bn\(item\.downvotes\)/);
-  assert.match(feedCard, /<Eye[\s\S]*?bn\(item\.views\)/, 'the card prints the story\'s reader count behind an eye, not a second vote mark');
+  assert.match(
+    feedCard,
+    /<FeedViewCount articleId=\{item\.id\} initial=\{item\.views\} \/>/,
+    'the card mounts the reader count, seeded from the cached page',
+  );
+  const viewCount = await readProjectFile('components/dashboard/view-count.tsx');
+  assert.match(viewCount, /<Eye[\s\S]*?bn\(views\)/, 'the card prints the story\'s reader count behind an eye, not a second vote mark');
+  assert.match(viewCount, /requestFeedViews\(\[articleId\]\)/, 'the card re-reads its own total once it is on screen');
+  assert.match(viewCount, /pageshow[\s\S]*?visibilitychange|visibilitychange[\s\S]*?pageshow/, 'and again when the page is restored or brought back');
   assert.doesNotMatch(feedCard, /ভিউ/, 'the icon carries the meaning; no label beside the figure');
   assert.doesNotMatch(feedCard, /আপভোট/, 'the upvote total lives in the split, once');
   assert.doesNotMatch(feedCard, /BadgeCheck|news-mark/, 'no verified mark rides the feed card either');
@@ -2322,6 +2330,16 @@ test('the printed view count takes every opening, the earning count stays dedupl
   assert.match(migration, /sum\(p\.views\)::bigint/, 'the card total is every pageview, summed over days');
   const route = await readProjectFile('app/api/views/route.ts');
   assert.match(route, /Promise\.all\(/, 'one beacon writes both counters');
+  // The cached page can be minutes old, so the card asks again once it is on screen: one
+  // batched read for every card, from the same summary the server used.
+  const summaryRoute = await readProjectFile('app/api/views/summary/route.ts');
+  assert.match(summaryRoute, /getFeedViewSummary/, 'the refresh reads the same batched summary');
+  assert.match(summaryRoute, /UUID\.test/, 'only ids that could be articles reach the database');
+  assert.match(summaryRoute, /"Cache-Control": "no-store"/, 'a refreshed count is never cached');
+  const batcher = await readProjectFile('lib/feed-views.ts');
+  assert.match(batcher, /pending\.add/, 'cards that mount together share one request');
+  assert.match(batcher, /\/api\/views\/summary\?ids=/, 'the batch asks the summary endpoint once');
+  assert.doesNotMatch(batcher, /localStorage|sessionStorage/, 'no cached total survives to go stale');
   const earning = await readProjectFile('supabase/migrations/202611010003_formula_award_functions.sql');
   assert.match(earning, /viewer_hash := md5/, 'the earning ledger still salts its reader identity');
   assert.match(earning, /view_count >= 1000/, 'and still stops at the daily cap');

@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Eye } from "lucide-react";
+import { ArrowDown, ArrowUp } from "lucide-react";
 
 import { StoryArt } from "@/components/dashboard/story-card";
 import { storyUrl, type StoryItem } from "@/components/dashboard/story-blocks";
+import { FeedViewCount } from "@/components/dashboard/view-count";
 import { bn } from "@/lib/site";
 
 /**
@@ -12,8 +13,9 @@ import { bn } from "@/lib/site";
  * the card, with how many readers have opened it.
  *
  * Every figure is the archive's: the split comes from `get_feed_vote_summary`
- * and the view total from `get_feed_view_summary`. Nothing is invented to fill
- * the mockup's percentage badge.
+ * and the view total from `get_feed_view_summary` — seeded into the cached page,
+ * then refreshed by the card itself so the number is current on every open.
+ * Nothing is invented to fill the mockup's percentage badge.
  */
 export function FeedCard({ item }: { item: StoryItem }) {
   return (
@@ -46,10 +48,7 @@ export function FeedCard({ item }: { item: StoryItem }) {
               {bn(item.downvotes)}
             </span>
           </span>
-          <span className="news-score">
-            <Eye size={13} strokeWidth={2.2} aria-hidden />
-            {bn(item.views)}
-          </span>
+          <FeedViewCount articleId={item.id} initial={item.views} />
         </span>
       </span>
     </Link>
