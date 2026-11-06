@@ -3603,16 +3603,26 @@ footer.site-footer {
   .pf-meta-item:last-child {
     padding-right: 11px;
   }
+  /*
+    The dashboard's actions stack instead of pairing up. A Bengali label measured
+    in a font the page never got (a preview build blocks Google Fonts) has no
+    smaller min-content width than its glyph boxes, and two `1fr` tracks floor
+    themselves to that — which is how these buttons once reached 394px on a 360px
+    screen. One `minmax(0, 1fr)` track plus a label allowed to wrap cannot
+    overflow, whatever font the reader's machine falls back to.
+  */
   .pf-actions {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
-  }
-  .pf-actions .pf-btn.primary {
-    grid-column: 1 / -1;
+    max-width: 420px;
+    margin-inline: auto;
   }
   .pf-actions .pf-btn {
     width: 100%;
+    min-width: 0;
+    white-space: normal;
+    line-height: 1.3;
   }
   .pf-btn {
     min-height: 44px;
