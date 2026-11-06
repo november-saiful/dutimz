@@ -22,7 +22,7 @@ import { isSupabaseConfigured, supabaseServer } from "@/lib/supabase";
   the card to be missing.
 */
 
-/** The profile band's gradient, byte for byte what `app/globals.css` draws. */
+/** The phone edition's profile band, byte for byte what `app/globals.css` draws there. */
 export const BAND_GRADIENT =
   "linear-gradient(118deg, #1d0f1e 0%, #451a4a 38%, #7a3d7f 68%, #2a1029 100%)";
 

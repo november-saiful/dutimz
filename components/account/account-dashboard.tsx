@@ -474,7 +474,7 @@ export function AccountDashboard() {
       <div className="pf-page">
         <ProfileBand tag="সদস্য পরিসর" />
         <header className="pf-head">
-          <Skeleton className="size-[152px] rounded-full" />
+          <Skeleton className="size-[132px] rounded-[2px]" />
           <div className="pf-body">
             <Skeleton className="mb-3 h-4 w-32" />
             <Skeleton className="mb-4 h-12 w-64" />
@@ -669,24 +669,6 @@ export function AccountDashboard() {
           </div>
         </div>
       </header>
-
-      <ProfileSideBlock icon={Sparkles} label="আমার সরঞ্জাম">
-        <ul className="pf-links">
-          {actions
-            .filter((action) => action.show)
-            .map((action) => (
-              <li key={action.href}>
-                <Link className="pf-link" href={action.href}>
-                  <action.icon aria-hidden />
-                  <span className="pf-link-text">
-                    <span className="pf-link-title">{action.title}</span>
-                    <span className="pf-link-sub">{action.subtitle}</span>
-                  </span>
-                </Link>
-              </li>
-            ))}
-        </ul>
-      </ProfileSideBlock>
 
       <ProfileStats
         stats={[
@@ -930,6 +912,24 @@ export function AccountDashboard() {
                 আয়ের বিস্তারিত
               </Link>
             </div>
+          </ProfileSideBlock>
+
+          <ProfileSideBlock icon={Sparkles} label="আমার সরঞ্জাম">
+            <ul className="pf-links">
+              {actions
+                .filter((action) => action.show)
+                .map((action) => (
+                  <li key={action.href}>
+                    <Link className="pf-link" href={action.href}>
+                      <action.icon aria-hidden />
+                      <span className="pf-link-text">
+                        <span className="pf-link-title">{action.title}</span>
+                        <span className="pf-link-sub">{action.subtitle}</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+            </ul>
           </ProfileSideBlock>
 
           <ProfileTip

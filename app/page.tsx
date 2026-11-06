@@ -1,22 +1,27 @@
 import Link from "next/link";
 
+import { CategoryStrip } from "@/components/dashboard/category-strip";
 import { DutimzShell } from "@/components/dashboard/dutimz-shell";
+import { FeedCard } from "@/components/dashboard/feed-card";
 import { Flag } from "@/components/dashboard/flag";
+import { HeroDeck } from "@/components/dashboard/hero-deck";
 import { StoryCarousel } from "@/components/dashboard/story-carousel";
 import {
   BlockHead,
   CarouselCard,
   FeatureCard,
   MiniRow,
-  deckItemFromStory,
   pick,
   storyItemFromPreview,
   storyItemFromStory,
   type StoryItem,
 } from "@/components/dashboard/story-blocks";
-import { CalendlyCarousel } from "@/components/ui/connected-carousel";
+import { WebHome } from "@/components/dashboard/web-home";
 import {
+  getFeedVoteSummary,
+  getFeedViewSummary,
   getLatestStories,
+  getNavCategories,
   isDemoMode,
   previewStories,
 } from "@/lib/stories";
@@ -67,95 +72,115 @@ function EmptyDesk() {
 
 export default async function HomePage() {
   const demo = isDemoMode();
-  // One read serves the whole front page: the hero slots, the rails and the
-  // carousels below them all come from the same newest-first list.
+  // One read serves the whole front page: the hero slides, the feed and the
+  // bands below them all come from the same newest-first list.
+  const stories = demo ? [] : await getLatestStories(25);
+  const ids = stories.map((story) => story.id);
+  const [votes, views] = await Promise.all([
+    getFeedVoteSummary(ids),
+    getFeedViewSummary(ids),
+  ]);
   const items: StoryItem[] = demo
     ? previewStories.map(storyItemFromPreview)
-    : (await getLatestStories(25)).map(storyItemFromStory);
+    : stories.map((story) => {
+        const item = storyItemFromStory(story);
+        const split = votes.get(story.id);
+        return {
+          ...item,
+          ...split,
+          views: views.get(story.id) ?? 0,
+        };
+      });
 
-  // The lead band is a deck over the week's five newest reports: the design
-  // shows the card in focus plus two neighbours on either side, so five is the
-  // smallest deck that fills the ring without a story appearing twice.
-  const deck = [0, 1, 2, 3, 4]
+  // The lead is the five newest reports; the feed prints the same newest-first
+  // list under it, the way the mockup does — a story just published belongs in
+  // both places, not only in the hero.
+  const hero = [0, 1, 2, 3, 4]
     .map((slot) => pick(items, slot))
-    .filter((item): item is StoryItem => item !== null)
-    .map(deckItemFromStory);
-  // The latest rows mirror the deck's five newest on purpose: a new story has
-  // to appear in সর্বশেষ too, not only in the hero. Every band below them reads
-  // on from slot 5, so nothing below is printed a third time.
+    .filter((item): item is StoryItem => item !== null);
+  const feed = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    .map((slot) => pick(items, slot))
+    .filter((item): item is StoryItem => item !== null);
+  // The editorial bands read on from slot 5, so the feed's stories are not
+  // printed a third time.
   const feature = pick(items, 5);
   const rail = [6, 7, 8, 9].map((slot) => pick(items, slot));
-  const latest = [0, 1, 2, 3, 4].map((slot) => pick(items, slot));
   const readersChoice = [15, 16, 17, 18, 19].map((slot) => pick(items, slot));
   const bestOfMonth = [20, 21, 22, 23, 24].map((slot) => pick(items, slot));
+  // The strip and the masthead read the same desks, so a retired section
+  // leaves both surfaces at once.
+  const sections = await getNavCategories();
 
   return (
-    <DutimzShell bare>
-      {items.length === 0 || deck.length === 0 ? (
+    <DutimzShell bare heroGlass={hero.length > 0}>
+      {items.length === 0 || hero.length === 0 ? (
         <EmptyDesk />
       ) : (
         <>
-          {/*
-            The hero: the week's reports as the design's connected deck — one
-            card in focus with its neighbours peeking out either side, every
-            card a way into its own report. The flag names the slot above it.
-          */}
-          <section className="block" aria-label="প্রধান প্রতিবেদন">
-            <div className="block-head">
-              <Flag label="সপ্তাহের সেরা" />
+        <div className="home-view">
+          <HeroDeck items={hero} />
+
+          <div className="home-sheet">
+            <div className="home-in">
+              <CategoryStrip sections={sections} />
+
+              <section className="home-band" aria-label="সর্বশেষ খবর">
+                <div className="feed-head">
+                  <h2>সর্বশেষ খবর</h2>
+                  <Link href="/news/" className="more">
+                    সব দেখুন
+                    <svg viewBox="0 0 24 24" aria-hidden>
+                      <path d="M5 12h14M13 6l6 6-6 6" />
+                    </svg>
+                  </Link>
+                </div>
+                <div className="feed-grid">
+                  {feed.map((item, index) => (
+                    <FeedCard key={`${item.slug}-${index}`} item={item} />
+                  ))}
+                </div>
+              </section>
+
+              {/* The desk's own recommendations, under the feed. No "more"
+                  link: no single collection stands behind this band. */}
+              <section className="home-band" aria-label="প্রস্তাবিত প্রতিবেদন">
+                <BlockHead flag="প্রস্তাবিত" />
+                <div className="recommended">
+                  {feature && <FeatureCard item={feature} />}
+                  <div className="recommended-rows">
+                    {rail.map(
+                      (item, index) =>
+                        item && <MiniRow key={`${item.slug}-${index}`} item={item} />,
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              <section className="home-band" aria-label="পাঠকের পছন্দ">
+                <BlockHead flag="পাঠকের পছন্দ" />
+                <StoryCarousel label="পাঠকের পছন্দ">
+                  {readersChoice.map(
+                    (item, index) =>
+                      item && <CarouselCard key={`${item.slug}-${index}`} item={item} />,
+                  )}
+                </StoryCarousel>
+              </section>
+
+              <section className="home-band band-tint" aria-label="মাসের সেরা">
+                <BlockHead flag="মাসের সেরা" />
+                <StoryCarousel label="মাসের সেরা">
+                  {bestOfMonth.map(
+                    (item, index) =>
+                      item && <CarouselCard key={`${item.slug}-${index}`} item={item} />,
+                  )}
+                </StoryCarousel>
+              </section>
             </div>
-            <CalendlyCarousel items={deck} autoPlayInterval={7000} pauseOnHover />
-          </section>
-
-          {/* The desk's own recommendations, under the slider. No "more" link:
-              no single collection stands behind this band. */}
-          <section className="block" aria-label="প্রস্তাবিত প্রতিবেদন">
-            <BlockHead flag="প্রস্তাবিত" />
-            <div className="recommended">
-              {feature && <FeatureCard item={feature} />}
-              <div className="recommended-rows">
-                {rail.map(
-                  (item, index) => item && <MiniRow key={`${item.slug}-${index}`} item={item} />,
-                )}
-              </div>
-            </div>
-          </section>
-
-          {/* The newest reports, as the design's full-width thumbnail rows. The
-              empty-query search page is this band's archive, so it gets the link. */}
-          <section className="block" aria-label="সর্বশেষ প্রতিবেদন">
-            <BlockHead flag="সর্বশেষ খবর" moreHref="/search/" />
-            {latest.map(
-              (item, index) => item && <MiniRow key={`${item.slug}-${index}`} item={item} large />,
-            )}
-          </section>
-
-          <section className="block" aria-label="পাঠকের পছন্দ">
-            <BlockHead flag="পাঠকের পছন্দ" />
-            <StoryCarousel label="পাঠকের পছন্দ">
-              {readersChoice.map(
-                (item, index) =>
-                  item && <CarouselCard key={`${item.slug}-${index}`} item={item} />,
-              )}
-            </StoryCarousel>
-          </section>
-
-          {/*
-            The second carousel sits on a tinted band, so the two carousels stop
-            reading as one repeated shape: পাঠকের পছন্দ on the page ground,
-            মাসের সেরা on its own ground. The overflow suite probes both
-            carousels as its render signal, so the band varies the chrome —
-            never the carousel itself.
-          */}
-          <section className="block band-tint" aria-label="মাসের সেরা">
-            <BlockHead flag="মাসের সেরা" />
-            <StoryCarousel label="মাসের সেরা">
-              {bestOfMonth.map(
-                (item, index) =>
-                  item && <CarouselCard key={`${item.slug}-${index}`} item={item} />,
-              )}
-            </StoryCarousel>
-          </section>
+          </div>
+        </div>
+        {/* Both editions ship in the cached HTML and the breakpoint picks one:
+            a phone keeps the deck the earlier design was built around. */}
+        <WebHome items={items} sections={sections} />
         </>
       )}
     </DutimzShell>

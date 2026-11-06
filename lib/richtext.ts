@@ -79,3 +79,57 @@ export function inlineMediaIds(
   }
   return ids;
 }
+
+/**
+ * The body cut after its opening paragraph, so a page can place pictures between the first
+ * paragraph and the rest.
+ *
+ * A paragraph ends at a blank line, except blank lines inside a fenced code block. A leading
+ * heading or horizontal rule is part of the opening rather than the paragraph itself, so the cut
+ * falls after the first real block of writing. A body with no blank line at all stays whole in
+ * `lead`, and one with no writing at all leaves both halves empty.
+ */
+export function splitAfterFirstParagraph(markdown: string | null | undefined): {
+  lead: string;
+  rest: string;
+} {
+  const text = (markdown ?? "").replace(/\r\n?/g, "\n");
+  const lines = text.split("\n");
+  let inFence = false;
+  let blockStart = -1;
+  let blockLines: string[] = [];
+
+  const firstLineIsWriting = () => {
+    const first = blockLines.find((line) => line.trim());
+    if (!first) return false;
+    const heading = /^#{1,6}\s/.test(first.trim());
+    const rule = /^(?:-{3,}|\*{3,}|_{3,})$/.test(first.trim());
+    return !heading && !rule;
+  };
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (/^\s*(?:```|~~~)/.test(line)) {
+      inFence = !inFence;
+      if (blockStart < 0) blockStart = index;
+      continue;
+    }
+    if (inFence) continue;
+    if (!line.trim()) {
+      if (blockStart < 0) continue;
+      if (firstLineIsWriting()) {
+        return {
+          lead: lines.slice(0, index).join("\n"),
+          rest: lines.slice(index + 1).join("\n").replace(/^\n+/, ""),
+        };
+      }
+      blockStart = -1;
+      blockLines = [];
+      continue;
+    }
+    if (blockStart < 0) blockStart = index;
+    blockLines.push(line);
+  }
+
+  return { lead: text, rest: "" };
+}

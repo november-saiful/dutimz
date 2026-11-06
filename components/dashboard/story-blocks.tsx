@@ -2,7 +2,6 @@ import Link from "next/link";
 
 import { Flag } from "@/components/dashboard/flag";
 import { StoryArt } from "@/components/dashboard/story-card";
-import type { CarouselItem } from "@/components/ui/connected-carousel";
 import { RelativeTime } from "@/components/ui/relative-time";
 import { interviewSectionLabel, mediaUrlFor, relativeTimeBn } from "@/lib/site";
 import type { PreviewStory } from "@/lib/stories";
@@ -15,6 +14,8 @@ import { storyCategory, storyCredit, type Story } from "@/lib/supabase";
  * render the same shapes over the same data.
  */
 export type StoryItem = {
+  /** The article row's id, which is how the vote aggregate finds it. */
+  id: string;
   slug: string;
   title: string;
   excerpt: string;
@@ -27,12 +28,18 @@ export type StoryItem = {
   when: string;
   publishedAt: string | null;
   image: string | null;
+  /** Real reactions, filled from one aggregate for the whole page. */
+  upvotes: number;
+  downvotes: number;
+  /** The story's deduplicated reader count, from the same kind of batched read. */
+  views: number;
 };
 
 export function storyItemFromStory(story: Story): StoryItem {
   const category = storyCategory(story);
   const credit = storyCredit(story);
   return {
+    id: story.id,
     slug: story.slug,
     title: story.title,
     excerpt: story.excerpt,
@@ -47,11 +54,15 @@ export function storyItemFromStory(story: Story): StoryItem {
     when: relativeTimeBn(story.published_at),
     publishedAt: story.published_at,
     image: story.hero_media_key ? mediaUrlFor(story.hero_media_key) : null,
+    upvotes: 0,
+    downvotes: 0,
+    views: 0,
   };
 }
 
 export function storyItemFromPreview(story: PreviewStory): StoryItem {
   return {
+    id: story.slug,
     slug: story.slug,
     title: story.title,
     excerpt: story.excerpt,
@@ -63,29 +74,14 @@ export function storyItemFromPreview(story: PreviewStory): StoryItem {
     when: story.time,
     publishedAt: null,
     image: story.imageUrl ?? null,
+    upvotes: 0,
+    downvotes: 0,
+    views: 0,
   };
 }
 
 export function storyUrl(item: StoryItem): string {
   return `/news/${encodeURIComponent(item.slug)}/`;
-}
-
-/**
- * One story as the lead deck's card wants it: the design's own fields, filled
- * from the same flattened story every other card on the page reads.
- */
-export function deckItemFromStory(item: StoryItem): CarouselItem {
-  return {
-    id: item.slug,
-    stat: item.title,
-    quote: item.excerpt,
-    category: item.section,
-    author: item.byline,
-    role: item.when,
-    href: storyUrl(item),
-    image: item.image,
-    sectionSlug: item.sectionSlug,
-  };
 }
 
 /**
@@ -122,7 +118,6 @@ export function MiniRow({ item, large = false }: { item: StoryItem; large?: bool
         <h4 className={large ? "clamp2" : "clamp3"}>{item.title}</h4>
       </span>
       <StoryArt
-        slug={item.sectionSlug}
         imageUrl={item.image}
         title={item.title}
         className={`thumb${large ? " lg" : ""}`}
@@ -136,7 +131,6 @@ export function CarouselCard({ item }: { item: StoryItem }) {
   return (
     <Link href={storyUrl(item)} className="card">
       <StoryArt
-        slug={item.sectionSlug}
         imageUrl={item.image}
         title={item.title}
         className="card-media"
@@ -154,7 +148,6 @@ export function FeatureCard({ item }: { item: StoryItem }) {
     <Link href={storyUrl(item)} className="feature">
       <span className="art">
         <StoryArt
-          slug={item.sectionSlug}
           imageUrl={item.image}
           title={item.title}
           className="h-full w-full"

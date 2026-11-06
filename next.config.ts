@@ -9,9 +9,24 @@ const nextConfig: NextConfig = {
   // redirects file issues cannot point at each other.
   trailingSlash: true,
   images: {
+    // The local media worker is reached over loopback; Next refuses private IPs
+    // by default. This allowance is development-only.
+    dangerouslyAllowLocalIP: process.env.NODE_ENV !== "production",
     remotePatterns: [
       { protocol: "https", hostname: "media.dutimz.com", pathname: "/media/**" },
       { protocol: "https", hostname: "images.unsplash.com" },
+      // `.env.local` points NEXT_PUBLIC_MEDIA_URL at the media worker running on
+      // this machine. Production keeps the allowlist above only.
+      ...(process.env.NODE_ENV === "production"
+        ? []
+        : [
+            {
+              protocol: "http" as const,
+              hostname: "localhost",
+              port: "8788",
+              pathname: "/media/**",
+            },
+          ]),
     ],
   },
 };

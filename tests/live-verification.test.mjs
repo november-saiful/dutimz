@@ -113,6 +113,7 @@ async function startStub(fail, homeLinks = [ARTICLE, SECTION, '/statistics/']) {
         return send(200, html(), { 'x-nextjs-cache': 'HIT' });
       case '/statistics/':
       case '/search/':
+      case '/news/':
       case '/saved/':
       case '/guidelines/':
       case '/corrections/':

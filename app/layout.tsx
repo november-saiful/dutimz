@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Noto_Serif_Bengali } from "next/font/google";
+import { Noto_Sans_Bengali, Noto_Serif_Bengali } from "next/font/google";
 import "./globals.css";
 import { RouteProgress } from "@/components/dashboard/route-progress";
 import { ToastProvider } from "@/components/ui/toast";
@@ -12,12 +12,23 @@ import { SITE_URL } from "@/lib/site";
  * the stack and was never reached by anything Bengali; dropping it removes five weights the page
  * downloaded for nothing. The files ship from our own origin with the rest of the CSS, so the
  * page never waits on an external font host before painting.
+ *
+ * The wide newspaper edition adds Noto Sans Bengali for the same reason the reference pairs a
+ * sans with its serif: labels, dates, nav and bylines sit in the sans while headlines stay serif,
+ * and Bengali needs its own sans rather than a Latin fallback.
  */
 const notoSerifBengali = Noto_Serif_Bengali({
   subsets: ["bengali", "latin"],
   weight: ["400", "500", "600", "700", "800"],
   display: "swap",
   variable: "--font-bengali",
+});
+
+const notoSansBengali = Noto_Sans_Bengali({
+  subsets: ["bengali", "latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-bengali-sans",
 });
 
 export const metadata: Metadata = {
@@ -46,7 +57,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="bn" className={notoSerifBengali.variable}>
+    <html
+      lang="bn"
+      className={`${notoSerifBengali.variable} ${notoSansBengali.variable}`}
+    >
       <head>
         <meta name="theme-color" content="#ffffff" />
         <meta name="color-scheme" content="light" />

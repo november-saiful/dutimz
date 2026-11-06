@@ -1,8 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { ArrowUp } from "lucide-react";
 
 import { ArticleActions } from "@/components/article/article-actions";
+import { ArticleBack, ArticleShare } from "@/components/article/article-chrome";
 import { ArticleGallery } from "@/components/article/article-gallery";
 import { QuestionnaireSummary } from "@/components/article/questionnaire-summary";
 import { Comments } from "@/components/article/comments";
@@ -28,12 +30,14 @@ import {
   formatDateBn,
   interviewSectionLabel,
   mediaUrlFor,
+  relativeTimeBn,
 } from "@/lib/site";
-import { inlineMediaIds } from "@/lib/richtext";
+import { inlineMediaIds, splitAfterFirstParagraph } from "@/lib/richtext";
 import {
   articleSlugExists,
   getArticleAuthorOfRecord,
   getArticleQuestionnaire,
+  getArticleVoteSummary,
   getLatestStories,
   getSitemapArticles,
   getStoryBySlug,
@@ -171,6 +175,9 @@ export default async function ArticlePage({
   ]
     .filter((key): key is string => Boolean(key))
     .map((key) => mediaUrlFor(key));
+  // The gallery sits between the opening paragraph and the rest of the story, the way a printed
+  // page breaks its type around a plate, rather than piling every picture at the foot.
+  const { lead, rest } = splitAfterFirstParagraph(article.body);
 
   const questionnaire = await getArticleQuestionnaire(article.id);
   const related = ((await getLatestStories(10)).filter(
@@ -194,166 +201,187 @@ export default async function ArticlePage({
       (desk) => desk.slug !== "all" && desk.slug !== category.slug,
     ),
   ];
+  // The reader's split, read once on the server so the header and the floating
+  // bar both open with the real numbers instead of zero.
+  const votes = await getArticleVoteSummary(article.id);
+  const voteTotal = votes.upvotes + votes.downvotes;
+  const upPercent = voteTotal ? Math.round((votes.upvotes / voteTotal) * 100) : 0;
+  const downPercent = voteTotal ? 100 - upPercent : 0;
 
   return (
     <DutimzShell bare>
-      {/*
-        The reading bar: back, the running title, and the reader's own chips
-        (likes, saves, comments). The purple progress hairline tracks how far
-        the reader has come.
-      */}
-      <div className="article-bar">
-        <div className="bar-in">
-          <Link href="/" className="back">
-            <svg viewBox="0 0 24 24" aria-hidden>
-              <path d="M19 12H5M11 6l-6 6 6 6" />
-            </svg>
-            ফিরে যান
-          </Link>
-          <div className="ab-title">{article.title}</div>
-          <ArticleActions
-            variant="chips"
-            articleId={article.id}
-            articleTitle={article.title}
-            correctionSubject={correctionSubject}
-          />
+      <div className="post-view">
+        {/* The reading hairline stays, drawn over the picture rather than on a bar. */}
+        <div className="post-progress">
+          <ReadingProgress />
         </div>
-        <ReadingProgress />
-      </div>
 
-      <div className="article-grid">
-        <article className="article-main">
-          <div className="crumb">
-            <Link href={`/category/${category.slug}/`}>{category.title_bn}</Link>
-            <svg viewBox="0 0 24 24" aria-hidden>
-              <path d="M5 12h14M13 6l6 6-6 6" />
-            </svg>
-            <span>{article.title}</span>
+        <header className="post-hero">
+          <StoryArt
+            imageUrl={
+              article.hero_media_key
+                ? mediaUrlFor(article.hero_media_key)
+                : null
+            }
+            title={article.title}
+            className="post-hero-art"
+            sizes="100vw"
+            priority
+          />
+          <span className="post-hero-shade" aria-hidden />
+          <div className="post-float">
+            <ArticleBack />
+            <ArticleShare title={article.title} url={articleUrl} />
+          </div>
+        </header>
+
+        <div className="post-sheet">
+          <div className="article-grid post-grid">
+            <article className="article-main post-main">
+              <div className="post-kicker">
+                <Link href={`/category/${category.slug}/`}>
+                  {category.title_bn}
+                </Link>
+                <i aria-hidden>•</i>
+                <time dateTime={article.published_at}>
+                  {relativeTimeBn(article.published_at)}
+                </time>
+              </div>
+
+              <h1>{article.title}</h1>
+
+              <p className="post-byline">
+                {credit.href ? (
+                  <Link href={credit.href}>{credit.name}</Link>
+                ) : (
+                  <strong>{ANONYMOUS_BYLINE}</strong>
+                )}
+                <span aria-hidden>·</span>
+                <time dateTime={article.published_at}>
+                  প্রকাশিত {formatDateBn(article.published_at)}
+                </time>
+              </p>
+
+              <div className="post-trust">
+                <span className="post-votes">
+                  <ArrowUp size={14} strokeWidth={2.6} aria-hidden />
+                  {bn(votes.upvotes)} ভোট
+                  {voteTotal > 0 && (
+                    <span className="post-split">
+                      ({bn(upPercent)}% আপ · {bn(downPercent)}% ডাউন)
+                    </span>
+                  )}
+                </span>
+              </div>
+
+              <div className="article-body">
+                <RichTextContent markdown={lead} />
+
+                {gallery.length > 0 && (
+                  <section aria-label="ছবির গ্যালারি" className="my-8">
+                    <ArticleGallery
+                      images={gallery.map((item) => ({
+                        src: mediaUrlFor(item.media_id),
+                        alt: article.title,
+                      }))}
+                    />
+                  </section>
+                )}
+
+                <RichTextContent markdown={rest} />
+              </div>
+
+              <div className="post-tags">
+                <div className="tags">
+                  <span>#{category.title_bn}</span>
+                  {interviewSection && <span>#{interviewSection}</span>}
+                </div>
+                <ArticleActions
+                  variant="socials"
+                  articleId={article.id}
+                  articleTitle={article.title}
+                  articleUrl={articleUrl}
+                  correctionSubject={correctionSubject}
+                />
+              </div>
+
+              {questionnaire && <QuestionnaireSummary questionnaire={questionnaire} />}
+
+              <section className="comments" id="comments">
+                <h3>মন্তব্য</h3>
+                <Comments articleId={article.id} />
+              </section>
+
+              <div className="pn">
+                {previous ? (
+                  <Link href={storyUrl(previous)}>
+                    <span className="lbl">
+                      <svg viewBox="0 0 24 24" aria-hidden>
+                        <path d="M19 12H5M11 6l-6 6 6 6" />
+                      </svg>
+                      আগের প্রতিবেদন
+                    </span>
+                    <span className="t clamp2">{previous.title}</span>
+                  </Link>
+                ) : (
+                  <span />
+                )}
+                {next && (
+                  <Link href={storyUrl(next)} className="next">
+                    <span className="lbl">
+                      পরের প্রতিবেদন
+                      <svg viewBox="0 0 24 24" aria-hidden>
+                        <path d="M5 12h14M13 6l6 6-6 6" />
+                      </svg>
+                    </span>
+                    <span className="t clamp2">{next.title}</span>
+                  </Link>
+                )}
+              </div>
+            </article>
+
+            <aside className="a-aside">
+              {recommended.length > 0 && (
+                <>
+                  <Flag label="প্রস্তাবিত" />
+                  {recommended.map((item, index) => (
+                    <MiniRow key={`${item.slug}-${index}`} item={item} />
+                  ))}
+                </>
+              )}
+              {monthBest.length > 0 && (
+                <>
+                  <Flag label="মাসের সেরা" />
+                  {monthBest.map((item, index) => (
+                    <MiniRow key={`${item.slug}-${index}`} item={item} />
+                  ))}
+                </>
+              )}
+              <Flag label="আরও খবর" />
+              <div className="tagpills">
+                {desks.map((desk) => (
+                  <Link key={desk.slug} href={`/category/${desk.slug}/`}>
+                    {desk.label}
+                  </Link>
+                ))}
+              </div>
+            </aside>
           </div>
 
-          <h1>{article.title}</h1>
-
-          <div className="meta" style={{ margin: "18px 0 4px" }}>
-            {credit.href ? (
-              <Link href={credit.href}>{credit.name}</Link>
-            ) : (
-              <strong className="text-foreground">{ANONYMOUS_BYLINE}</strong>
-            )}
-            <i aria-hidden>•</i>
-            <time dateTime={article.published_at}>
-              প্রকাশিত {formatDateBn(article.published_at)}
-            </time>
-          </div>
-
-          <div className="a-row">
-            <div className="tags">
-              <span>#{category.title_bn}</span>
-              {interviewSection && <span>#{interviewSection}</span>}
-            </div>
+          {/* The mockup's dark action bar: floating over a phone's page, inline
+              at the foot of the column on a wide screen. */}
+          <div className="post-actions">
             <ArticleActions
-              variant="socials"
+              variant="bar"
               articleId={article.id}
               articleTitle={article.title}
               articleUrl={articleUrl}
               correctionSubject={correctionSubject}
+              initialUpvotes={votes.upvotes}
+              initialDownvotes={votes.downvotes}
             />
           </div>
-
-          <figure className="fig fig-big">
-            <StoryArt
-              slug={category.slug}
-              imageUrl={
-                article.hero_media_key
-                  ? mediaUrlFor(article.hero_media_key)
-                  : null
-              }
-              title={article.title}
-              className="h-full w-full"
-            />
-          </figure>
-
-          <div className="article-body">
-            <RichTextContent markdown={article.body} />
-          </div>
-
-          {gallery.length > 0 && (
-            <section aria-label="ছবির গ্যালারি" className="mt-6">
-              <h2>
-                ছবির গ্যালারি{" "}
-                <span className="text-sm font-normal text-muted-foreground">
-                  ({bn(gallery.length)}টি)
-                </span>
-              </h2>
-              <ArticleGallery
-                images={gallery.map((item, index) => ({
-                  src: mediaUrlFor(item.media_id),
-                  alt: `${article.title} — ছবি ${index + 1}`,
-                }))}
-              />
-            </section>
-          )}
-
-          {questionnaire && <QuestionnaireSummary questionnaire={questionnaire} />}
-
-          <section className="comments" id="comments">
-            <h3>মন্তব্য</h3>
-            <Comments articleId={article.id} />
-          </section>
-
-          <div className="pn">
-            {previous ? (
-              <Link href={storyUrl(previous)}>
-                <span className="lbl">
-                  <svg viewBox="0 0 24 24" aria-hidden>
-                    <path d="M19 12H5M11 6l-6 6 6 6" />
-                  </svg>
-                  আগের প্রতিবেদন
-                </span>
-                <span className="t clamp2">{previous.title}</span>
-              </Link>
-            ) : (
-              <span />
-            )}
-            {next && (
-              <Link href={storyUrl(next)} className="next">
-                <span className="lbl">
-                  পরের প্রতিবেদন
-                  <svg viewBox="0 0 24 24" aria-hidden>
-                    <path d="M5 12h14M13 6l6 6-6 6" />
-                  </svg>
-                </span>
-                <span className="t clamp2">{next.title}</span>
-              </Link>
-            )}
-          </div>
-        </article>
-
-        <aside className="a-aside">
-          {recommended.length > 0 && (
-            <>
-              <Flag label="প্রস্তাবিত" />
-              {recommended.map((item, index) => (
-                <MiniRow key={`${item.slug}-${index}`} item={item} />
-              ))}
-            </>
-          )}
-          {monthBest.length > 0 && (
-            <>
-              <Flag label="মাসের সেরা" />
-              {monthBest.map((item, index) => (
-                <MiniRow key={`${item.slug}-${index}`} item={item} />
-              ))}
-            </>
-          )}
-          <Flag label="আরও খবর" />
-          <div className="tagpills">
-            {desks.map((desk) => (
-              <Link key={desk.slug} href={`/category/${desk.slug}/`}>
-                {desk.label}
-              </Link>
-            ))}
-          </div>
-        </aside>
+        </div>
       </div>
 
       {forYou.length > 0 && (

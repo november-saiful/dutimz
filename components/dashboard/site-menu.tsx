@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   LogOut,
   MessagesSquare,
+  Newspaper,
   type LucideIcon,
 } from "lucide-react";
 
@@ -99,19 +100,38 @@ const ACCOUNT_ITEMS: MenuItem[] = [
 ];
 
 /**
- * The site's own pages the menu carries in both layouts: the wide bar shows
- * the desks as pills (so the desks stay phone-only rows), but these
- * destinations are behind no bar control — hence their own titled section
- * under a divider, on web and on phones alike.
+ * The site's own pages. The wide bar carries them as expo tabs and the menu
+ * repeats them under its own heading, so the two read from one list.
  */
-const PAGES: { label: string; href: string; icon: LucideIcon }[] = [
-  { label: "ফ্লিপস", href: "/flipps/", icon: Clapperboard },
-  { label: "স্পটলাইট", href: "/spotlight/", icon: MessagesSquare },
-  { label: "পরিসংখ্যান", href: "/statistics/", icon: BarChart3 },
-  { label: "সংশোধন ও তথ্য যাচাই", href: "/corrections/", icon: BadgeCheck },
-  { label: "আমাদের পরিচয়", href: "/about/", icon: Info },
-  { label: "সম্পাদকীয় নীতিমালা", href: "/guidelines/", icon: BookOpen },
+export const PAGES: {
+  key: string;
+  label: string;
+  href: string;
+  icon: LucideIcon;
+}[] = [
+  { key: "news", label: "সব সংবাদ", href: "/news/", icon: Newspaper },
+  { key: "flipps", label: "ফ্লিপস", href: "/flipps/", icon: Clapperboard },
+  { key: "spotlight", label: "স্পটলাইট", href: "/spotlight/", icon: MessagesSquare },
+  { key: "statistics", label: "পরিসংখ্যান", href: "/statistics/", icon: BarChart3 },
+  {
+    key: "corrections",
+    label: "সংশোধন ও তথ্য যাচাই",
+    href: "/corrections/",
+    icon: BadgeCheck,
+  },
+  { key: "about", label: "আমাদের পরিচয়", href: "/about/", icon: Info },
+  {
+    key: "guidelines",
+    label: "সম্পাদকীয় নীতিমালা",
+    href: "/guidelines/",
+    icon: BookOpen,
+  },
 ];
+
+/** Whether a page tab is the address the reader is on. Shared with the bar. */
+export function pageIsCurrent(href: string, pathname: string) {
+  return pathname === href || pathname.startsWith(href);
+}
 
 /** Where a desk lives. The bar's pills and this panel's rows share it. */
 export function sectionHref(slug: string) {
@@ -139,6 +159,7 @@ export function SiteMenu({
   user,
   onAction = () => {},
   hiddenActions = [],
+  renderTrigger,
 }: {
   /** The live desks, read once by the shell and shared with the bar and footer. */
   sections: { slug: string; label: string }[];
@@ -156,6 +177,12 @@ export function SiteMenu({
    * has somewhere to go.
    */
   hiddenActions?: string[];
+  /**
+   * The wide bar's expo tab replaces the round button. The panel still anchors
+   * to the wrapper, so the custom trigger only has to say whether it is open
+   * and toggle itself.
+   */
+  renderTrigger?: (state: { open: boolean; toggle: () => void }) => React.ReactNode;
 }) {
   const pathname = usePathname() ?? "/";
   const [open, setOpen] = React.useState(false);
@@ -232,24 +259,28 @@ export function SiteMenu({
 
   return (
     <div ref={wrapRef} className="relative">
-      <motion.button
-        type="button"
-        className="menu-btn"
-        aria-label="মেনু"
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        data-menu-trigger
-        onClick={() => setOpen((v) => !v)}
-        whileTap={{ scale: 0.92 }}
-        transition={{ type: "spring", stiffness: 500, damping: 28 }}
-      >
-        {/* The reference's mark: three bars that become the X it opens to. */}
-        <span className="menu-bars" aria-hidden>
-          <span />
-          <span />
-          <span />
-        </span>
-      </motion.button>
+      {renderTrigger ? (
+        renderTrigger({ open, toggle: () => setOpen((v) => !v) })
+      ) : (
+        <motion.button
+          type="button"
+          className="menu-btn"
+          aria-label="মেনু"
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          data-menu-trigger
+          onClick={() => setOpen((v) => !v)}
+          whileTap={{ scale: 0.92 }}
+          transition={{ type: "spring", stiffness: 500, damping: 28 }}
+        >
+          {/* The reference's mark: three bars that become the X it opens to. */}
+          <span className="menu-bars" aria-hidden>
+            <span />
+            <span />
+            <span />
+          </span>
+        </motion.button>
+      )}
 
       <AnimatePresence>
         {open && (
@@ -258,7 +289,7 @@ export function SiteMenu({
             role="dialog"
             aria-label="মেনু"
             data-menu-panel
-            className="absolute right-0 top-[calc(100%+10px)] z-[70] max-h-[calc(100dvh-80px)] w-[min(360px,calc(100vw-36px))] origin-top-right overflow-y-auto rounded-3xl border bg-white p-5 shadow-[0_24px_60px_-20px_rgba(26,18,32,0.35),0_8px_20px_-10px_rgba(26,18,32,0.18)] max-sm:fixed max-sm:left-4 max-sm:right-4 max-sm:top-[calc(var(--topbar)+8px)] max-sm:max-h-[calc(100dvh-var(--topbar)-20px)] max-sm:w-auto max-sm:origin-top-center"
+            className="absolute right-0 top-[calc(100%+10px)] z-[70] max-h-[calc(100dvh-80px)] w-[min(360px,calc(100vw-36px))] origin-top-right overflow-y-auto rounded-3xl border bg-popover p-5 shadow-[0_24px_60px_-20px_rgba(26,18,32,0.35),0_8px_20px_-10px_rgba(26,18,32,0.18)] max-sm:fixed max-sm:left-4 max-sm:right-4 max-sm:top-[calc(var(--topbar)+8px)] max-sm:max-h-[calc(100dvh-var(--topbar)-20px)] max-sm:w-auto max-sm:origin-top-center"
             style={{ willChange: "transform, opacity" }}
             initial={panelMotion.initial}
             animate={panelMotion.animate}
@@ -282,8 +313,8 @@ export function SiteMenu({
                 </div>
               </motion.div>
 
-              {/* Account leads: the wide bar already carries the desks as pills,
-                  so the menu opens with the reader's own pages everywhere. */}
+              {/* Account leads at every width: the bar carries the reader's
+                  pages and controls, and the desks live further down. */}
               <motion.p variants={itemVariants} className="menu-section">
                 অ্যাকাউন্ট
               </motion.p>
@@ -341,27 +372,25 @@ export function SiteMenu({
                 )}
               </motion.div>
 
-              {/* Desks live here on phones only, where the bar's pills are
-                  hidden (see the 860px rule in globals.css): on the wide bar
-                  the pills already carry them, so the menu does not repeat
-                  them. menu-mobile-only mirrors that breakpoint. */}
+              {/* The desks: the bar carries the reader's pages and controls, so
+                  the category list lives here at every width. */}
               {sections.length > 0 && (
                 <>
                   <motion.div
                     variants={itemVariants}
-                    className="menu-rule menu-mobile-only"
+                    className="menu-rule"
                     aria-hidden
                   />
 
                   <motion.p
                     variants={itemVariants}
-                    className="menu-section menu-mobile-only"
+                    className="menu-section"
                   >
                     বিভাগ
                   </motion.p>
                   <motion.nav
                     variants={itemVariants}
-                    className="menu-list menu-mobile-only"
+                    className="menu-list"
                     aria-label="বিভাগ"
                   >
                     {sections.map((section) => {

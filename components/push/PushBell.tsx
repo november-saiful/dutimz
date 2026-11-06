@@ -47,7 +47,20 @@ function readStored(): { token: string | null; topics: PushTopic[] } {
  * the bell with one spring on opacity/scale/y only, so it stays on the GPU
  * and respects reduced motion.
  */
-export function PushBell() {
+export function PushBell({
+  renderTrigger,
+}: {
+  /**
+   * The wide bar's expo tab replaces the round bell. The panel still anchors to
+   * the wrapper, so the custom trigger only says whether it is open, toggles
+   * itself, and reads the subscribed dot.
+   */
+  renderTrigger?: (state: {
+    open: boolean;
+    toggle: () => void;
+    subscribed: boolean;
+  }) => React.ReactNode;
+} = {}) {
   const { toast } = useToast();
   const [open, setOpen] = React.useState(false);
   // False until the effect below proves otherwise: the server has no
@@ -194,28 +207,36 @@ export function PushBell() {
 
   return (
     <div ref={wrapRef} className="relative">
-      <motion.button
-        type="button"
-        className="bell-toggle"
-        aria-label={
-          subscribed ? "বিজ্ঞপ্তির বিষয় বদলান" : "বিজ্ঞপ্তি চালু করুন"
-        }
-        title={
-          subscribed ? "বিজ্ঞপ্তির বিষয় বদলান" : "বিজ্ঞপ্তি চালু করুন"
-        }
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        onClick={() => setOpen((v) => !v)}
-        whileTap={{ scale: 0.9 }}
-        transition={{ type: "spring", stiffness: 500, damping: 28 }}
-      >
-        {subscribed ? (
-          <BellRing aria-hidden />
-        ) : (
-          <Bell aria-hidden />
-        )}
-        {subscribed && <span className="bell-dot" aria-hidden />}
-      </motion.button>
+      {renderTrigger ? (
+        renderTrigger({
+          open,
+          toggle: () => setOpen((v) => !v),
+          subscribed,
+        })
+      ) : (
+        <motion.button
+          type="button"
+          className="bell-toggle"
+          aria-label={
+            subscribed ? "বিজ্ঞপ্তির বিষয় বদলান" : "বিজ্ঞপ্তি চালু করুন"
+          }
+          title={
+            subscribed ? "বিজ্ঞপ্তির বিষয় বদলান" : "বিজ্ঞপ্তি চালু করুন"
+          }
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          onClick={() => setOpen((v) => !v)}
+          whileTap={{ scale: 0.9 }}
+          transition={{ type: "spring", stiffness: 500, damping: 28 }}
+        >
+          {subscribed ? (
+            <BellRing aria-hidden />
+          ) : (
+            <Bell aria-hidden />
+          )}
+          {subscribed && <span className="bell-dot" aria-hidden />}
+        </motion.button>
+      )}
 
       <AnimatePresence>
         {open && (
@@ -223,7 +244,7 @@ export function PushBell() {
             key="push-popup"
             role="dialog"
             aria-label="কোন খবরের বিজ্ঞপ্তি পাবেন?"
-            className="absolute right-0 top-[calc(100%+10px)] z-[70] max-h-[calc(100dvh-var(--topbar)-20px)] w-[min(340px,calc(100vw-32px))] origin-top-right overflow-y-auto rounded-2xl border bg-white p-5 shadow-[0_24px_60px_-20px_rgba(26,18,32,0.35),0_8px_20px_-10px_rgba(26,18,32,0.18)] max-sm:fixed max-sm:left-4 max-sm:right-4 max-sm:top-[calc(var(--topbar)+8px)] max-sm:w-auto max-sm:origin-top-center"
+            className="absolute right-0 top-[calc(100%+10px)] z-[70] max-h-[calc(100dvh-var(--topbar)-20px)] w-[min(340px,calc(100vw-32px))] origin-top-right overflow-y-auto rounded-2xl border bg-popover p-5 shadow-[0_24px_60px_-20px_rgba(26,18,32,0.35),0_8px_20px_-10px_rgba(26,18,32,0.18)] max-sm:fixed max-sm:left-4 max-sm:right-4 max-sm:top-[calc(var(--topbar)+8px)] max-sm:w-auto max-sm:origin-top-center"
             style={{ willChange: "transform, opacity" }}
             initial={panelMotion.initial}
             animate={panelMotion.animate}
@@ -259,7 +280,7 @@ export function PushBell() {
                   return (
                     <motion.label
                       key={topic}
-                      className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm font-medium transition-colors focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-white ${
+                      className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm font-medium transition-colors focus-within:outline-none focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background ${
                         checked
                           ? "border-primary bg-primary/5"
                           : "border-input hover:bg-muted/60"

@@ -568,7 +568,7 @@ export function AdminArticles() {
           {notice}
         </p>
       )}
-      <Card>
+      <Card className="admin-card">
         <CardHeader>
           <CardTitle>{heading}</CardTitle>
         </CardHeader>
@@ -687,19 +687,19 @@ export function AdminArticles() {
                         {article.category?.title_bn ?? "শ্রেণি নেই"} · /{article.slug}
                       </p>
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label="অবস্থা">
                       <Badge variant={statusVariant(article.status)}>
                         {STATUS_LABELS[article.status] ?? article.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden text-xs text-muted-foreground md:table-cell">
+                    <TableCell className="hidden text-xs text-muted-foreground md:table-cell" data-label="লেখক">
                       {article.is_anonymous
                         ? "নাম প্রকাশে অনিচ্ছুক"
                         : article.author
                           ? article.author.display_name?.trim() || `@${article.author.username}`
                           : "—"}
                     </TableCell>
-                    <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground lg:table-cell">
+                    <TableCell className="hidden whitespace-nowrap text-xs text-muted-foreground lg:table-cell" data-label="প্রকাশ">
                       {article.published_at ? formatDateBn(article.published_at) : "—"}
                     </TableCell>
                     <TableCell>

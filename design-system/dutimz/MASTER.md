@@ -63,17 +63,17 @@ body 16px min on mobile, line-height 1.5–1.75, Bengali label tracking −0.1px
 ## Dials
 
 - `--variance` 4 (balanced/modern; editorial grid gives the asymmetry)
-- `--motion` 4 (standard; shared tokens `--dock-ease`, `--dock-lead-ease`,
-  `--dock-trail-ease`, `--menu-ease`; global reduced-motion reset collapses
-  all durations — intentional)
+- `--motion` 4 (standard; shared tokens `--dock-ease`, `--menu-ease`;
+  global reduced-motion reset collapses all durations — intentional)
 - `--density` 5 (standard; 4/8pt rhythm, tiers 16/24/32/48)
 
 ## Motion rules
 
-Transform/opacity only for animation (the dock-blob `width` transition is the
-single documented exception — it tracks the measured tab box). Exits run
-~60–70% of enters. Press feedback: dock tab `scale(0.94)`, menu close
-rotate, sub-100ms tap response. No endless loops. Carousel auto-advance
+Transform/opacity only for animation (the dock label's `width` transition is the
+single documented exception — it tracks the measured label box as the current
+tab opens). Exits run ~60–70% of enters. Press feedback: dock tab `scale(0.96)`
+with the `expo-motion-tabs` icon squeeze (`scaleX 1.08 / scaleY 0.76`), menu
+close rotate, sub-100ms tap response. No endless loops. Carousel auto-advance
 stops on reduced-motion/focus.
 
 ## Layout & navigation

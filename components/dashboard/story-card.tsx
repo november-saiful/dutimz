@@ -7,20 +7,17 @@ import { RelativeTime } from "@/components/ui/relative-time";
 import {
   mediaUrlFor,
   relativeTimeBn,
-  slugArtClass,
   type PreviewStoryLike,
 } from "@/components/dashboard/story-helpers";
 import { one, storyCategory, storyCredit, type Story } from "@/lib/supabase";
 
 export function StoryArt({
-  slug,
   imageUrl,
   title,
   className = "",
   sizes = "(max-width: 768px) 100vw, 400px",
   priority = false,
 }: {
-  slug: string;
   imageUrl?: string | null;
   title: string;
   className?: string;
@@ -55,13 +52,16 @@ export function StoryArt({
   }
   return (
     <span
-      className={`story-art-fallback relative flex items-center justify-center overflow-hidden ${className}`}
+      className={`relative flex overflow-hidden ${className}`}
       aria-hidden
     >
-      <span className={`story-art-fallback ${slugArtClass(slug)} absolute inset-0`} />
-      <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-primary-foreground/20 text-xl font-bold text-primary-foreground">
-        ঢা
-      </span>
+      <Image
+        src="/fallback-thumbnail.svg"
+        alt=""
+        fill
+        sizes={sizes}
+        className="object-cover"
+      />
     </span>
   );
 }
@@ -74,7 +74,6 @@ export function StoryCard({ story }: { story: Story }) {
     <Card className="overflow-hidden">
       <Link href={url} aria-label={`পড়ুন: ${story.title}`}>
         <StoryArt
-          slug={category.slug}
           imageUrl={
             story.hero_media_key ? mediaUrlFor(story.hero_media_key) : null
           }
@@ -130,7 +129,6 @@ export function PreviewStoryCard({
     <Card className="overflow-hidden">
       <Link href={url} aria-label={`পড়ুন: ${story.title}`}>
         <StoryArt
-          slug={story.categorySlug}
           imageUrl={story.imageUrl}
           title={story.title}
           className="aspect-video w-full"
@@ -187,7 +185,6 @@ export function RecommendedItem({ story }: { story: Story }) {
         className="shrink-0"
       >
         <StoryArt
-          slug={category.slug}
           imageUrl={
             story.hero_media_key ? mediaUrlFor(story.hero_media_key) : null
           }

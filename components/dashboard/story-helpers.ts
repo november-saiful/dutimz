@@ -1,4 +1,4 @@
-export { mediaUrlFor, relativeTimeBn, slugArtClass } from "@/lib/site";
+export { mediaUrlFor, relativeTimeBn } from "@/lib/site";
 
 export type PreviewStoryLike = {
   slug: string;

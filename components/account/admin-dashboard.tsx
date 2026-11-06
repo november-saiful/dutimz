@@ -848,7 +848,7 @@ export function AdminDashboard() {
 
   if (allowed === null) {
     return (
-      <Card>
+      <Card className="admin-card">
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
           অনুমতি যাচাই করা হচ্ছে…
         </CardContent>
@@ -858,7 +858,7 @@ export function AdminDashboard() {
 
   if (!allowed) {
     return (
-      <Card>
+      <Card className="admin-card">
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
           {error ? <p className="text-destructive" role="alert">{error}</p> : "এই প্রশাসনিক ড্যাশবোর্ড কেবল অ্যাডমিনদের জন্য।"}
         </CardContent>
@@ -878,7 +878,7 @@ export function AdminDashboard() {
           {notice}
         </p>
       )}
-      <div className="flex gap-2" role="tablist" aria-label="প্রশাসনিক বিভাগ">
+      <div className="admin-tabs" role="tablist" aria-label="প্রশাসনিক বিভাগ">
         {(
           [
             ["members", "সদস্য"],
@@ -901,7 +901,7 @@ export function AdminDashboard() {
 
       {tab === "members" && (
         <>
-          <Card>
+          <Card className="admin-card">
             <CardHeader>
               <CardTitle>সদস্য তালিকা (মোট {bn(total)}জন)</CardTitle>
             </CardHeader>
@@ -1008,7 +1008,7 @@ export function AdminDashboard() {
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell data-label="ভূমিকা">
                           <Badge variant={roleBadgeVariant(member.role)}>
                             {ROLE_LABELS[member.role] ?? member.role}
                           </Badge>
@@ -1018,7 +1018,7 @@ export function AdminDashboard() {
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell data-label="স্তর">
                           {member.reporter_tier ? (
                             <Badge variant="secondary">
                               {TIER_LABELS[member.reporter_tier] ??
@@ -1028,10 +1028,10 @@ export function AdminDashboard() {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </TableCell>
-                        <TableCell className="tabular-nums">
+                        <TableCell className="tabular-nums" data-label="সম্পূর্ণ">
                           {bn(member.completion_percent)}%
                         </TableCell>
-                        <TableCell className="tabular-nums">
+                        <TableCell className="tabular-nums" data-label="অর্থ">
                           <p className="text-sm font-medium">{bnMoney(member.available_tk)}</p>
                           <p className="whitespace-nowrap text-xs text-muted-foreground">
                             আটকে {bnMoney(member.held_tk)} · অপেক্ষমাণ {bn(member.reserved_tk)}
@@ -1042,7 +1042,7 @@ export function AdminDashboard() {
                             </Badge>
                           )}
                         </TableCell>
-                        <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell">
+                        <TableCell className="hidden whitespace-nowrap text-muted-foreground md:table-cell" data-label="যোগদান">
                           {formatDateBn(member.created_at)}
                         </TableCell>
                         <TableCell>
@@ -1280,7 +1280,7 @@ export function AdminDashboard() {
       {tab === "articles" && <AdminArticles />}
 
       {tab === "spotlight" && (
-        <Card>
+        <Card className="admin-card">
           <CardHeader>
             <CardTitle>স্পটলাইট পোস্ট ({bn(spotlight.length)}টি)</CardTitle>
           </CardHeader>
@@ -1297,7 +1297,7 @@ export function AdminDashboard() {
                 (author?.username ? `@${author.username}` : "সদস্য");
               const hidden = post.status !== "visible";
               return (
-                <div key={post.id} className="rounded-md border p-4">
+                <div key={post.id} className="admin-item rounded-md border p-4">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-medium">{post.title}</p>
                     <Badge variant={hidden ? "secondary" : "outline"}>
@@ -1391,7 +1391,7 @@ export function AdminDashboard() {
         <div className="flex flex-col gap-4">
           {/* The decision itself no longer happens on this page. The desk opens the member's own
               wallet, where the request sits with the balance it is holding, and settles it there. */}
-          <Card>
+          <Card className="admin-card">
             <CardHeader>
               <CardTitle>
                 অপেক্ষমাণ উত্তোলন ({bn(withdrawals.length)}টি)
@@ -1406,7 +1406,7 @@ export function AdminDashboard() {
               {withdrawals.map((withdrawal) => (
                 <div
                   key={withdrawal.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-4"
+                  className="admin-item flex flex-wrap items-center justify-between gap-2 rounded-md border p-4"
                 >
                   <div>
                     <p className="text-sm font-medium">
@@ -1430,7 +1430,7 @@ export function AdminDashboard() {
               ))}
             </CardContent>
           </Card>
-          <Card>
+          <Card className="admin-card">
             <CardHeader>
               <CardTitle>জমা অর্থ সমন্বয়</CardTitle>
             </CardHeader>

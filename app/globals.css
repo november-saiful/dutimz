@@ -8,58 +8,57 @@
 
 /*
   The design system below is the reference design's shape (Cryptonews —
-  Blockchain News & Media): light shell, soft card surfaces, pill navigation —
-  with every accent re-tinted to the DUTIMZ brand.
+  Blockchain News & Media) — light shell, soft card surfaces, pill navigation —
+  printed on plain white: the shell, cards and rules are white and neutral grey,
+  so the newspaper reads as its own stock rather than a tinted theme.
 
   The brand has exactly two colours, taken from `public/dutimz-text-logo.svg`:
-  the deep purple #5f2367 and the muted #a370a0. The deep one carries anything
-  the reader is meant to act on or read as a link (primary buttons, links, the
-  focus ring, the current dock tab, the progress bar, the pills' hover); the
-  muted one carries the softer accents (highlights, the podium flag, the liked
-  chip). The neutrals are the reference's own greys, shifted the few degrees
-  toward purple that make them read as this brand's paper rather than a generic
-  blue-grey. The @theme map re-points the Tailwind tokens at that palette so
-  every existing surface inherits it.
+  the deep purple #5f2367 and the muted #a370a0. They stay the site's accents —
+  the deep one carries anything the reader is meant to act on or read as a link,
+  the muted one the softer highlights. The @theme map re-points the Tailwind
+  tokens at that palette so every existing surface inherits it.
 */
 @theme {
-  --color-border: #e3dfe7;
-  --color-input: #e3dfe7;
+  /* Plain white newspaper: neutral greys for the rules and fills, while every
+     accent still comes from the logo's two purples. */
+  --color-border: #e2e2e2;
+  --color-input: #e2e2e2;
   --color-ring: #5f2367;
   --color-background: #ffffff;
-  --color-foreground: #1a1220;
+  --color-foreground: #121212;
 
   --color-primary: #5f2367;
   --color-primary-foreground: #ffffff;
 
-  --color-secondary: #ece9f0;
-  --color-secondary-foreground: #1a1220;
+  --color-secondary: #f7f7f7;
+  --color-secondary-foreground: #121212;
 
-  --color-destructive: #d33b4e;
+  --color-destructive: #b3261e;
   --color-destructive-foreground: #ffffff;
 
-  --color-success: #2f9e5f;
+  --color-success: #2f7d4f;
   --color-success-foreground: #ffffff;
 
-  --color-muted: #ece9f0;
-  /* Secondary text: 5.3:1 on shell, 5.7:1 on white, 4.8:1 on card (WCAG AA). */
-  --color-muted-foreground: #6b6376;
+  --color-muted: #f7f7f7;
+  /* Secondary text: 5.7:1 on white, 5.2:1 on the grey fill (WCAG AA). */
+  --color-muted-foreground: #666666;
 
-  --color-accent: #e6e1ea;
-  --color-accent-foreground: #1a1220;
+  --color-accent: #f7f7f7;
+  --color-accent-foreground: #121212;
 
   --color-popover: #ffffff;
-  --color-popover-foreground: #1a1220;
+  --color-popover-foreground: #121212;
 
-  --color-card: #ece9f0;
-  --color-card-foreground: #1a1220;
+  --color-card: #ffffff;
+  --color-card-foreground: #121212;
 
   /* Named pieces of the reference palette, for the ported component classes. */
-  --color-body: #453c4a;
+  --color-body: #444444;
   --color-blue: #5f2367;
   --color-purple: #7a3d7f;
   --color-purple-2: #a370a0;
   --color-highlight: #a370a0;
-  --color-strong: #cfc6d4;
+  --color-strong: #f0f0f0;
 
   --radius-lg: 16px;
   --radius-md: 12px;
@@ -104,11 +103,6 @@
   }
 }
 
-@utility story-art-fallback {
-  /* Fallback story art when no hero image: brand gradient + seal. */
-  background: linear-gradient(145deg, #efe7f0, #cfa8ce 54%, #a370a0);
-}
-
 @utility article-body {
   /* News body copy is justified by default. Long tokens (links, hashtags)
      still wrap instead of pushing the page past the viewport on phones. */
@@ -130,14 +124,16 @@
 
 @layer base {
   :root {
-    /* The reference design's own variables, kept verbatim for the ported CSS. */
+    /* The newspaper the whole site is printed on: white stock, white raised
+       cards and grey ruled lines, so the brand's purple stays the only
+       saturated colour in the room. */
     --shell: #ffffff;
-    --card: #ece9f0;
-    --line: #e3dfe7;
-    --ink: #1a1220;
-    --body: #453c4a;
-    /* Same ink as --color-muted-foreground: the old #948c9e read 3.0:1 (AA fail). */
-    --muted: #6b6376;
+    --card: #ffffff;
+    --line: #e2e2e2;
+    --ink: #121212;
+    --body: #444444;
+    /* Same ink as --color-muted-foreground: 5.7:1 on white (AA). */
+    --muted: #666666;
     --blue: #5f2367;
     --purple: #7a3d7f;
     --purple2: #a370a0;
@@ -152,28 +148,24 @@
        through them almost untouched and the pages add a state to the two surfaces
        they already have rather than a third kind of glass. */
     --deck-glass-blur: blur(7px) saturate(135%);
-    /* The reference dock's morph curve, shared by the tab and its label. */
+    /* The reference dock's morph curve, shared by the tab, its label and the
+       create panel's card-morph. */
     --dock-ease: cubic-bezier(0.22, 1, 0.36, 1);
-    /*
-      The liquid's two curves, fitted frame by frame to the spring pair the
-      reference effect runs (400/30 leading, 200/20 trailing): the drop snaps to
-      the tab with a hint of bounce, and its tail arrives half a second in. They
-      reproduce the pair's flight to within 1% of the distance travelled, and the
-      lag between them to within 2px of the measured 86px peak.
-    */
-    --dock-lead-ease: cubic-bezier(0.27, 0.22, 0.21, 1.24);
-    --dock-trail-ease: cubic-bezier(0.47, 0.25, 0.35, 1.27);
     /* The site menu's curve, from the reference's own panel: one long expo-out
        that the button, the panel, its rows and its scrim all move on. */
     --menu-ease: cubic-bezier(0.16, 1, 0.3, 1);
     /* The site's one face, set by next/font on <html>: Noto Serif Bengali leads every stack — for
        Bengali and for the Latin copy, numbers and wordmark it also draws. */
     --font-ui: var(--font-bengali), system-ui, sans-serif;
+    /* The wide edition's label face: everything that is not a headline (nav,
+       dates, bylines, kickers) is set in the sans, the way the reference pairs
+       Helvetica with its serif. */
+    --font-ui-sans: var(--font-bengali-sans), "Helvetica Neue", Arial, sans-serif;
     color-scheme: light;
     /* Brand accent used across the ported component classes. */
     --accent-live: #a370a0;
     --highlight: #a370a0;
-    --strong: #cfc6d4;
+    --strong: #f0f0f0;
     /* The series ramp: the brand's own hue, walked from the deep purple out to
        the muted one and on through the pinks and wines it sits between, so no
        chart leaves the palette the rest of the site is drawn from. */
@@ -233,6 +225,11 @@
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  /* The front page's bar changes its surface as the lead picture passes under
+     it; only the tint eases, since the blur is a running cost, not a motion. */
+  transition:
+    background-color 0.25s ease,
+    box-shadow 0.25s ease;
 }
 .topbar-in {
   display: flex;
@@ -262,6 +259,9 @@
 .logo img {
   height: 24px;
   width: auto;
+  /* The mark turns white over the front page's lead and back with the bar's
+     tint, so the two changes read as one surface rather than two snaps. */
+  transition: filter 0.25s ease;
 }
 .nav {
   display: flex;
@@ -292,11 +292,11 @@
   text-decoration: none;
 }
 .pill:hover {
-  background: #e6e1ea;
+  background: #f2f2f2;
 }
 .pill.active {
-  background: #e6e1ea;
-  box-shadow: inset 0 0 0 1px #cfc6d4;
+  background: #f2f2f2;
+  box-shadow: inset 0 0 0 1px var(--strong);
 }
 .top-actions {
   margin-left: auto;
@@ -306,6 +306,11 @@
   flex: 1;
   justify-content: flex-end;
   min-width: 0;
+}
+/* The phone keeps its bell and menu here; the wide bar carries both inside the
+   expo tab, so this group drops out rather than showing the controls twice. */
+.phone-actions {
+  display: contents;
 }
 .lang {
   background: none;
@@ -319,50 +324,6 @@
   color: var(--ink);
   flex: none;
 }
-.search {
-  display: flex;
-  align-items: center;
-  background: var(--card);
-  border-radius: 14px;
-  height: 42px;
-  padding: 0 6px 0 16px;
-  width: min(320px, 32vw);
-}
-.search input {
-  flex: 1;
-  border: 0;
-  background: none;
-  outline: none;
-  font-size: 13px;
-  color: var(--ink);
-  min-width: 0;
-}
-.search input::placeholder {
-  color: #9b93a6;
-}
-.search button {
-  width: 34px;
-  height: 34px;
-  border: 0;
-  background: none;
-  border-radius: 10px;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-  flex: none;
-}
-.search button svg {
-  width: 17px;
-  height: 17px;
-  stroke: var(--ink);
-  fill: none;
-  stroke-width: 2;
-}
-/*
-  The phone's search: a button that raises the field, instead of a field the bar
-  has to shrink to fit beside the mark, the menu and the search button. It is
-  hidden where the bar has the room to show the field itself.
-*/
 .search-toggle {
   display: none;
   place-items: center;
@@ -374,10 +335,12 @@
   background: var(--card);
   color: var(--ink);
   cursor: pointer;
-  transition: background 0.2s;
+  transition:
+    background 0.2s,
+    color 0.2s;
 }
 .search-toggle:hover {
-  background: #e6e1ea;
+  background: #f2f2f2;
 }
 .search-toggle svg {
   width: 17px;
@@ -403,10 +366,12 @@
   background: var(--card);
   color: var(--ink);
   cursor: pointer;
-  transition: background 0.2s;
+  transition:
+    background 0.2s,
+    color 0.2s;
 }
 .bell-toggle:hover {
-  background: #e6e1ea;
+  background: #f2f2f2;
 }
 .bell-toggle svg {
   width: 17px;
@@ -466,7 +431,7 @@
     transform 0.25s var(--menu-ease);
 }
 .menu-btn:hover {
-  background: #e6e1ea;
+  background: #f2f2f2;
 }
 .menu-btn:active {
   transform: scale(0.94);
@@ -568,7 +533,7 @@
 .menu-panel {
   z-index: 110;
   /* The tint a row takes on hover, a step off the page's own paper. */
-  --menu-soft: #f3ecf4;
+  --menu-soft: #f5f5f5;
   top: 18px;
   right: 18px;
   bottom: auto;
@@ -587,7 +552,7 @@
     into every line of that text. The shadow and the corner still lift it off the page.
   */
   background: #ffffff;
-  border: 1px solid rgba(26, 18, 32, 0.09);
+  border: 1px solid rgba(0, 0, 0, 0.16);
   border-radius: 24px;
   box-shadow:
     0 40px 90px -30px rgba(26, 18, 32, 0.45),
@@ -959,19 +924,6 @@
     animation-delay: 0s !important;
   }
 }
-/*
-  Phone-only rows in the menu popup (desks, site pages): the wide bar already
-  carries the desks as pills, so these rows hide where the pills show. This
-  lives here — not as a Tailwind `hidden` utility — because the unlayered
-  `.menu-list { display: flex }` above outranks layered utilities, so the
-  utility never hid the lists. Same 861px cut as the 860px rule below.
-*/
-@media (min-width: 861px) {
-  .menu-mobile-only {
-    display: none;
-  }
-}
-
 /* ============ SHARED BITS ============ */
 .flag {
   display: inline-flex;
@@ -1008,7 +960,7 @@
 }
 .meta i {
   font-style: normal;
-  color: #c2bcc8;
+  color: #999999;
   font-size: 9px;
 }
 .meta time {
@@ -1133,15 +1085,6 @@
    every other phone rule — a second phone breakpoint up here would shadow the
    stylesheet's own phone section for anything slicing on it. */
 
-/*
-  The front page's lead band is the design's connected carousel
-  (`components/ui/connected-carousel.tsx`), and it needs nothing from this
-  stylesheet: the card, the ring and the dot row are Tailwind utilities in the
-  component, scaled there from the deck's own measured width. There is no rule
-  here for it on purpose — the registry's progress fill used to live here as a
-  keyframe, and it is gone (see the component's own note).
-*/
-
 /* ============ RECOMMENDED BAND ============ */
 /*
   The rail that used to stand beside the hero, now its own band under the lead
@@ -1251,8 +1194,8 @@
   height: 34px;
   border-radius: 50%;
   border: 0;
-  background: #e2e5f0;
-  color: #5a5f73;
+  background: #f2f2f2;
+  color: #444444;
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -2012,7 +1955,7 @@
 }
 .tagpills a:hover,
 .tagpills button:hover {
-  background: #e6e1ea;
+  background: #f2f2f2;
 }
 
 /* ============ FOOTER ============ */
@@ -2052,7 +1995,7 @@ footer.site-footer {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #fff;
+  background: #ffffff;
   border-radius: 14px;
   padding: 6px 6px 6px 16px;
 }
@@ -2097,7 +2040,7 @@ footer.site-footer {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: #fff;
+  background: #ffffff;
   display: grid;
   place-items: center;
   color: #5f2367;
@@ -2156,10 +2099,12 @@ footer.site-footer {
 
 /* ============ PHONE DOCK ============ */
 /*
-  The five destinations a phone reader moves between, as the reference deck's
-  floating card. The behaviour lives with the component
-  (components/dashboard/mobile-dock.tsx); this is its surface, the tab's morph and
-  the liquid layer the two spring-driven blobs are drawn in.
+  The four destinations a phone reader moves between, plus the create action,
+  as the mockup's floating dark pill. The behaviour lives with the component
+  (components/dashboard/mobile-dock.tsx); this is its surface and the morph
+  `expo-motion-tabs` gives it: the current tab opens into a white pill wide
+  enough for its measured label, and the create menu grows from the dock's foot
+  as the library's card-morph panel.
 
   Hidden with `visibility` rather than `display: none` above the breakpoint: an
   open tab is sized from the label the dock measures, and a `display: none`
@@ -2183,95 +2128,24 @@ footer.site-footer {
   visibility: hidden;
 }
 .dock-card {
-  /* The card's one inset, so the liquid and the row can agree on it. */
-  --dock-pad: 6px;
   position: relative;
-  /* The liquid is a rounded shape crossing a rounded edge: clip it to the card
-     rather than let it bleed past the corner. The card's own shadow is painted
-     outside this box and is not affected. */
-  overflow: hidden;
+  z-index: 41;
   width: 100%;
   max-width: 430px;
-  padding: var(--dock-pad);
-  border: 1px solid rgba(60, 20, 60, 0.08);
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  padding: 8px;
+  border-radius: 32px;
+  background: #111111;
   box-shadow:
-    0 14px 34px rgba(60, 20, 60, 0.16),
-    0 2px 6px rgba(60, 20, 60, 0.07);
+    0 18px 40px rgba(43, 33, 25, 0.32),
+    0 2px 8px rgba(43, 33, 25, 0.18);
   pointer-events: auto;
 }
-/*
-  The goo filter itself, out of the flow: an inline SVG has to exist in the
-  document for the layer below to point at, and it draws nothing of its own.
-*/
-.dock-goo-defs {
-  position: absolute;
-  width: 0;
-  height: 0;
-}
-/*
-  The liquid: the two blobs the component moves around, filtered as one surface.
-  The blur is why this layer holds no words — it would take them with it — and why
-  the row above is a layer of its own.
-*/
-.dock-goo {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  filter: url(#dock-goo);
-  /*
-    Nothing to mark and nothing drawn — no fade between the two, and no transition
-    to sit through: this layer carries the site's one indicator of where the reader
-    is, so which of the two states it is in must not wait on an animation.
-  */
-  /* The layer covers the card: every tap belongs to the tab under it. */
-  pointer-events: none;
-}
-/* Nothing to mark: the row has not been measured, or no tab is current. */
-.dock-goo[data-hidden] {
-  opacity: 0;
-}
-/* One drop: a tab's full height, on its own rounded ends. */
-.dock-blob {
-  position: absolute;
-  top: var(--dock-pad);
-  bottom: var(--dock-pad);
-  left: 0;
-  border-radius: 999px;
-  background: var(--blue);
-}
-/*
-  The two blobs are the same shape on two different curves: the leading one snaps
-  to the tab the reader chose and the trailing one arrives a beat later, which is
-  the stretch — the goo filter sees one shape as long as they overlap, and at the
-  peak of the lag they still do by about a tenth of their width.
-
-  `data-placed` is the gate on the first placement: the component writes the
-  blobs' geometry in the same commit that adds it, so the before-change style has
-  no transition and the drop arrives where it belongs instead of sliding in from
-  the card's edge. Every later write animates.
-*/
-.dock-goo[data-placed] .dock-lead {
-  transition:
-    transform 0.32s var(--dock-lead-ease),
-    width 0.32s var(--dock-lead-ease);
-}
-.dock-goo[data-placed] .dock-trail {
-  transition:
-    transform 0.52s var(--dock-trail-ease),
-    width 0.52s var(--dock-trail-ease);
-}
-/* The row the reader actually reads: above the liquid, and crisp. */
+/* The row the reader reads: icons and labels. */
 .dock-row {
-  position: relative;
-  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
+  gap: 4px;
   width: 100%;
 }
 .dock-tab {
@@ -2283,58 +2157,67 @@ footer.site-footer {
   align-items: center;
   justify-content: center;
   height: 46px;
-  padding: 0 12px;
+  padding: 0 10px;
   border-radius: 999px;
-  color: var(--muted);
+  color: #9e9e9e;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
   transition:
-    color 0.24s ease,
-    transform 0.34s var(--dock-ease);
+    color 0.3s ease,
+    background 0.4s var(--dock-ease),
+    transform 0.3s var(--dock-ease);
 }
+.dock-tab:hover {
+  color: #ffffff;
+}
+/* The reference's press: the tab dips under the finger. */
 .dock-tab:active {
-  /* The reference's press: the tab dips under the finger. */
-  transform: scale(0.94);
+  transform: scale(0.96);
 }
 /*
-  The open tab reads against the liquid now: the brand's own deep purple is a
-  solid drop behind it, so the label and the icon are the colour of paper on it.
-  The colour fades on the tab's own transition, which is what keeps the outgoing
-  and incoming tabs legible while the drop is still on its way.
+  The open tab is the mockup's white chip on the dark pill: the label and the
+  icon are the colour of ink on it. The colour fades on the tab's own
+  transition, which is what keeps the outgoing and incoming tabs legible while
+  the row is still sweeping.
 */
 .dock-tab.current {
-  color: #fff;
-}
-/* Both sit above the drop, which is positioned in its own layer. */
-.dock-icon,
-.dock-label {
-  position: relative;
-  z-index: 1;
+  background: #ffffff;
+  color: #111111;
 }
 .dock-icon {
   flex: none;
+  transition: transform 0.35s var(--dock-ease), color 0.3s ease;
+}
+.dock-tab.current .dock-icon {
+  transform: scale(1.04);
+}
+/* `expo-motion-tabs`' squeeze: the icon flattens briefly under the press. It
+   comes after the current tab's scale so an open tab squeezes too, rather than
+   the resting scale winning by source order. */
+.dock-tab:active .dock-icon {
+  transform: scaleX(1.08) scaleY(0.76);
 }
 /*
   The label is the link's accessible name at every width — only its box is
   collapsed, so the word unfurls from behind the icon instead of switching on.
   `overflow: hidden` is what crops it mid-morph, and what lets the dock read a
-  collapsed label's full width back through `scrollWidth`.
+  collapsed label's full width back through `getBoundingClientRect`.
 */
 .dock-label {
   overflow: hidden;
   width: 0;
   margin-left: 0;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 700;
   letter-spacing: -0.1px;
   white-space: nowrap;
   opacity: 0;
   transform: translateX(-6px);
   transition:
-    width 0.42s var(--dock-ease),
-    margin-left 0.42s var(--dock-ease),
-    opacity 0.24s ease,
-    transform 0.42s var(--dock-ease);
+    width 0.5s var(--dock-ease),
+    margin-left 0.5s var(--dock-ease),
+    opacity 0.25s ease,
+    transform 0.5s var(--dock-ease);
 }
 .dock-tab.current .dock-label {
   /* The width the component measured for this very label. */
@@ -2343,85 +2226,106 @@ footer.site-footer {
   opacity: 1;
   transform: none;
 }
+.dock-tab:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+}
 .dock-create {
   flex: 0 0 auto;
-  width: 46px;
+  width: 48px;
+  height: 46px;
   padding: 0;
   border: 0;
   background: var(--blue);
   color: #fff;
   cursor: pointer;
 }
-.dock-create:hover {
+.dock-create:not(.current):hover {
+  background: #6e2b77;
   color: #fff;
 }
-.dock-create-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 41;
-  background: rgba(29, 15, 30, 0.45);
-  pointer-events: auto;
-  border: 0;
-  padding: 0;
-  cursor: default;
+.dock-create.current {
+  background: #ffffff;
+  color: var(--blue);
 }
-.dock-create-pop {
-  position: fixed;
-  right: 12px;
-  bottom: calc(var(--dock, 88px) + 8px);
-  left: 12px;
-  z-index: 42;
-  max-width: 430px;
-  margin: 0 auto;
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  background: var(--shell);
-  box-shadow: 0 14px 34px rgba(60, 20, 60, 0.22);
+/* The reference's card-morph panel: it grows out of the dock's foot. */
+.dock-panel {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  left: 0;
+  z-index: 2;
   padding: 8px 8px 10px;
-  pointer-events: auto;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: #ffffff;
+  box-shadow: 0 20px 48px rgba(43, 33, 25, 0.28);
+  transform-origin: 50% 100%;
+  animation: dock-panel-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-.dock-create-title {
+@keyframes dock-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(65px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.dock-panel-title {
   margin: 0;
   padding: 8px 12px 4px;
   font-size: 13px;
   font-weight: 700;
   color: var(--blue);
 }
-.dock-create-list {
+.dock-panel-list {
   list-style: none;
   margin: 0;
   padding: 0;
 }
-.dock-create-link {
+.dock-panel-link {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border-radius: 12px;
+  border-radius: 14px;
   color: inherit;
   text-decoration: none;
+  transition: background 0.2s ease;
 }
-.dock-create-link:hover {
+.dock-panel-link:hover {
   background: rgba(95, 35, 103, 0.08);
 }
-.dock-create-link svg {
+.dock-panel-link svg {
   width: 18px;
   height: 18px;
   flex: none;
   color: var(--blue);
 }
-.dock-create-text {
+.dock-panel-text {
   min-width: 0;
 }
-.dock-create-name {
+.dock-panel-name {
   display: block;
   font-size: 14px;
   font-weight: 600;
 }
-.dock-create-sub {
+.dock-panel-sub {
   display: block;
   font-size: 12.5px;
   color: var(--body);
+}
+.dock-create-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 39;
+  background: rgba(29, 15, 30, 0.45);
+  pointer-events: auto;
+  border: 0;
+  padding: 0;
+  cursor: default;
 }
 
 @media (max-width: 860px) {
@@ -2493,11 +2397,8 @@ footer.site-footer {
     width: auto;
     max-height: calc(100dvh - var(--topbar) - 20px);
   }
-  /* The bar hands its field to the button: the popup carries the same form, so a
-     phone never wears two search affordances at once. */
-  .search {
-    display: none;
-  }
+  /* The bar hands the search to a button that raises the field: the popup
+     carries the form, so the phone never wears a field in the bar. */
   .search-toggle {
     display: grid;
   }
@@ -2519,27 +2420,54 @@ footer.site-footer {
        a pixel to the bar the deck's top offset is measured from. */
     box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.32);
   }
+  /*
+    The front page's lead picture begins at the top of the viewport, under the
+    bar, so the bar borrows the picture as its surface: no tint and no blur, the
+    lockup and the phone's controls in white, with a soft shadow so they read on
+    a bright photograph. `data-hero-glass` is the header's own measurement of
+    the lead's foot — once the paper sheet is under the bar it comes off again.
+  */
+  .topbar[data-hero-glass] {
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    box-shadow: none;
+  }
+  .topbar[data-hero-glass] .logo img {
+    /* The lockup is one file, so a single filter turns the whole wordmark white. */
+    filter: brightness(0) invert(1) drop-shadow(0 1px 2px rgba(20, 8, 22, 0.45));
+  }
+  .topbar[data-hero-glass] .search-toggle,
+  .topbar[data-hero-glass] .bell-toggle,
+  .topbar[data-hero-glass] .menu-btn {
+    color: #ffffff;
+    background: rgba(20, 12, 24, 0.3);
+  }
+  .topbar[data-hero-glass] .search-toggle:hover,
+  .topbar[data-hero-glass] .bell-toggle:hover,
+  .topbar[data-hero-glass] .menu-btn:hover {
+    background: rgba(20, 12, 24, 0.46);
+  }
+  /* The open menu keeps its white chip: it is the one control saying the panel
+     is out, and white on the hero reads as clearly as it does on paper. */
+  .topbar[data-hero-glass] .menu-btn[aria-expanded="true"] {
+    color: var(--blue);
+    background: #ffffff;
+  }
   .dock-card[data-deck-glass] {
-    background:
-      linear-gradient(
-        160deg,
-        rgba(255, 255, 255, 0.14),
-        rgba(255, 255, 255, 0.03) 55%,
-        rgba(255, 255, 255, 0.08)
-      );
-    border-color: rgba(255, 255, 255, 0.28);
+    /* A dark pane rather than the page's solid pill, so the reel shows through
+       while the white current tab still reads as the one place the reader is. */
+    background: rgba(26, 20, 30, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.22);
     backdrop-filter: var(--deck-glass-blur);
-    /* The rim catches the light on top; the soft drop keeps the card floating. */
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.5),
-      inset 0 -1px 0 rgba(255, 255, 255, 0.16),
-      0 12px 30px rgba(29, 15, 30, 0.2);
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      0 16px 36px rgba(0, 0, 0, 0.3);
   }
   /*
     The dock floats on the foot of the reel, where the scrim is at its darkest,
-    so a see-through card needs pale icons rather than the muted ink every other
-    page draws. The current tab keeps its white-on-drop and the create action its
-    white on the brand circle.
+    so the idle icons stay pale. The current tab keeps its white chip and the
+    create action its white on the brand circle.
   */
   .dock-card[data-deck-glass] .dock-tab:not(.current):not(.dock-create) {
     color: rgba(255, 255, 255, 0.82);
@@ -2559,9 +2487,6 @@ footer.site-footer {
   .bar-in {
     padding: 10px 14px;
     gap: 10px;
-  }
-  .search input::placeholder {
-    font-size: 12px;
   }
   .block,
   .article-grid {
@@ -2601,10 +2526,14 @@ footer.site-footer {
 /* ============ PROFILE PAGES (public + dashboard) ============ */
 /*
   Both profile surfaces — `/u/<handle>/` for any member and `/account/` for the
-  member themselves — are the reference design's editorial profile page, dressed
-  in this site's own purple: a band, the identity laid over its foot, a hairline
-  row of facts, a strip of real numbers, then a wide column of report rows beside
-  a narrow column of blocks.
+  member themselves — are one identity in the two editions of the site.
+
+  Wide screens print it as a newspaper profile: a flat cover strip, a squared
+  portrait over its foot, a serif name, hairline facts and a ruled strip of real
+  numbers. Phones run it as the app sheet: the cover bleeds to the screen edge,
+  the identity sits on a rounded white card, the numbers are a tappable card and
+  each report is a feed card. The markup is shared; the edition's rules below
+  are the only difference.
 
   `pf-` leads every class on purpose. This stylesheet already owns `.block`,
   `.meta`, `.chip` and `.progress` for other surfaces, and a utility or a ported
@@ -2620,28 +2549,21 @@ footer.site-footer {
   --pf-gutter: 20px;
   width: min(var(--maxw), calc(100% - var(--pf-gutter) * 2));
   margin: 0 auto;
-  padding: 24px 0 0;
+  padding: 28px 0 0;
 }
 
-/* ---- the band ---- */
+/* ---- the cover: a flat strip of paper on wide screens ---- */
 .pf-band {
   position: relative;
-  height: 250px;
-  border-radius: 16px;
+  height: 208px;
+  border-radius: 0;
   overflow: hidden;
-  background: linear-gradient(
-    118deg,
-    #1d0f1e 0%,
-    #451a4a 38%,
-    #7a3d7f 68%,
-    #2a1029 100%
-  );
+  background: #f4f3f5;
+  border-bottom: 1px solid var(--line);
 }
 /*
- * The member's cover photo, when there is one. It is toned into the band
- * instead of pasted on top of it: the purple gradient keeps washing over it, a
- * scrim guards the tag's contrast and the blooms still float in front, so a
- * band with a photo reads as the same object as a band without one.
+ * The member's cover photo, full strength: the wide paper prints photographs,
+ * not purple washes. The scrim only guards the tag's contrast at the foot.
  */
 .pf-band-cover {
   position: absolute;
@@ -2649,8 +2571,6 @@ footer.site-footer {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.72;
-  filter: saturate(0.92) contrast(1.04);
 }
 /* object-position can only come from the image's own focal point, not CSS: keep the sky. */
 .pf-band-scrim {
@@ -2658,24 +2578,20 @@ footer.site-footer {
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background:
-    linear-gradient(180deg, rgba(20, 10, 22, 0.28) 0%, rgba(20, 10, 22, 0) 42%),
-    linear-gradient(0deg, rgba(20, 10, 22, 0.66) 0%, rgba(20, 10, 22, 0) 58%);
-}
-.pf-band::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  background-size: 52px 52px;
-  mask-image: radial-gradient(ellipse at 28% 40%, #000 8%, transparent 72%);
-  -webkit-mask-image: radial-gradient(
-    ellipse at 28% 40%,
-    #000 8%,
-    transparent 72%
+  background: linear-gradient(
+    0deg,
+    rgba(12, 8, 14, 0.55) 0%,
+    rgba(12, 8, 14, 0) 46%
   );
+}
+/* A plain strip has nothing to scrim; only a photograph needs the tag's guard. */
+.pf-band:not(.has-cover) .pf-band-scrim {
+  display: none;
+}
+/* The grid and blooms are the phone band's furniture; the wide strip is plain stock. */
+.pf-band::after,
+.pf-blob {
+  display: none;
 }
 .pf-blob {
   position: absolute;
@@ -2723,46 +2639,56 @@ footer.site-footer {
 }
 .pf-band-tag {
   position: absolute;
-  bottom: 24px;
-  left: 28px;
+  top: 20px;
+  bottom: auto;
+  left: 24px;
   z-index: 2;
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  color: #fff;
-  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--font-ui-sans);
+  font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
 }
+.pf-band.has-cover .pf-band-tag {
+  color: #fff;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+}
 .pf-band-tag::before {
   content: '';
-  width: 22px;
-  height: 1px;
-  background: var(--purple2);
+  width: 26px;
+  height: 2px;
+  background: var(--blue);
   flex: none;
 }
+.pf-band.has-cover .pf-band-tag::before {
+  background: var(--purple2);
+}
 
-/* ---- the identity, laid over the band's foot ---- */
+/* ---- the identity, laid over the cover's foot ---- */
 .pf-head {
   position: relative;
   z-index: 2;
   display: grid;
-  grid-template-columns: 152px minmax(0, 1fr);
-  gap: 36px;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 32px;
   align-items: start;
-  margin-top: -52px;
+  margin-top: -58px;
 }
 .pf-avatar {
   position: relative;
-  width: 152px;
-  height: 152px;
-  border-radius: 50%;
-  border: 7px solid var(--shell);
+  width: 132px;
+  height: 132px;
+  border-radius: 2px;
+  border: 6px solid var(--shell);
   overflow: hidden;
-  background: linear-gradient(150deg, #332b27, #4e3b34 55%, #2b201d);
+  background: #1a1220;
   display: grid;
   place-items: center;
+  box-shadow: 0 1px 0 var(--line);
 }
 .pf-avatar img {
   width: 100%;
@@ -2770,21 +2696,21 @@ footer.site-footer {
   object-fit: cover;
 }
 .pf-avatar span {
-  font-size: 50px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-size: 46px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   color: #fff;
-  text-shadow: 0 4px 22px rgba(0, 0, 0, 0.45);
 }
 .pf-body {
   min-width: 0;
-  padding-top: 58px;
+  padding-top: 72px;
 }
 .pf-kicker {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  margin-bottom: 14px;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-family: var(--font-ui-sans);
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.2em;
@@ -2792,40 +2718,32 @@ footer.site-footer {
   color: var(--blue);
 }
 .pf-kicker i {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
+  width: 26px;
+  height: 2px;
+  border-radius: 0;
   background: var(--blue);
-  animation: pf-blink 1.8s ease-in-out infinite;
-}
-@keyframes pf-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.2;
-  }
 }
 .pf-name {
-  margin: 0 0 12px;
-  font-size: clamp(34px, 5vw, 58px);
-  line-height: 1.02;
-  letter-spacing: -0.028em;
-  font-weight: 600;
+  margin: 0 0 10px;
+  font-family: var(--font-ui);
+  font-size: clamp(38px, 4.6vw, 62px);
+  line-height: 1.03;
+  letter-spacing: -0.025em;
+  font-weight: 700;
 }
 .pf-role {
-  margin: 0 0 22px;
-  font-size: 15px;
-  color: var(--body);
+  margin: 0 0 18px;
+  font-family: var(--font-ui-sans);
+  font-size: 13.5px;
+  color: var(--muted);
 }
 .pf-role b {
   color: var(--ink);
   font-weight: 600;
 }
 .pf-bio {
-  margin: 0 0 26px;
-  max-width: 62ch;
+  margin: 0 0 22px;
+  max-width: 66ch;
   font-size: 15.5px;
   line-height: 1.75;
   color: var(--body);
@@ -2837,17 +2755,18 @@ footer.site-footer {
 .pf-meta {
   display: flex;
   flex-wrap: wrap;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
   border-top: 1px solid var(--line);
 }
 .pf-meta-item {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 14px 26px 14px 0;
-  margin-right: 26px;
+  padding: 12px 22px 12px 0;
+  margin-right: 22px;
   border-right: 1px solid var(--line);
-  font-size: 13px;
+  font-family: var(--font-ui-sans);
+  font-size: 12px;
   color: var(--body);
 }
 .pf-meta-item:last-child {
@@ -2869,80 +2788,73 @@ footer.site-footer {
 }
 
 /*
-  The page's own button: a pill, because the reference's editorial pages are all
-  pills and the shadcn Button's 12px radius belongs to the form surfaces. Both
-  are this site's; a profile neither invents a third shape nor overrides the
-  shared primitive for every other page that uses it.
+  The page's own button. Wide screens print it as the masthead's square control
+  (the same 2px corners as the paper's sign-in button); the phone sheet rounds it
+  into a pill, because that is the phone edition's own shape.
 */
 .pf-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 44px;
-  padding: 11px 22px;
+  min-height: 42px;
+  padding: 10px 20px;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: 2px;
   background: transparent;
   font: inherit;
-  font-size: 13.5px;
-  font-weight: 600;
+  font-family: var(--font-ui-sans);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   color: var(--ink);
   cursor: pointer;
   text-decoration: none;
   white-space: nowrap;
   transition:
-    transform 0.3s var(--dock-ease),
-    box-shadow 0.3s ease,
-    background-color 0.3s ease,
-    color 0.3s ease,
-    border-color 0.3s ease;
+    background-color 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease;
 }
 .pf-btn svg {
   width: 15px;
   height: 15px;
   flex: none;
 }
-.pf-btn:hover {
-  transform: translateY(-2px);
-}
-.pf-btn:active {
-  transform: scale(0.97);
-}
 .pf-btn.primary {
   background: var(--blue);
   color: #fff;
 }
 .pf-btn.primary:hover {
-  box-shadow: 0 12px 26px -14px var(--blue);
+  background: #46164e;
 }
 .pf-btn.ghost {
   border-color: var(--line);
 }
 .pf-btn.ghost:hover {
   border-color: var(--ink);
+  background: #f7f7f7;
 }
 .pf-btn.sm {
-  min-height: 38px;
-  padding: 8px 17px;
-  font-size: 12.5px;
+  min-height: 36px;
+  padding: 7px 15px;
+  font-size: 12px;
 }
 .pf-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
-  transform: none;
 }
 
 /* ---- the strip of real numbers ---- */
 .pf-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin-top: 64px;
+  margin-top: 56px;
   border-top: 2px solid var(--ink);
   border-bottom: 1px solid var(--line);
 }
 .pf-stat {
-  padding: 32px 26px;
+  padding: 26px 24px;
 }
 .pf-stat:first-child {
   padding-left: 0;
@@ -2952,27 +2864,29 @@ footer.site-footer {
 }
 .pf-stat-num {
   display: block;
-  font-size: clamp(30px, 3.6vw, 44px);
-  font-weight: 600;
+  font-family: var(--font-ui-sans);
+  font-size: clamp(30px, 3.4vw, 42px);
+  font-weight: 700;
   line-height: 1;
   letter-spacing: -0.025em;
 }
 .pf-stat-label {
   display: block;
-  margin-top: 11px;
+  margin-top: 10px;
+  font-family: var(--font-ui-sans);
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--body);
+  color: var(--muted);
 }
 
 /* ---- the two columns ---- */
 .pf-layout {
   display: grid;
-  grid-template-columns: 1.7fr minmax(0, 1fr);
-  gap: 72px;
-  margin-top: 84px;
+  grid-template-columns: 1.75fr minmax(0, 1fr);
+  gap: 64px;
+  margin-top: 64px;
   align-items: start;
 }
 .pf-main {
@@ -2984,18 +2898,19 @@ footer.site-footer {
   justify-content: space-between;
   gap: 20px;
   flex-wrap: wrap;
-  padding-bottom: 16px;
+  padding-bottom: 14px;
   border-bottom: 2px solid var(--ink);
 }
 .pf-sec-title {
   margin: 0;
-  font-size: 24px;
-  font-weight: 600;
+  font-size: 23px;
+  font-weight: 700;
   letter-spacing: -0.02em;
 }
 .pf-sec-sub {
-  font-size: 11px;
-  font-weight: 600;
+  font-family: var(--font-ui-sans);
+  font-size: 10.5px;
+  font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted);
@@ -3007,36 +2922,33 @@ footer.site-footer {
   padding: 20px 0 4px;
 }
 .pf-chip {
-  min-height: 36px;
+  min-height: 34px;
   padding: 7px 15px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: 2px;
   background: transparent;
   color: var(--body);
   font: inherit;
-  font-size: 12.5px;
+  font-family: var(--font-ui-sans);
+  font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition:
     background-color 0.2s ease,
     border-color 0.2s ease,
-    color 0.2s ease,
-    transform 0.2s ease;
+    color 0.2s ease;
 }
 .pf-chip:hover {
   border-color: var(--ink);
   color: var(--ink);
 }
 .pf-chip.active {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--shell);
-}
-.pf-chip:active {
-  transform: scale(0.95);
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
 }
 
-/* ---- report rows ---- */
+/* ---- report rows, set like the paper's story rows ---- */
 .pf-list {
   margin-top: 8px;
 }
@@ -3049,9 +2961,9 @@ footer.site-footer {
 .pf-entry-link {
   position: relative;
   display: grid;
-  grid-template-columns: 176px minmax(0, 1fr);
-  gap: 26px;
-  padding: 30px 0;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 24px;
+  padding: 26px 0;
   color: inherit;
   text-decoration: none;
 }
@@ -3059,8 +2971,8 @@ footer.site-footer {
   content: '';
   position: absolute;
   left: calc(-1 * var(--pf-gutter));
-  top: 30px;
-  bottom: 30px;
+  top: 26px;
+  bottom: 26px;
   width: 2px;
   background: var(--blue);
   transform: scaleY(0);
@@ -3080,16 +2992,16 @@ footer.site-footer {
 .pf-entry-static {
   position: relative;
   display: grid;
-  grid-template-columns: 176px minmax(0, 1fr);
-  gap: 26px;
-  padding: 30px 0;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 24px;
+  padding: 26px 0;
 }
 .pf-thumb {
   position: relative;
   display: block;
-  width: 176px;
-  height: 118px;
-  border-radius: 10px;
+  width: 190px;
+  height: 128px;
+  border-radius: 0;
   overflow: hidden;
   background: var(--card);
 }
@@ -3099,7 +3011,8 @@ footer.site-footer {
 }
 .pf-cat {
   display: block;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+  font-family: var(--font-ui-sans);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.18em;
@@ -3109,8 +3022,8 @@ footer.site-footer {
 .pf-title {
   display: inline;
   margin: 0;
-  font-size: 21px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
   line-height: 1.28;
   letter-spacing: -0.018em;
   background-image: linear-gradient(currentColor, currentColor);
@@ -3137,7 +3050,8 @@ footer.site-footer {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-family: var(--font-ui-sans);
+  font-size: 11.5px;
   font-weight: 500;
   color: var(--muted);
 }
@@ -3177,14 +3091,15 @@ footer.site-footer {
 /* ---- the narrow column ---- */
 .pf-side-block {
   border-top: 2px solid var(--ink);
-  padding-top: 20px;
-  margin-bottom: 52px;
+  padding-top: 18px;
+  margin-bottom: 48px;
 }
 .pf-side-label {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 0 0 20px;
+  margin: 0 0 18px;
+  font-family: var(--font-ui-sans);
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.2em;
@@ -3202,10 +3117,11 @@ footer.site-footer {
   gap: 7px;
 }
 .pf-tag {
-  padding: 7px 14px;
+  padding: 6px 13px;
   border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 12.5px;
+  border-radius: 2px;
+  font-family: var(--font-ui-sans);
+  font-size: 12px;
   font-weight: 500;
   color: var(--body);
 }
@@ -3218,7 +3134,7 @@ footer.site-footer {
   display: grid;
   grid-template-columns: minmax(0, 7rem) minmax(0, 1fr);
   gap: 16px;
-  padding: 14px 0;
+  padding: 13px 0;
   border-bottom: 1px solid var(--line);
   font-size: 13.5px;
 }
@@ -3227,6 +3143,7 @@ footer.site-footer {
   padding-bottom: 0;
 }
 .pf-fact dt {
+  font-family: var(--font-ui-sans);
   font-size: 12.5px;
   font-weight: 600;
   color: var(--blue);
@@ -3269,18 +3186,21 @@ footer.site-footer {
   min-width: 0;
 }
 .pf-link-title {
+  display: block;
   font-size: 14px;
   font-weight: 600;
 }
 .pf-link-sub {
-  font-size: 12.5px;
+  display: block;
+  font-family: var(--font-ui-sans);
+  font-size: 12px;
   color: var(--body);
 }
 .pf-tip {
   position: relative;
   overflow: hidden;
-  padding: 32px 28px;
-  border-radius: 16px;
+  padding: 30px 26px;
+  border-radius: 2px;
   background: var(--ink);
   color: var(--shell);
 }
@@ -3303,6 +3223,7 @@ footer.site-footer {
 .pf-tip-kicker {
   display: block;
   margin-bottom: 12px;
+  font-family: var(--font-ui-sans);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.2em;
@@ -3311,8 +3232,8 @@ footer.site-footer {
 }
 .pf-tip h3 {
   margin: 0 0 10px;
-  font-size: 22px;
-  font-weight: 600;
+  font-size: 21px;
+  font-weight: 700;
   letter-spacing: -0.015em;
 }
 .pf-tip p {
@@ -3327,7 +3248,7 @@ footer.site-footer {
   color: var(--ink);
 }
 .pf-tip .pf-btn:hover {
-  box-shadow: none;
+  background: #efecef;
 }
 
 /* ---- the state a row is in, said in this page's own voice ---- */
@@ -3335,9 +3256,10 @@ footer.site-footer {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 11px;
-  border-radius: 999px;
-  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 2px;
+  font-family: var(--font-ui-sans);
+  font-size: 11px;
   font-weight: 600;
   color: var(--body);
   background: var(--card);
@@ -3539,6 +3461,2156 @@ footer.site-footer {
   }
   .pf-tip h3 {
     font-size: 19px;
+  }
+}
+
+/* ---- phone edition: the same identity as the app's own sheet ---- */
+/*
+  The phone home runs a picture to the screen edge, rounds its foot, and floats a
+  white sheet over it. The member's page does the same: the cover bleeds, the
+  portrait sits on the seam, the identity is a rounded card, the numbers are a
+  card, the filters are pills and every report is a feed card. These rules come
+  after the tablet/phone sizing blocks above so the app treatment wins as one
+  coherent layer instead of being patched piecewise.
+*/
+@media (max-width: 860px) {
+  .pf-page {
+    --pf-gutter: 0px;
+    width: 100%;
+    padding: 0 0 8px;
+  }
+  .pf-band {
+    height: 236px;
+    border-radius: 0 0 30px 30px;
+    border-bottom: 0;
+    background: linear-gradient(
+      118deg,
+      #1d0f1e 0%,
+      #451a4a 38%,
+      #7a3d7f 68%,
+      #2a1029 100%
+    );
+  }
+  .pf-band-cover {
+    opacity: 0.88;
+    filter: saturate(1.02) contrast(1.02);
+  }
+  .pf-band-scrim {
+    background:
+      linear-gradient(180deg, rgba(20, 10, 22, 0.2) 0%, rgba(20, 10, 22, 0) 35%),
+      linear-gradient(0deg, rgba(20, 10, 22, 0.56) 0%, rgba(20, 10, 22, 0) 52%);
+  }
+  .pf-band::after {
+    display: block;
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(ellipse at 30% 30%, #000 6%, transparent 72%);
+    -webkit-mask-image: radial-gradient(
+      ellipse at 30% 30%,
+      #000 6%,
+      transparent 72%
+    );
+  }
+  .pf-blob {
+    display: block;
+  }
+  .pf-band-tag {
+    top: 18px;
+    bottom: auto;
+    left: 18px;
+    color: #fff;
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.35);
+  }
+  .pf-band-tag::before {
+    width: 18px;
+    background: var(--purple2);
+  }
+  .pf-head {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    margin-top: -70px;
+  }
+  .pf-avatar {
+    width: 122px;
+    height: 122px;
+    margin: 0 auto;
+    border-width: 5px;
+    border-radius: 50%;
+    box-shadow: 0 12px 30px rgba(20, 8, 22, 0.3);
+    z-index: 3;
+  }
+  .pf-avatar span {
+    font-size: 40px;
+  }
+  .pf-body {
+    margin: 14px 12px 0;
+    padding: 20px 18px 22px;
+    border-radius: 22px;
+    background: #fff;
+    box-shadow: 0 8px 24px rgba(35, 18, 40, 0.07);
+    text-align: center;
+  }
+  .pf-kicker {
+    justify-content: center;
+    margin-bottom: 12px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #f6f1f7;
+    font-size: 9.5px;
+    letter-spacing: 0.16em;
+  }
+  .pf-kicker i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--blue);
+  }
+  .pf-name {
+    font-size: clamp(27px, 8.4vw, 36px);
+    line-height: 1.1;
+  }
+  .pf-role {
+    margin-bottom: 14px;
+    font-size: 12.5px;
+  }
+  .pf-bio {
+    margin-bottom: 18px;
+    text-align: left;
+    font-size: 14.5px;
+  }
+  .pf-meta {
+    justify-content: center;
+    gap: 6px;
+    margin-bottom: 18px;
+    padding-top: 2px;
+    border-top: 0;
+  }
+  .pf-meta-item {
+    padding: 7px 11px;
+    margin: 0;
+    border-right: 0;
+    border-radius: 999px;
+    background: #f7f5f8;
+    font-size: 11.5px;
+  }
+  .pf-meta-item:last-child {
+    padding-right: 11px;
+  }
+  .pf-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .pf-actions .pf-btn.primary {
+    grid-column: 1 / -1;
+  }
+  .pf-actions .pf-btn {
+    width: 100%;
+  }
+  .pf-btn {
+    min-height: 44px;
+    padding: 11px 18px;
+    border-radius: 999px;
+    font-size: 12.5px;
+  }
+  .pf-btn.sm {
+    min-height: 38px;
+    padding: 8px 15px;
+  }
+  .pf-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin: 14px 12px 0;
+    border: 1px solid #f0ecf2;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 6px 18px rgba(35, 18, 40, 0.06);
+    overflow: hidden;
+  }
+  .pf-stat {
+    padding: 18px;
+  }
+  .pf-stat:first-child {
+    padding-left: 18px;
+  }
+  .pf-stat + .pf-stat {
+    border-left: 0;
+  }
+  .pf-stat:nth-child(even) {
+    border-left: 1px solid #f0ecf2;
+  }
+  .pf-stat:nth-child(n + 3) {
+    border-top: 1px solid #f0ecf2;
+  }
+  .pf-stat-num {
+    font-family: var(--font-ui);
+    font-size: 26px;
+    color: var(--blue);
+  }
+  .pf-stat-label {
+    margin-top: 7px;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+  }
+  .pf-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+    margin-top: 26px;
+    padding: 0 12px;
+  }
+  .pf-sec {
+    padding-bottom: 12px;
+    border-bottom: 1px solid #ece9f0;
+  }
+  .pf-sec-title {
+    font-size: 20px;
+  }
+  .pf-sec-sub {
+    font-size: 9.5px;
+  }
+  .pf-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 8px;
+    margin: 0 -12px;
+    padding: 12px 12px 6px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+  .pf-chips::-webkit-scrollbar {
+    display: none;
+  }
+  .pf-chip {
+    flex: none;
+    scroll-snap-align: start;
+    min-height: 38px;
+    padding: 9px 15px;
+    border-color: transparent;
+    border-radius: 999px;
+    background: #f6f2f7;
+    color: var(--body);
+    font-size: 11.5px;
+  }
+  .pf-chip:hover {
+    border-color: transparent;
+    color: var(--ink);
+  }
+  .pf-chip.active {
+    background: var(--blue);
+    border-color: var(--blue);
+    color: #fff;
+  }
+  .pf-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .pf-entry {
+    border: 0;
+  }
+  .pf-entry-link,
+  .pf-entry-static {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid #f0ecf2;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 4px 14px rgba(35, 18, 40, 0.07);
+  }
+  .pf-entry-link::before {
+    display: none;
+  }
+  .pf-thumb {
+    width: 100%;
+    height: 190px;
+    border-radius: 12px;
+  }
+  .pf-entry-body {
+    padding-top: 0;
+  }
+  .pf-cat {
+    margin-bottom: 6px;
+    font-size: 9.5px;
+  }
+  .pf-title {
+    font-size: 16.5px;
+    line-height: 1.36;
+  }
+  .pf-excerpt {
+    margin-bottom: 10px;
+    font-size: 12.5px;
+    -webkit-line-clamp: 2;
+  }
+  .pf-entry-meta {
+    font-size: 11px;
+  }
+  .pf-entry-actions {
+    margin-top: 10px;
+  }
+  .pf-note {
+    padding: 16px 2px;
+  }
+  .pf-side-block {
+    margin-bottom: 14px;
+    padding: 18px;
+    border: 1px solid #f0ecf2;
+    border-radius: 18px;
+    background: #fff;
+    box-shadow: 0 4px 14px rgba(35, 18, 40, 0.05);
+  }
+  .pf-side-label {
+    margin-bottom: 12px;
+    font-size: 9.5px;
+  }
+  .pf-tag {
+    border-color: transparent;
+    border-radius: 999px;
+    background: #f6f2f7;
+  }
+  .pf-fact {
+    padding: 11px 0;
+    font-size: 13px;
+  }
+  .pf-fact:last-child {
+    padding-bottom: 0;
+  }
+  .pf-tip {
+    padding: 26px 22px;
+    border-radius: 22px;
+  }
+  .pf-tip h3 {
+    font-size: 19px;
+  }
+  .pf-tip .pf-btn {
+    border-radius: 999px;
+  }
+  .pf-status {
+    border-radius: 999px;
+  }
+}
+
+/* ============ HOME VIEW (the mockup's feed) ============ */
+/*
+  The front page as the mockup arranges it: a full-bleed lead deck, then a
+  paper sheet that rides up over its foot and carries the desk strip, the feed
+  of story cards and the editorial bands.
+
+  `home-sheet` is the mockup's own move — a tinted panel with rounded top
+  corners, pulled over the picture by 24px — not a second page container: the
+  inner `home-in` is the 1240px measure every other band already uses. The tint
+  is the brand's, mixed down to the near-paper the mockup's `#f5f5f7` reads as.
+*/
+.home-view {
+  background: var(--shell);
+}
+.hero-deck {
+  position: relative;
+  width: 100%;
+  height: clamp(380px, 40vw, 520px);
+  overflow: hidden;
+  border-radius: 0 0 28px 28px;
+  background: #1a1220;
+  outline: none;
+  touch-action: pan-y;
+}
+.hero-deck:focus-visible {
+  outline: 3px solid var(--purple2);
+  outline-offset: -3px;
+}
+.hero-slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.55s ease, visibility 0.55s;
+}
+.hero-slide.is-active {
+  z-index: 1;
+  opacity: 1;
+  visibility: visible;
+}
+.hero-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.hero-shade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(
+    to top,
+    rgba(20, 8, 22, 0.96) 0%,
+    rgba(20, 8, 22, 0.58) 46%,
+    rgba(20, 8, 22, 0.04) 100%
+  );
+}
+.hero-body {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 0 36px 44px;
+  color: #fff;
+}
+.hero-title {
+  max-width: 860px;
+  margin: 12px 0 20px;
+  font-size: clamp(24px, 3.2vw, 40px);
+  font-weight: 700;
+  line-height: 1.24;
+  letter-spacing: -0.5px;
+  text-wrap: balance;
+}
+.hero-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.hero-read {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 22px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+.hero-read:hover {
+  background: #f5f5f5;
+}
+.hero-read:active {
+  transform: scale(0.95);
+}
+.hero-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 auto;
+}
+.hero-dot {
+  width: 7px;
+  height: 7px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.42);
+  cursor: pointer;
+  transition: width 0.3s ease, background 0.3s ease;
+}
+.hero-dot.is-active {
+  width: 18px;
+  border-radius: 4px;
+  background: #ffffff;
+}
+.hero-dot:focus-visible,
+.hero-read:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+.home-sheet {
+  position: relative;
+  z-index: 5;
+  margin-top: -24px;
+  border-radius: 24px 24px 0 0;
+  background: #ffffff;
+  padding: 24px 0 46px;
+}
+.home-in {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 0 36px;
+}
+.home-band {
+  margin-top: 26px;
+}
+.home-band .block-head {
+  margin: 0 0 12px;
+}
+.feed-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 14px;
+}
+.feed-head h2 {
+  font-size: clamp(20px, 2.2vw, 26px);
+  font-weight: 700;
+  letter-spacing: -0.3px;
+}
+.feed-head .more {
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.feed-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.news-card {
+  display: flex;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px;
+  border-radius: 16px;
+  background: #ffffff;
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 4px 12px rgba(70, 50, 10, 0.07);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.news-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(70, 50, 10, 0.13);
+}
+.news-card:active {
+  transform: scale(0.985);
+  box-shadow: 0 2px 6px rgba(70, 50, 10, 0.08);
+}
+.news-thumb {
+  position: relative;
+  flex: none;
+  width: 132px;
+  height: 112px;
+}
+.news-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+}
+.news-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+.news-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.news-meta span:first-child {
+  color: var(--blue);
+  font-weight: 700;
+}
+.news-meta i {
+  font-style: normal;
+  color: #999999;
+  font-size: 9px;
+}
+.news-title {
+  margin: 0 0 6px;
+  font-size: 15.5px;
+  font-weight: 700;
+  line-height: 1.34;
+  text-wrap: pretty;
+}
+.news-snippet {
+  overflow: hidden;
+  margin-bottom: 6px;
+  color: var(--body);
+  font-size: 12.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.news-author {
+  margin-bottom: auto;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.news-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--body);
+}
+.news-votes {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.news-votes span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.news-votes span:first-child {
+  color: var(--blue);
+  font-weight: 600;
+}
+.news-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--blue);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* The desk strip: navigation, so each pill is a link to its own desk page. */
+.cat-strip {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 2px 2px 18px;
+  scrollbar-width: none;
+}
+.cat-strip::-webkit-scrollbar {
+  display: none;
+}
+.cat-pill {
+  flex: none;
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--body);
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+.cat-pill:hover {
+  border-color: var(--purple2);
+  color: var(--blue);
+}
+.cat-pill.is-active {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: #ffffff;
+}
+.cat-pill:focus-visible {
+  outline: 2px solid var(--purple2);
+  outline-offset: 2px;
+}
+
+/* ============ ARTICLE VIEW (the mockup's detail screen) ============ */
+/*
+  The story opens on its own picture, edge to edge, with the two round buttons
+  floating over it; the text sheet then rides up over the picture's foot the
+  same way the home sheet rides over the lead deck.
+*/
+.post-view {
+  background: var(--shell);
+}
+/*
+  The reading hairline sticks under the top bar rather than sitting on top of
+  the hero: at the head of the page it has no height to spend on itself, and it
+  is the same `.progress` the component already draws.
+*/
+.post-progress {
+  position: sticky;
+  top: var(--topbar);
+  z-index: 55;
+  height: 2px;
+}
+.post-progress .progress {
+  top: 0;
+  bottom: auto;
+  height: 2px;
+}
+.post-hero {
+  position: relative;
+  height: clamp(340px, 42vw, 480px);
+  overflow: hidden;
+  border-radius: 0 0 28px 28px;
+  background: #1a1220;
+}
+.post-hero-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.post-hero-shade {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to top, var(--shell) 0%, rgba(255, 255, 255, 0.9) 9%, rgba(255, 255, 255, 0) 42%),
+    linear-gradient(to bottom, rgba(20, 8, 22, 0.32), rgba(20, 8, 22, 0) 24%);
+}
+.post-float {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  left: 16px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.post-circle {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--ink);
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 2px 10px rgba(20, 8, 22, 0.14);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+.post-circle:hover {
+  background: #ffffff;
+}
+.post-circle:active {
+  transform: scale(0.9);
+}
+.post-circle:focus-visible {
+  outline: 2px solid var(--purple);
+  outline-offset: 3px;
+}
+.post-sheet {
+  position: relative;
+  z-index: 2;
+  margin-top: -30px;
+  border-radius: 24px 24px 0 0;
+  background: var(--shell);
+}
+.post-grid {
+  padding: 14px 36px 10px;
+}
+.post-kicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.post-kicker a {
+  color: var(--blue);
+  font-weight: 700;
+  text-decoration: none;
+}
+.post-kicker a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.post-kicker i {
+  font-style: normal;
+  color: #999999;
+  font-size: 9px;
+}
+.post-main h1 {
+  margin: 0 0 14px;
+  font-size: clamp(27px, 3.4vw, 40px);
+  line-height: 1.22;
+  letter-spacing: -0.7px;
+  font-weight: 700;
+}
+.post-byline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.post-byline a {
+  color: var(--blue);
+  font-weight: 600;
+  text-decoration: none;
+}
+.post-byline a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.post-byline strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+.post-byline span {
+  color: #999999;
+}
+.post-trust {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.post-votes {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--body);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.post-votes svg {
+  color: var(--blue);
+}
+.post-split {
+  color: var(--muted);
+}
+.post-main .article-body {
+  margin-top: 4px;
+}
+.post-tags {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 28px 0 8px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+/* The mockup's dark action bar: up/down with their real counts, save, comments. */
+.post-actions {
+  max-width: var(--maxw);
+  margin: 0 auto;
+  padding: 6px 36px 30px;
+}
+.post-actionbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 560px;
+  padding: 8px;
+  border-radius: 999px;
+  background: #111111;
+  color: #ffffff;
+  box-shadow: 0 8px 24px rgba(43, 33, 25, 0.2);
+}
+.post-action {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(247, 237, 212, 0.9);
+  font-size: 13.5px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+.post-action:hover {
+  background: rgba(247, 237, 212, 0.12);
+  color: #ffffff;
+}
+.post-action:active {
+  transform: scale(0.96);
+}
+.post-action.is-on {
+  background: var(--purple);
+  color: #fff;
+}
+.post-action.down.is-on {
+  background: #5a6149;
+  color: #fff;
+}
+.post-action.icon {
+  flex: 0 0 auto;
+  width: 46px;
+  padding: 10px;
+}
+.post-action svg {
+  flex: none;
+  width: 19px;
+  height: 19px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+}
+.post-action.icon svg {
+  width: 18px;
+  height: 18px;
+}
+.post-action b {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.post-action-label {
+  white-space: nowrap;
+}
+.post-action:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: -2px;
+}
+
+@media (max-width: 1020px) {
+  .hero-body {
+    padding-bottom: 36px;
+  }
+  .news-thumb {
+    width: 112px;
+    height: 100px;
+  }
+  .post-grid {
+    padding-left: 28px;
+    padding-right: 28px;
+  }
+  .post-actions {
+    padding-left: 28px;
+    padding-right: 28px;
+  }
+}
+
+@media (max-width: 860px) {
+  /*
+    The lead picture runs the full height of the screen from its very top: the
+    view starts under the bar instead of below it, so the bar floats on the
+    picture (and turns clear there — see `.topbar[data-hero-glass]`).
+  */
+  .home-view {
+    margin-top: calc(-1 * var(--topbar));
+  }
+  .hero-deck {
+    height: 400px;
+    border-radius: 0 0 24px 24px;
+  }
+  .hero-body {
+    padding: 0 18px 30px;
+  }
+  .hero-title {
+    font-size: clamp(23px, 6.4vw, 30px);
+    margin: 10px 0 16px;
+  }
+  .home-sheet {
+    margin-top: -20px;
+    border-radius: 24px 24px 0 0;
+    padding: 18px 0 34px;
+  }
+  .home-in {
+    padding: 0 16px;
+  }
+  .home-band {
+    margin-top: 22px;
+  }
+  .feed-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .news-card {
+    gap: 14px;
+    padding: 14px;
+  }
+  .news-thumb {
+    width: 90px;
+    height: 90px;
+  }
+  .news-title {
+    font-size: 14.5px;
+  }
+  .post-hero {
+    height: 400px;
+    border-radius: 0 0 28px 28px;
+  }
+  .post-float {
+    top: 14px;
+    right: 14px;
+    left: 14px;
+  }
+  .post-grid {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .post-main h1 {
+    font-size: clamp(25px, 7.2vw, 32px);
+  }
+  /*
+    On a phone the bar floats over the page, just above the dock: the same
+    measurement the dock reserves (`--dock`) keeps the two from touching, and
+    the page reserves the bar's own height below the article so its last row is
+    never covered.
+  */
+  .post-actions {
+    position: fixed;
+    right: 12px;
+    bottom: calc(var(--dock, 88px) + 8px);
+    left: 12px;
+    z-index: 39;
+    width: auto;
+    max-width: 430px;
+    margin: 0 auto;
+    padding: 0;
+  }
+  .post-actionbar {
+    width: 100%;
+    padding: 7px;
+  }
+  .post-action {
+    padding: 10px 12px;
+  }
+  .post-view {
+    padding-bottom: calc(66px + env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 600px) {
+  .hero-actions {
+    gap: 10px;
+  }
+  .hero-dots {
+    order: 3;
+    width: 100%;
+    margin: 2px 0 0;
+  }
+  .post-tags {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 430px) {
+  /* The two labels would push the bar past a small phone's width; the icons and
+     the real counts still say which way each button votes. */
+  .post-action-label {
+    display: none;
+  }
+  .post-action {
+    gap: 4px;
+    padding: 10px;
+  }
+}
+
+/* ============ WIDE EDITION (desktop) ============ */
+/*
+  The attached editorial design drives every wide screen: warm paper, ink-dark
+  type, a measured active desk in the bar, and a front page that opens on a
+  ticker and a full-bleed lead before its numbered and ruled lists.
+
+  It is scoped to the wide breakpoint on purpose. The phone keeps the deck the
+  earlier design was built around and its dock; both editions ship in the same
+  cached HTML and CSS picks one, because a cached page cannot choose per width.
+*/
+:root {
+  --web-bg: #ffffff;
+  --web-surface: #ffffff;
+  --web-ink: #121212;
+  --web-ink-2: #444444;
+  /* 5.7:1 on white: the small mono-sized labels still clear AA. */
+  --web-ink-3: #666666;
+  --web-line: rgba(0, 0, 0, 0.16);
+  --web-line-soft: rgba(0, 0, 0, 0.08);
+  --web-live: #b3261e;
+  --web-ease: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hidden until the breakpoint below; the phone's own home stays in charge. */
+.web-home {
+  display: none;
+  background: var(--web-bg);
+  color: var(--web-ink);
+}
+
+/* The wide edition's masthead is hidden on phones; the breakpoint below prints it. */
+.print-header {
+  display: none;
+}
+
+@media (min-width: 861px) {
+  body {
+    background: var(--web-bg);
+  }
+  .home-view {
+    display: none;
+  }
+  .web-home {
+    display: block;
+    font-family: var(--font-ui-sans);
+  }
+  /* The phone bar and the wide masthead never share a screen. */
+  .topbar {
+    display: none;
+  }
+  .print-header {
+    display: block;
+  }
+
+  /* ---- the masthead: utility strip, wordmark, ruled desk row ---- */
+  .print-header {
+    background: #ffffff;
+    color: #121212;
+  }
+  .print-container {
+    width: 100%;
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+  .print-utility {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 0 8px;
+    font-size: 11px;
+    color: #333333;
+  }
+  .print-utility-left,
+  .print-utility-right {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+  }
+  .print-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid #e2e2e2;
+    border-radius: 50%;
+    background: #ffffff;
+    color: #121212;
+    cursor: pointer;
+    transition:
+      border-color 0.2s ease,
+      background 0.2s ease;
+  }
+  .print-icon:hover {
+    border-color: #121212;
+    background: #f7f7f7;
+  }
+  .print-icon-dot {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    box-shadow: 0 0 0 2px #ffffff;
+  }
+  .print-date {
+    font-weight: 600;
+    color: #121212;
+    white-space: nowrap;
+  }
+  .print-toplink {
+    color: #333333;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .print-toplink:hover {
+    color: #121212;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .print-lang {
+    color: #666666;
+  }
+  .print-login {
+    max-width: 160px;
+    padding: 6px 14px;
+    overflow: hidden;
+    border: 1px solid #121212;
+    border-radius: 2px;
+    background: #ffffff;
+    color: #121212;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      background 0.2s ease,
+      color 0.2s ease;
+  }
+  .print-login:hover {
+    background: #121212;
+    color: #ffffff;
+  }
+  .print-write {
+    padding: 7px 14px;
+    border-radius: 2px;
+    background: var(--color-primary);
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background 0.2s ease;
+  }
+  .print-write:hover {
+    background: #46164e;
+  }
+  .print-masthead {
+    padding: 6px 0 14px;
+    text-align: center;
+  }
+  .print-masthead a {
+    display: inline-block;
+  }
+  .print-masthead img {
+    display: block;
+    width: auto;
+    height: 84px;
+  }
+  .print-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px 22px;
+    padding: 10px 0;
+    border-top: 1px solid #e2e2e2;
+    border-bottom: 2px solid #121212;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .print-nav-link {
+    color: #333333;
+    text-decoration: none;
+    transition: color 0.2s ease;
+  }
+  .print-nav-link:hover {
+    color: #121212;
+    text-decoration: underline;
+    text-underline-offset: 5px;
+  }
+  .print-nav-link[aria-current="page"] {
+    color: var(--color-primary);
+  }
+  .print-nav-rule {
+    width: 1px;
+    height: 12px;
+    background: #d7d7d7;
+  }
+
+  /* ---- the front page: two columns, ruled down the middle ---- */
+  .np-main {
+    display: grid;
+    grid-template-columns: 2.2fr 1fr;
+    gap: 30px;
+    margin: 20px auto 0;
+    padding-bottom: 50px;
+  }
+  .np-left {
+    min-width: 0;
+    padding-right: 30px;
+    border-right: 1px solid #e2e2e2;
+  }
+  .np-side {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+    min-width: 0;
+  }
+
+  /* ---- the lead: text left, picture right ---- */
+  .np-lead {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 25px;
+    padding-bottom: 25px;
+    border-bottom: 1px solid #e2e2e2;
+  }
+  .np-lead-text {
+    min-width: 0;
+  }
+  .np-lead-title {
+    margin: 0 0 12px;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+  .np-lead-title a {
+    text-decoration: none;
+  }
+  .np-lead-title a:hover {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 5px;
+  }
+  .np-lead-desc {
+    margin: 0 0 10px;
+    color: #444444;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .np-meta {
+    margin: 0;
+    color: #666666;
+    font-family: var(--font-ui-sans);
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    line-height: 1.5;
+  }
+  .np-byline {
+    color: #333333;
+    font-weight: 700;
+    text-decoration: none;
+  }
+  .np-byline:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .np-divider {
+    height: 1px;
+    margin: 15px 0;
+    background: #e2e2e2;
+  }
+  .np-second-title {
+    margin: 0 0 8px;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  .np-second-title a {
+    text-decoration: none;
+  }
+  .np-second-title a:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  /* ---- pictures ---- */
+  .np-figure-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+  }
+  .np-figure {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    overflow: hidden;
+    background: #f4f4f4;
+  }
+  .np-portrait {
+    aspect-ratio: 5 / 6;
+  }
+  .np-square {
+    aspect-ratio: 1 / 1;
+  }
+  .np-side-figure {
+    aspect-ratio: 7 / 5;
+  }
+  .np-figure img {
+    transition: transform 0.5s var(--web-ease);
+  }
+  .np-figure-link:hover img {
+    transform: scale(1.015);
+  }
+  .np-small-fig,
+  .np-mini-fig {
+    position: relative;
+    display: block;
+    flex: none;
+    width: 100px;
+    overflow: hidden;
+    background: #f4f4f4;
+  }
+  .np-small-fig {
+    height: 80px;
+  }
+  .np-mini-fig {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    margin-bottom: 10px;
+  }
+  .np-small-fig .np-figure,
+  .np-mini-fig .np-figure {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+  }
+
+  /* ---- the desk band: tab links, bullets, portrait story ---- */
+  .np-block {
+    padding: 20px 0;
+    border-bottom: 1px solid #e2e2e2;
+  }
+  .np-tabs {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    margin-bottom: 18px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .np-tab {
+    color: #333333;
+    text-decoration: none;
+  }
+  .np-tab:hover {
+    color: #121212;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .np-tab-active,
+  .np-tab-active:hover {
+    padding: 3px 8px;
+    border-radius: 2px;
+    background: var(--color-primary);
+    color: #ffffff;
+    text-decoration: none;
+  }
+  .np-split {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 25px;
+  }
+  .np-band-text {
+    min-width: 0;
+  }
+  .np-band-title {
+    margin: 0 0 15px;
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+  .np-band-title a {
+    text-decoration: none;
+  }
+  .np-band-title a:hover {
+    text-decoration: underline;
+    text-underline-offset: 5px;
+  }
+  .np-bullets {
+    margin: 0 0 8px;
+    padding: 0;
+    list-style: none;
+    color: #333333;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .np-bullets li {
+    position: relative;
+    margin-bottom: 12px;
+    padding-left: 18px;
+  }
+  .np-bullets li::before {
+    content: "";
+    position: absolute;
+    top: 7px;
+    left: 0;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-primary);
+  }
+  .np-bullets a {
+    text-decoration: none;
+  }
+  .np-bullets a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .np-more {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 18px;
+    color: #333333;
+    font-size: 11px;
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .np-more:hover {
+    color: #121212;
+  }
+  .np-substory {
+    margin-top: 10px;
+    padding-top: 12px;
+    border-top: 1px solid #e2e2e2;
+  }
+  .np-substory h3 {
+    margin: 0 0 5px;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+  .np-substory h3 a {
+    text-decoration: none;
+  }
+  .np-substory h3 a:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .np-band-image {
+    min-width: 0;
+  }
+  .np-band-image h3 {
+    margin: 12px 0 6px;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  .np-band-image h3 a {
+    text-decoration: none;
+  }
+  .np-band-image h3 a:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .np-band-image p {
+    margin: 0 0 8px;
+    color: #444444;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* ---- two briefs with small pictures ---- */
+  .np-pair {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    padding: 20px 0;
+    border-bottom: 1px solid #e2e2e2;
+  }
+  .np-small {
+    display: flex;
+    gap: 15px;
+    min-width: 0;
+  }
+  .np-small-text {
+    min-width: 0;
+  }
+  .np-small-text h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.35;
+  }
+  .np-small-text h3 a {
+    text-decoration: none;
+  }
+  .np-small-text h3 a:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  /* ---- the reader's vote split ---- */
+  .np-votes {
+    padding: 25px 0;
+    border-bottom: 1px solid #e2e2e2;
+  }
+  .np-band-label {
+    margin: 0 0 15px;
+    color: #121212;
+    font-family: var(--font-ui-sans);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+  .np-vote-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+  }
+  .np-vote {
+    min-width: 0;
+  }
+  .np-vote-head {
+    display: block;
+    margin-bottom: 12px;
+    color: inherit;
+    text-decoration: none;
+  }
+  .np-vote-kicker {
+    display: block;
+    margin-bottom: 4px;
+    color: #666666;
+    font-family: var(--font-ui-sans);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+  }
+  .np-vote-title {
+    display: block;
+    font-family: var(--font-ui);
+    font-size: 17px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  .np-vote-head:hover .np-vote-title {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .np-vote-nums {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 6px;
+    color: #333333;
+    font-size: 12px;
+  }
+  .np-vote-spacer {
+    margin-left: auto;
+  }
+  .np-big {
+    font-family: var(--font-ui-sans);
+    font-size: 32px;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .np-up {
+    color: var(--color-primary);
+  }
+  .np-down {
+    color: #666666;
+  }
+  .np-track {
+    display: flex;
+    width: 100%;
+    height: 10px;
+    margin-bottom: 8px;
+    overflow: hidden;
+    background: #f0f0f0;
+  }
+  .np-fill-up {
+    height: 100%;
+    background: var(--color-primary);
+  }
+  .np-fill-down {
+    height: 100%;
+    background: #bdbdbd;
+  }
+  .np-vote-foot {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    color: #666666;
+    font-size: 11px;
+  }
+
+  /* ---- the desk index ---- */
+  .np-desks {
+    display: grid;
+    grid-template-columns: 3fr 1fr;
+    gap: 20px;
+    padding: 20px 0;
+  }
+  .np-desk-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    padding-top: 12px;
+    border-top: 1px solid #121212;
+  }
+  .np-desk {
+    min-width: 0;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+  .np-desk-label {
+    display: inline-block;
+    margin-bottom: 6px;
+    color: var(--color-primary);
+    font-family: var(--font-ui-sans);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-decoration: none;
+  }
+  .np-desk-label:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .np-desk-title {
+    margin: 0 0 5px;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.4;
+  }
+  .np-desk-title a {
+    text-decoration: none;
+  }
+  .np-desk-title a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .np-desk-empty {
+    margin: 0;
+    color: #666666;
+    font-size: 12px;
+  }
+  .np-desks-side {
+    padding-top: 12px;
+    border-top: 1px solid #121212;
+  }
+  .np-desks-side .np-band-label {
+    margin-bottom: 10px;
+  }
+  .np-select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #cccccc;
+    border-radius: 3px;
+    background: #ffffff;
+    color: #333333;
+    font-family: var(--font-ui-sans);
+    font-size: 12px;
+  }
+
+  /* ---- the sidebar ---- */
+  .np-side-feature h3 {
+    margin: 0 0 8px;
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  .np-side-feature h3 a {
+    text-decoration: none;
+  }
+  .np-side-feature h3 a:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+  .np-side-feature p {
+    margin: 0 0 8px;
+    color: #444444;
+    font-size: 13.5px;
+    line-height: 1.55;
+  }
+  .np-minis {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    padding: 20px 0;
+    border-top: 1px solid #e2e2e2;
+    border-bottom: 1px solid #e2e2e2;
+  }
+  .np-mini {
+    min-width: 0;
+  }
+  .np-mini h4 {
+    margin: 0 0 8px;
+    font-family: var(--font-ui);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  .np-mini h4 a {
+    text-decoration: none;
+  }
+  .np-mini h4 a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .np-writers {
+    padding-top: 12px;
+    border-top: 1px solid #121212;
+  }
+  .np-writers-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .np-writers-head h2 {
+    margin: 0;
+    font-family: var(--font-ui-sans);
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+  .np-writers-head a {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #666666;
+    font-size: 11px;
+    text-decoration: none;
+  }
+  .np-writers-head a:hover {
+    color: #121212;
+  }
+  .np-writer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #e2e2e2;
+    text-decoration: none;
+  }
+  .np-writer-text {
+    min-width: 0;
+  }
+  .np-writer-name {
+    display: block;
+    margin-bottom: 3px;
+    color: #333333;
+    font-family: var(--font-ui-sans);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+  .np-writer-story {
+    display: block;
+    font-family: var(--font-ui);
+    font-size: 15px;
+    line-height: 1.3;
+  }
+  .np-writer:hover .np-writer-story {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .np-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    background: #efe7f0;
+    color: var(--color-primary);
+    font-family: var(--font-ui-sans);
+    font-size: 16px;
+    font-weight: 800;
+  }
+  .np-picture {
+    padding-top: 18px;
+    border-top: 1px solid #e2e2e2;
+  }
+  .np-picture h3 {
+    margin: 10px 0 6px;
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  .np-picture h3 a {
+    text-decoration: none;
+  }
+  .np-picture h3 a:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
+  /* ---- the foot of the page ---- */
+  footer.site-footer {
+    padding: 44px calc(max(0px, (100vw - 1300px) / 2) + 20px) 24px;
+    border-top-color: var(--web-line);
+    background: var(--web-bg);
+    color: var(--web-ink-2);
+  }
+  .f-col a {
+    color: var(--web-ink-3);
+  }
+  .f-col a:hover {
+    color: var(--web-ink);
+  }
+  .f-bottom {
+    border-top-color: var(--web-line);
+    color: var(--web-ink-3);
+  }
+}
+
+/* Below ~1080 the two columns keep their measure by taking the surplus out of
+   the gaps and the four-desk row. */
+@media (min-width: 861px) and (max-width: 1080px) {
+  .np-main {
+    gap: 22px;
+  }
+  .np-left {
+    padding-right: 22px;
+  }
+  .np-lead,
+  .np-split {
+    gap: 18px;
+  }
+  .np-desk-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .np-vote-grid {
+    gap: 24px;
+  }
+  .np-big {
+    font-size: 28px;
+  }
+  .print-nav {
+    gap: 8px 16px;
+  }
+}
+
+
+/* ============ DESK PAGES (admin + moderation) ============ */
+/*
+  The desk is a working surface, not a reading surface, but it still belongs to
+  the edition it is printed in. Wide screens: white paper, ruled tables and the
+  same squared controls as the masthead. Phones: the app's rounded cards, pill
+  tabs, and one stacked card per record in place of a scrolling table.
+*/
+.admin-desk {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-family: var(--font-ui-sans);
+}
+.admin-desk .admin-card {
+  border-color: var(--line);
+  border-top: 2px solid var(--ink);
+  border-radius: 2px;
+  background: #ffffff;
+  box-shadow: none;
+}
+.admin-desk .admin-card h3 {
+  font-family: var(--font-ui);
+  font-size: 19px;
+  letter-spacing: -0.015em;
+}
+.admin-desk input,
+.admin-desk select,
+.admin-desk textarea {
+  border-radius: 2px;
+  font-family: var(--font-ui-sans);
+}
+.admin-desk button {
+  border-radius: 2px;
+}
+.admin-tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  border-bottom: 2px solid var(--ink);
+  scrollbar-width: none;
+}
+.admin-tabs::-webkit-scrollbar {
+  display: none;
+}
+.admin-tabs button {
+  flex: none;
+  min-height: 40px;
+  height: auto;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--body);
+  font-family: var(--font-ui-sans);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.admin-tabs button:hover {
+  background: #f5f2f6;
+  color: var(--ink);
+}
+.admin-tabs button[aria-selected='true'] {
+  color: var(--blue);
+  box-shadow: inset 0 -3px 0 var(--blue);
+}
+.admin-desk table {
+  font-family: var(--font-ui-sans);
+}
+.admin-desk thead th {
+  height: auto;
+  padding: 9px 10px;
+  border-bottom: 2px solid var(--ink);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.admin-desk tbody td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.admin-desk tbody tr:hover {
+  background: #faf7fb;
+}
+.admin-desk .admin-item {
+  border-color: var(--line);
+  border-radius: 2px;
+  background: #ffffff;
+}
+
+@media (max-width: 860px) {
+  .admin-desk {
+    gap: 12px;
+  }
+  .admin-desk .admin-card {
+    border: 1px solid #f0ecf2;
+    border-top: 1px solid #f0ecf2;
+    border-radius: 18px;
+    box-shadow: 0 4px 14px rgba(35, 18, 40, 0.06);
+  }
+  .admin-desk .admin-card > div {
+    padding: 16px;
+  }
+  .admin-desk .admin-card > div + div {
+    padding-top: 0;
+  }
+  .admin-desk button {
+    border-radius: 999px;
+  }
+  .admin-desk input,
+  .admin-desk select,
+  .admin-desk textarea {
+    border-radius: 12px;
+  }
+  .admin-tabs {
+    gap: 8px;
+    padding: 2px 0 4px;
+    border-bottom: 0;
+  }
+  .admin-tabs button {
+    min-height: 38px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: #f6f2f7;
+    color: var(--body);
+  }
+  .admin-tabs button:hover {
+    background: #f0eaf2;
+  }
+  .admin-tabs button[aria-selected='true'] {
+    background: var(--blue);
+    color: #ffffff;
+    box-shadow: none;
+  }
+  .admin-desk .admin-item {
+    border: 1px solid #f0ecf2;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(35, 18, 40, 0.05);
+  }
+  /* The record tables become one card per row, with each cell naming its column. */
+  .admin-desk div:has(> table) {
+    overflow: visible;
+  }
+  .admin-desk table,
+  .admin-desk tbody,
+  .admin-desk tr,
+  .admin-desk td {
+    display: block;
+    width: 100%;
+  }
+  .admin-desk thead {
+    display: none;
+  }
+  .admin-desk tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .admin-desk tbody tr {
+    position: relative;
+    padding: 12px 14px;
+    border: 1px solid #f0ecf2 !important;
+    border-radius: 16px;
+    background: #ffffff;
+    box-shadow: 0 4px 12px rgba(35, 18, 40, 0.05);
+  }
+  .admin-desk tbody tr:hover {
+    background: #ffffff;
+  }
+  .admin-desk tbody td {
+    padding: 5px 0;
+    border: 0;
+    font-size: 13px;
+    text-align: left;
+  }
+  .admin-desk tbody td[data-label] {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+  }
+  .admin-desk tbody td[data-label]::before {
+    content: attr(data-label);
+    flex: none;
+    color: var(--muted);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .admin-desk tbody td:last-child {
+    padding-top: 10px;
+  }
+  .admin-desk tbody td:last-child > div {
+    justify-content: flex-end;
+  }
+  .admin-desk tbody td:first-child:has(input[type='checkbox']) {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: auto;
+    padding: 0;
+  }
+  .admin-desk tbody td:first-child:has(input[type='checkbox']) + td {
+    padding-right: 30px;
+  }
+  .admin-desk tbody td:first-child p:first-child {
+    font-size: 15px;
+  }
+}
+
+/*
+  The wide edition is set in ink: every corner is square, from the masthead's
+  controls to the desk's cards, tables and dialogs. One reset rather than a
+  per-component opt-in, because a stray `rounded-*` utility or a component's own
+  radius is exactly the drift this rule exists to prevent — including the
+  portalled dialogs, which render under `<body>` and outside their panel.
+
+  The phone edition keeps its radii: this only applies from 861px, the same
+  breakpoint that swaps the topbar for the print masthead.
+*/
+@media (min-width: 861px) {
+  *,
+  *::before,
+  *::after {
+    border-radius: 0 !important;
   }
 }
 

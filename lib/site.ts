@@ -79,13 +79,6 @@ export function roleTitle(role: string | null | undefined): string {
   return ROLE_TITLES[(role ?? "").trim().toLowerCase()] ?? "Member";
 }
 
-export function slugArtClass(slug: string): string {
-  if (slug.includes("culture") || slug.includes("opinion"))
-    return "art-culture";
-  if (slug.includes("student")) return "art-student";
-  return "art-campus";
-}
-
 const bnDigits = new Intl.NumberFormat("bn-BD", { maximumFractionDigits: 0 });
 
 export function bn(n: number | null | undefined): string {

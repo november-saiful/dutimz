@@ -263,7 +263,7 @@ export function PendingEdits() {
 
   if (allowed === null) {
     return (
-      <Card>
+      <Card className="admin-card">
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
           অনুমতি যাচাই করা হচ্ছে…
         </CardContent>
@@ -273,7 +273,7 @@ export function PendingEdits() {
 
   if (!allowed) {
     return (
-      <Card>
+      <Card className="admin-card">
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
           {error ? (
             <p className="text-destructive" role="alert">
@@ -300,7 +300,7 @@ export function PendingEdits() {
         </p>
       )}
 
-      <Card>
+      <Card className="admin-card">
         <CardHeader>
           <CardTitle>
             অনুমোদনের অপেক্ষায় সম্পাদনা ({bn(articles.length)})
@@ -313,7 +313,7 @@ export function PendingEdits() {
             </p>
           )}
           {articles.map((request) => (
-            <article key={request.id} className="rounded-md border p-4">
+            <article key={request.id} className="admin-item rounded-md border p-4">
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span>{request.article?.title ?? "প্রতিবেদন"}</span>
                 <span aria-hidden>·</span>
@@ -363,7 +363,7 @@ export function PendingEdits() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="admin-card">
         <CardHeader>
           <CardTitle>
             স্পটলাইট সম্পাদনার অপেক্ষায় ({bn(spotlights.length)})
@@ -376,7 +376,7 @@ export function PendingEdits() {
             </p>
           )}
           {spotlights.map((request) => (
-            <article key={request.id} className="rounded-md border p-4">
+            <article key={request.id} className="admin-item rounded-md border p-4">
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span>{request.post?.title ?? "স্পটলাইট পোস্ট"}</span>
                 <span aria-hidden>·</span>

@@ -18,12 +18,18 @@ export async function DutimzShell({
   crumbs,
   bare = false,
   mobileDeck = false,
+  heroGlass = false,
   children,
 }: {
   title?: string;
   crumbs?: Crumb[];
   /** The page draws its own containers: no frame, no breadcrumb head. */
   bare?: boolean;
+  /**
+   * The front page runs its lead picture under the phone's bar: the view pulls
+   * up by the bar's height, so the bar turns clear while the hero is beneath it.
+   */
+  heroGlass?: boolean;
   /**
    * A `bare` deck page (the flipps feeds) that goes immersive on phones: below
    * the dock breakpoint the footer drops out and the page's own content fills
@@ -35,12 +41,26 @@ export async function DutimzShell({
   // One read serves the top bar and the footer, so the desks can never drift
   // between them. Demo mode and a failed query fall back to the static list.
   const sections = await getNavCategories();
+  // The wide masthead is dated like a printed paper; formatting it here keeps
+  // the server HTML and the hydrated client on the same string.
+  const today = new Intl.DateTimeFormat("bn-BD", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Asia/Dhaka",
+  }).format(new Date());
 
   return (
     <>
       {/* On an immersive phone deck the reels run under both pieces of chrome, so the
           bar and the dock turn to glass over the picture instead of sitting on paper. */}
-      <DashboardHeader sections={sections} deckGlass={mobileDeck} />
+      <DashboardHeader
+        sections={sections}
+        today={today}
+        deckGlass={mobileDeck}
+        heroGlass={heroGlass}
+      />
       {bare ? (
         <main id="main-content">{children}</main>
       ) : (

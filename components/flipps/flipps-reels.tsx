@@ -269,7 +269,6 @@ export function FlippsReels({ items }: { items: FlippsItem[] }) {
                   )}
                 >
                   <StoryArt
-                    slug={item.sectionSlug}
                     imageUrl={item.image}
                     title={item.title}
                     priority={index === 0}

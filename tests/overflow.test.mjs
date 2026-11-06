@@ -20,6 +20,8 @@ const ROUTES = [
   '/guidelines/',
   '/corrections/',
   '/search/',
+  // The whole archive, with its filter bar and story grid.
+  '/news/',
   // The reel deck is a snap container: one screen tall, with the cards themselves free to be
   // as wide as the column. A shared reel lands on the same deck, and an unclaimed slug is a
   // 404 rather than a reel.
@@ -126,19 +128,20 @@ test('every route stays inside the viewport at common widths', async () => {
             failures.push(`${route} at ${width}px: uncaught client error — ${pageErrors[0]}`);
             break;
           }
-          // The homepage is the reference design's home view: the connected
-          // deck over the week's reports, the reader links into each story, and
-          // both story carousels are what prove it rendered at this width.
+          // The homepage is the mockup's home view: the lead deck over the
+          // newest reports, the story feed under it, and both story carousels
+          // are what prove it rendered at this width.
           if (route === '/') {
             const home = await page.evaluate(() => ({
               hero: !!document.querySelector('section[aria-label="প্রধান প্রতিবেদন"]'),
-              deck: document.querySelectorAll('[data-offset]').length,
+              slides: document.querySelectorAll('.hero-slide').length,
+              feed: document.querySelectorAll('.news-card').length,
               stories: document.querySelectorAll('a[href^="/news/"]').length,
               carousels: document.querySelectorAll('.carousel').length,
             }));
-            if (!home.hero || home.deck < 3 || home.stories === 0 || home.carousels < 2) {
+            if (!home.hero || home.slides < 3 || home.feed === 0 || home.stories === 0 || home.carousels < 2) {
               failures.push(
-                `${route} at ${width}px: the front page did not render (hero: ${home.hero}, deck cards: ${home.deck}, stories: ${home.stories}, carousels: ${home.carousels})`,
+                `${route} at ${width}px: the front page did not render (hero: ${home.hero}, slides: ${home.slides}, feed: ${home.feed}, stories: ${home.stories}, carousels: ${home.carousels})`,
               );
             }
           }

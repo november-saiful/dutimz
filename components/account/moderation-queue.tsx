@@ -165,7 +165,7 @@ export function ModerationQueue() {
 
   if (allowed === null) {
     return (
-      <Card>
+      <Card className="admin-card">
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
           অনুমতি যাচাই করা হচ্ছে…
         </CardContent>
@@ -175,7 +175,7 @@ export function ModerationQueue() {
 
   if (!allowed) {
     return (
-      <Card>
+      <Card className="admin-card">
         <CardContent className="py-8 text-center text-sm text-muted-foreground">
           {error ? <p className="text-destructive" role="alert">{error}</p> : "এই ডেস্ক কেবল মডারেটর ও অ্যাডমিনদের জন্য।"}
         </CardContent>
@@ -195,7 +195,7 @@ export function ModerationQueue() {
           {notice}
         </p>
       )}
-      <Card>
+      <Card className="admin-card">
         <CardHeader>
           <CardTitle>
             অপেক্ষমাণ প্রতিবেদন ({new Intl.NumberFormat("bn-BD").format(articles.length)})
@@ -208,7 +208,7 @@ export function ModerationQueue() {
             </p>
           )}
           {articles.map((article) => (
-            <article key={article.id} className="rounded-md border p-4">
+            <article key={article.id} className="admin-item rounded-md border p-4">
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 <span>{article.category?.title_bn ?? "বিভাগ"}</span>
                 <span aria-hidden>·</span>
@@ -255,7 +255,7 @@ export function ModerationQueue() {
           ))}
         </CardContent>
       </Card>
-      <Card>
+      <Card className="admin-card">
         <CardHeader>
           <CardTitle>
             পর্যালোচনাধীন মন্তব্য ({new Intl.NumberFormat("bn-BD").format(comments.length)})
@@ -268,7 +268,7 @@ export function ModerationQueue() {
             </p>
           )}
           {comments.map((comment) => (
-            <article key={comment.id} className="rounded-md border p-4">
+            <article key={comment.id} className="admin-item rounded-md border p-4">
               <p className="text-sm font-medium">
                 {comment.articles?.title ?? "প্রতিবেদন"} · {comment.status}
               </p>

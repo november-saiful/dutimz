@@ -87,6 +87,120 @@ export async function getLatestStories(limit = 25): Promise<Story[]> {
   }
 }
 
+/**
+ * How many reports are published, for the archive's own count.
+ *
+ * A `head` count: the archive prints the figure but never the rows, so asking
+ * for the ids as well would move the whole table across the wire for nothing.
+ * Demo mode and a failed query both answer zero, which renders as "no reports"
+ * rather than blocking the page.
+ */
+export async function getPublishedArticleCount(): Promise<number> {
+  if (isDemoMode()) return 0;
+  try {
+    const supabase = supabaseServer();
+    const { count, error } = await supabase
+      .from("articles")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "published");
+    if (error) {
+      reportError("article archive count", error);
+      return 0;
+    }
+    return count ?? 0;
+  } catch (error) {
+    reportError("article archive count", error);
+    return 0;
+  }
+}
+
+/** One story's vote split, as the cards print it. */
+export type FeedVotes = { upvotes: number; downvotes: number };
+
+const NO_VOTES: FeedVotes = { upvotes: 0, downvotes: 0 };
+
+/**
+ * The up/down split for every story on one page, in a single request.
+ *
+ * The front page draws twenty cards at once; one `get_article_stats` call per card would be
+ * twenty round trips for one cached render. A story with no votes is absent from the result,
+ * which is the same fact as an empty split — the caller reads a missing id as (0, 0).
+ */
+export async function getFeedVoteSummary(
+  articleIds: string[],
+): Promise<Map<string, FeedVotes>> {
+  const summary = new Map<string, FeedVotes>();
+  const ids = [...new Set(articleIds.filter(Boolean))];
+  if (isDemoMode() || ids.length === 0) return summary;
+  try {
+    const supabase = supabaseServer();
+    const { data, error } = await supabase.rpc("get_feed_vote_summary", {
+      p_article_ids: ids,
+    });
+    if (error) {
+      reportError("feed vote summary", error);
+      return summary;
+    }
+    for (const row of (data ?? []) as {
+      article_id: string;
+      upvotes: number | string;
+      downvotes: number | string;
+    }[]) {
+      summary.set(row.article_id, {
+        upvotes: Number(row.upvotes) || 0,
+        downvotes: Number(row.downvotes) || 0,
+      });
+    }
+    return summary;
+  } catch (error) {
+    reportError("feed vote summary", error);
+    return summary;
+  }
+}
+
+/**
+ * How many times every story on one page has been opened, in a single request.
+ *
+ * This is the public pageview counter (`article_pageviews`), not the earning ledger: every
+ * beacon adds one, so a refresh counts. The table is service-role-only, so this goes through
+ * the same batched RPC shape as the vote split. A story nobody has opened is absent from the
+ * result, which the caller reads as zero.
+ */
+export async function getFeedViewSummary(
+  articleIds: string[],
+): Promise<Map<string, number>> {
+  const summary = new Map<string, number>();
+  const ids = [...new Set(articleIds.filter(Boolean))];
+  if (isDemoMode() || ids.length === 0) return summary;
+  try {
+    const supabase = supabaseServer();
+    const { data, error } = await supabase.rpc("get_feed_view_summary", {
+      p_article_ids: ids,
+    });
+    if (error) {
+      reportError("feed view summary", error);
+      return summary;
+    }
+    for (const row of (data ?? []) as {
+      article_id: string;
+      views: number | string;
+    }[]) {
+      summary.set(row.article_id, Number(row.views) || 0);
+    }
+    return summary;
+  } catch (error) {
+    reportError("feed view summary", error);
+    return summary;
+  }
+}
+
+/** One story's split, for the article page's own header. */
+export async function getArticleVoteSummary(
+  articleId: string,
+): Promise<FeedVotes> {
+  return (await getFeedVoteSummary([articleId])).get(articleId) ?? NO_VOTES;
+}
+
 export async function getStoryBySlug(
   slug: string,
 ): Promise<(Story & { body: string }) | null> {

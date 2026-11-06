@@ -28,7 +28,7 @@ export function SiteFooter({
                 {section.label}
               </Link>
             ))}
-          <Link href="/search/">সব প্রতিবেদন</Link>
+          <Link href="/news/">সব প্রতিবেদন</Link>
         </div>
         <div className="f-col">
           <h5>বিশেষ</h5>

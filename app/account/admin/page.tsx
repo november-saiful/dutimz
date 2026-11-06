@@ -12,7 +12,9 @@ export const metadata: Metadata = {
 export default function AdminPage() {
   return (
     <DutimzShell title="প্রশাসনিক নিয়ন্ত্রণ" crumbs={[{ label: "অ্যাডমিন" }]}>
-      <AdminDashboard />
+      <div className="admin-desk">
+        <AdminDashboard />
+      </div>
     </DutimzShell>
   );
 }

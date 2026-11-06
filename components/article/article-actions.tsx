@@ -17,10 +17,15 @@ type ArticleActionsProps = {
   articleUrl?: string;
   correctionSubject: string;
   /**
-   * "chips" (default) is the reading bar's row of counters — votes, saves and
-   * the jump to the comments. "socials" is the share row beside the tags.
+   * "bar" (default) is the mockup's dark action bar — up/down with their real
+   * counts, the reader's save and the way to the comments. It floats over a
+   * phone's page and sits inline at the foot of the column on a wide screen.
+   * "socials" is the share row beside the tags.
    */
-  variant?: "chips" | "socials";
+  variant?: "bar" | "socials";
+  /** The counts the server already read, so the bar never starts at zero. */
+  initialUpvotes?: number;
+  initialDownvotes?: number;
 };
 
 type Vote = "up" | "down" | null;
@@ -41,9 +46,12 @@ export function ArticleActions({
   articleTitle,
   articleUrl,
   correctionSubject,
-  variant = "chips",
+  variant = "bar",
+  initialUpvotes = 0,
+  initialDownvotes = 0,
 }: ArticleActionsProps) {
-  const [score, setScore] = React.useState<number | null>(null);
+  const [upvotes, setUpvotes] = React.useState(initialUpvotes);
+  const [downvotes, setDownvotes] = React.useState(initialDownvotes);
   const [comments, setComments] = React.useState<number | null>(null);
   const [myVote, setMyVote] = React.useState<Vote>(null);
   const [bookmarked, setBookmarked] = React.useState(false);
@@ -74,12 +82,12 @@ export function ArticleActions({
           setNotice(errorMessage("article actions session", authError, "অ্যাকাউন্ট যাচাই করা যায়নি। আবার চেষ্টা করুন।"));
         }
         if (cancelled) return;
-        const typed = stats as { score?: number; upvotes?: number; downvotes?: number; likes?: number } | null;
-        const resolved =
-          typeof typed?.score === "number"
-            ? typed.score
-            : (typed?.upvotes ?? typed?.likes ?? 0) - (typed?.downvotes ?? 0);
-        setScore(resolved);
+        const typed = stats as { upvotes?: number; downvotes?: number; likes?: number } | null;
+        if (!statsError) {
+          // The server's own reading is the truth; the props only fill the first paint.
+          setUpvotes(typeof typed?.upvotes === "number" ? typed.upvotes : (typed?.likes ?? 0));
+          setDownvotes(typeof typed?.downvotes === "number" ? typed.downvotes : 0);
+        }
         setComments((stats as { comments?: number } | null)?.comments ?? 0);
         if (authError || !user) return;
         const { data: reactions, error: reactionsError } = await supabase
@@ -106,7 +114,6 @@ export function ArticleActions({
         if (!cancelled) setBookmarked(Boolean(saved));
       } catch (err) {
         reportError("article actions", err);
-        if (!cancelled) setScore(0);
       }
     })();
     return () => {
@@ -180,10 +187,8 @@ export function ArticleActions({
       }
       const next: Vote = previous === target ? null : target;
       setMyVote(next);
-      // The cleared state is neutral (0 from this reader), so the delta is just
-      // the new vote's value minus the old vote's value.
-      const valueOf = (voteState: Vote) => (voteState === "up" ? 1 : voteState === "down" ? -1 : 0);
-      setScore((count) => (count ?? 0) + (valueOf(next) - valueOf(previous)));
+      setUpvotes((count) => count + (next === "up" ? 1 : 0) - (previous === "up" ? 1 : 0));
+      setDownvotes((count) => count + (next === "down" ? 1 : 0) - (previous === "down" ? 1 : 0));
       setNotice("");
     } catch (err) {
       setNotice(errorMessage("vote", err, "ভোট সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।"));
@@ -314,56 +319,34 @@ export function ArticleActions({
   }
 
   return (
-    <div className="bar-chips">
-      <div
-        className={cn("vote-cluster", myVote === "up" && "voted-up", myVote === "down" && "voted-down")}
-        role="group"
-        aria-label="প্রতিবেদনে ভোট দিন"
-      >
-        <button
-          type="button"
-          className="vote-btn"
-          onClick={() => vote("up")}
-          disabled={busy}
-          aria-pressed={myVote === "up"}
-          aria-label={myVote === "up" ? "আপভোট সরান" : "আপভোট দিন"}
-        >
-          <ArrowBigUp className="size-5" />
-        </button>
-        <b className="vote-score" aria-live="polite" aria-label={`${countLabel(score)} স্কোর`}>
-          {countLabel(score)}
-        </b>
-        <button
-          type="button"
-          className="vote-btn"
-          onClick={() => vote("down")}
-          disabled={busy}
-          aria-pressed={myVote === "down"}
-          aria-label={myVote === "down" ? "ডাউনভোট সরান" : "ডাউনভোট দিন"}
-        >
-          <ArrowBigDown className="size-5" />
-        </button>
-        <Popover open={gateOpen} onOpenChange={setGateOpen}>
-          <PopoverTrigger className="sr-only" aria-hidden tabIndex={-1} />
-          <PopoverContent className="w-64 border-border text-popover-foreground">
-            <p className="text-sm font-medium">ভোট দিতে প্রথমে প্রবেশ করুন</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              গুগল দিয়ে প্রবেশ করলে আপনার ভোটই এই প্রতিবেদনে গোনা হবে।
-            </p>
-            <button
-              type="button"
-              onClick={() => gated(() => void signInFromGate())}
-              className="mt-3 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-            >
-              গুগল দিয়ে প্রবেশ করুন
-            </button>
-          </PopoverContent>
-        </Popover>
-        {policyDialog}
-      </div>
+    <div className="post-actionbar" role="group" aria-label="প্রতিবেদনের ক্রিয়া">
       <button
         type="button"
-        className={cn("chip", bookmarked && "liked")}
+        className={cn("post-action", myVote === "up" && "is-on")}
+        onClick={() => vote("up")}
+        disabled={busy}
+        aria-pressed={myVote === "up"}
+        aria-label={myVote === "up" ? "আপভোট সরান" : "আপভোট দিন"}
+      >
+        <ArrowBigUp className="size-5" aria-hidden />
+        <span className="post-action-label">আপভোট</span>
+        <b>{countLabel(upvotes)}</b>
+      </button>
+      <button
+        type="button"
+        className={cn("post-action down", myVote === "down" && "is-on")}
+        onClick={() => vote("down")}
+        disabled={busy}
+        aria-pressed={myVote === "down"}
+        aria-label={myVote === "down" ? "ডাউনভোট সরান" : "ডাউনভোট দিন"}
+      >
+        <ArrowBigDown className="size-5" aria-hidden />
+        <span className="post-action-label">ডাউনভোট</span>
+        <b>{countLabel(downvotes)}</b>
+      </button>
+      <button
+        type="button"
+        className={cn("post-action icon", bookmarked && "is-on")}
         onClick={toggleBookmark}
         disabled={busy}
         aria-pressed={bookmarked}
@@ -372,14 +355,30 @@ export function ArticleActions({
         <svg viewBox="0 0 24 24" aria-hidden>
           <path d="M6 3h12v18l-6-4.5L6 21z" />
         </svg>
-        <b>{bookmarked ? "সংরক্ষিত" : "সংরক্ষণ"}</b>
       </button>
-      <a className="chip" href="#comments" aria-label="মন্তব্যে যান">
+      <a className="post-action icon" href="#comments" aria-label="মন্তব্যে যান">
         <svg viewBox="0 0 24 24" aria-hidden>
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </svg>
         <b>{countLabel(comments)}</b>
       </a>
+      <Popover open={gateOpen} onOpenChange={setGateOpen}>
+        <PopoverTrigger className="sr-only" aria-hidden tabIndex={-1} />
+        <PopoverContent className="w-64 border-border text-popover-foreground">
+          <p className="text-sm font-medium">ভোট দিতে প্রথমে প্রবেশ করুন</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            গুগল দিয়ে প্রবেশ করলে আপনার ভোটই এই প্রতিবেদনে গোনা হবে।
+          </p>
+          <button
+            type="button"
+            onClick={() => gated(() => void signInFromGate())}
+            className="mt-3 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            গুগল দিয়ে প্রবেশ করুন
+          </button>
+        </PopoverContent>
+      </Popover>
+      {policyDialog}
       {notice && (
         <span role="status" className="sr-only">
           {notice}

@@ -3,29 +3,30 @@ import * as React from "react";
 import type { LucideIcon } from "lucide-react";
 
 /*
-  The pieces of the editorial profile page — the band, the identity over its
-  foot, the strip of numbers, a report row, the narrow column's blocks.
+  The pieces of the profile page — the cover, the identity over its foot, the
+  strip of numbers, a report row, the narrow column's blocks.
  *
  * Both profile pages are built from these: `/u/<handle>/` for any member and
-  `/account/` for the member themselves. They are the same page in the reference
-  design's shape, so they must not be two hand-rolled copies of it that drift —
-  one band, one meta row, one row layout, one place a class name can be got wrong
+  `/account/` for the member themselves. They are the same page in both
+  editions, so they must not be two hand-rolled copies of it that drift — one
+  cover, one meta row, one row layout, one place a class name can be got wrong
   (`pf-`, and the stylesheet in `app/globals.css` explains why the prefix).
+  The stylesheet prints them as a ruled newspaper profile on wide screens and
+  as the phone app's rounded sheet below the dock breakpoint.
  *
  * Nothing here reaches for data. Every piece takes what it draws, which keeps the
  * fixtures, the browser queries and the server reads interchangeable.
  */
 
-/** The band that opens the page: brand gradient, drifting blooms, one label. */
+/** The cover that opens the page: printed flat on wide, the app's gradient on phones. */
 export function ProfileBand({
   tag,
   cover,
 }: {
   tag: string;
   /**
-   * The member's own cover photo, when they have set one. It sits *under* the
-   * purple wash rather than replacing it, so every band — with a photo, with a
-   * half-loaded photo, or with none — is the same editorial object.
+   * The member's own cover photo, when they have set one. On wide screens it is
+   * the print photograph; on phones it sits under the app's scrim and blooms.
    */
   cover?: string | null;
 }) {

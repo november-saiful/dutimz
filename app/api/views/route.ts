@@ -6,9 +6,12 @@ import { supabaseServer } from "@/lib/supabase";
 /*
   The reader's side of the view beacon. It answers 204 to everything: a lost view is not worth a
   console error, and an error response is exactly what a retrying browser (or a curious one) would
-  treat as "try again", which is how a count gets double-recorded. The database is the only thing
-  that decides whether this visit counts — published story, new device for the day, under the
-  daily cap — so this route's whole job is to hand it the three facts it needs.
+  treat as "try again", which is how a count gets double-recorded.
+
+  One beacon feeds two counters. Earnings take the deduplicated row — published story, new device
+  for the day, under the daily cap — while the figure printed on the cards is a page view and takes
+  every beacon, refreshing or not. Both decisions belong to the database; this route only hands
+  them the facts.
 */
 export async function POST(request: NextRequest) {
   try {
@@ -35,12 +38,17 @@ export async function POST(request: NextRequest) {
       request.headers.get("cf-connecting-ip") ??
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
       "local";
-    const { error } = await supabaseServer().rpc("record_article_view", {
-      p_article_id: articleId,
-      p_viewer_ip: ip,
-      p_viewer_token: vid,
-    });
-    if (error) reportError("view beacon", error);
+    const supabase = supabaseServer();
+    const [earning, pageview] = await Promise.all([
+      supabase.rpc("record_article_view", {
+        p_article_id: articleId,
+        p_viewer_ip: ip,
+        p_viewer_token: vid,
+      }),
+      supabase.rpc("record_article_pageview", { p_article_id: articleId }),
+    ]);
+    if (earning.error) reportError("view beacon", earning.error);
+    if (pageview.error) reportError("pageview beacon", pageview.error);
   } catch (error) {
     reportError("view beacon", error);
   }

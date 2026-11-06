@@ -35,13 +35,13 @@ import {
 /*
  * A member's public page: `/u/<handle>/`.
  *
- * It is the reference design's editorial profile — a band, the identity over its
- * foot, a hairline row of what the member lets the campus see, a strip of real
- * numbers and then their reporting — drawn from the one read the page takes:
- * `get_public_profile` hands back only the fields the member marked public
- * (every other one arrives null, so a hidden field cannot leak by being
- * rendered), and the articles query behind it asks for that member's published
- * work.
+ * It is an editorial profile in both editions: wide screens print the paper's
+ * flat cover, squared portrait, ruled numbers and report rows; phones run the
+ * app sheet's rounded identity card and story cards. Both are drawn from the one
+ * read the page takes: `get_public_profile` hands back only the fields the
+ * member marked public (every other one arrives null, so a hidden field cannot
+ * leak by being rendered), and the articles query behind it asks for that
+ * member's published work.
  *
  * Two consequences of the design worth naming:
  *
@@ -49,8 +49,9 @@ import {
  *    on the articles query is the total the strip prints while the list below
  *    shows the newest of them, so "১২৪টি প্রতিবেদন" and five rows can both be
  *    true at once;
- *  - Nothing here is a card. The reference page reads as a page — hairlines,
- *    rules and one dark block — so the site's Card primitive is not used on it.
+ *  - Nothing here is a card primitive. The reference page reads as a page —
+ *    hairlines, rules and one dark block on wide screens, rounded sheets and
+ *    feed cards on phones — so the site's Card primitive is not used on it.
  */
 
 type Profile = {
@@ -239,7 +240,7 @@ export function PublicProfile({ username }: { username: string }) {
       <div className="pf-page">
         <ProfileBand tag="সদস্য পরিচিতি" />
         <header className="pf-head">
-          <Skeleton className="size-[152px] rounded-full" />
+          <Skeleton className="size-[132px] rounded-[2px]" />
           <div className="pf-body">
             <Skeleton className="mb-3 h-4 w-32" />
             <Skeleton className="mb-4 h-12 w-72" />
@@ -412,7 +413,6 @@ export function PublicProfile({ username }: { username: string }) {
                     excerpt={story.excerpt}
                     art={
                       <StoryArt
-                        slug={story.categorySlug}
                         imageUrl={story.image}
                         title={story.title}
                         className="absolute inset-0"

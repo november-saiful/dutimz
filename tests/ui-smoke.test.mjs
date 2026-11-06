@@ -105,6 +105,7 @@ test('every portal route exists in the App Router', async () => {
     'app/page.tsx',
     'app/layout.tsx',
     'app/not-found.tsx',
+    'app/news/page.tsx',
     'app/news/[slug]/page.tsx',
     'app/category/[slug]/page.tsx',
     'app/search/page.tsx',
@@ -199,21 +200,38 @@ test('the config endpoint keeps the public shape and never leaks secrets', async
   assert.match(route, /no-store/);
 });
 
-test('the top bar is the reference design\'s bar: mark, section pills, search, account', async () => {
-  // The sidebar, the phone dock and the command palette retired with the
-  // redesign: navigation is the design's pill bar fed by the real desks. The bar
-  // ends in one menu — not a burger beside a separate account avatar — and that
-  // panel carries the desks and the account together (`SiteMenu`).
+test('the wide masthead prints the utility strip, wordmark and desk row', async () => {
+  // The wide edition's chrome follows the attached newspaper: a thin utility
+  // row (search, date, saved, bell, account, write), the lockup set large and
+  // centred, then a ruled row of the live desks and the site's own pages. The
+  // phone keeps its bar; only one of the two headers ever renders.
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
-  assert.match(header, /className="topbar"/);
-  assert.match(header, /className="logo"/);
-  assert.match(header, /dutimz-text-logo\.svg/, 'the brand lockup leads the bar');
-  assert.match(header, /pill\$\{active \? " active" : ""\}/, 'the desks are pills with a real active state');
-  assert.match(header, /<SiteMenu/, 'the bar ends in the one menu');
-  assert.match(header, /sections=\{sections\}/, 'and it draws the live desks, not a fixed list');
-  assert.doesNotMatch(header, /className="burger"/, 'the second menu button is gone');
+  assert.match(header, /className="print-header"/, 'the wide masthead is its own header');
+  assert.match(header, /className="topbar"/, 'the phone bar stays');
+  assert.match(header, /dutimz-text-logo.svg/, 'the brand lockup leads both headers');
+  assert.match(header, /className="print-utility"/);
+  assert.match(header, /className="print-date">\{today\}/, 'the paper is dated on the server');
+  assert.match(header, /className="print-masthead"/);
+  assert.match(header, /className="print-nav"/);
+  assert.match(header, /aria-label="সংবাদ বিভাগ"/, 'the desk row is navigation');
+  assert.match(header, /sections\s*\.filter\(\(section\) => section\.slug !== "all"\)/, 'the live desks fill it');
+  assert.match(header, /PAGES\.map/, 'the site pages close the row');
+  assert.match(header, /aria-current=\{current \? "page" : undefined\}/, 'the current desk says so');
+  assert.match(header, /setSearchOpen\(true\)/, 'the masthead search raises the same sheet');
+  assert.match(header, /className="print-login"/);
+  assert.match(header, /href="\/account\/write\/"/, 'and it points at the real form');
+  assert.match(header, /className="phone-actions"/, 'the phone keeps its own bell and menu');
+  assert.doesNotMatch(header, /<ExpoNav/, 'the retired expo rail is gone');
+  assert.doesNotMatch(header, /className="header-write"/, 'the dead wide bar button is gone');
+  const css = await readProjectFile('app/globals.css');
+  assert.match(css, /\.print-header \{\s*display: none;/, 'the masthead is hidden on a phone');
+  assert.match(css, /\.print-nav \{[\s\S]*?border-bottom: 2px solid #121212/, 'the desk row closes on a black rule');
+  assert.match(css, /\.print-masthead img \{[\s\S]*?height: 84px/, 'the wordmark is set large');
+  assert.match(css, /@media \(min-width: 861px\) \{[\s\S]*?\.topbar \{\s*display: none;/, 'the phone bar leaves at the breakpoint');
   const menu = await readProjectFile('components/dashboard/site-menu.tsx');
   assert.match(menu, /aria-label="মেনু"/);
+  assert.match(menu, /renderTrigger/, 'the wide rail can supply the menu tab');
+  assert.doesNotMatch(menu, /menu-mobile-only/, 'the desks stay reachable in the menu at every width');
   for (const path of [
     'components/dashboard/dutimz-sidebar.tsx',
     'components/dashboard/sidebar-state.tsx',
@@ -375,32 +393,33 @@ test('every account menu action maps to a route, a hidden id, or an auth action'
 });
 
 test('the top bar search sends the reader to the archive page', async () => {
-  // The design's search field is a real form: it submits to /search with the
-  // reader's query, and the archive endpoint stays the only place that reads
-  // the published index.
+  // Search is one sheet at both widths: the wide masthead button and the phone
+  // button raise the same form, and the form submits to /search with the
+  // reader's query. The archive endpoint stays the only place that reads the
+  // index.
   const header = await readProjectFile('components/dashboard/dashboard-header.tsx');
   assert.match(header, /role="search"/);
   assert.match(header, /\/search\/\?q=/, 'the field submits the query to the archive page');
   assert.match(header, /aria-label="খুঁজুন"/);
   assert.doesNotMatch(header, /CommandPalette/);
+  assert.doesNotMatch(header, /className="search"/, 'no width shows a field in the bar');
 
-  // A phone's bar has no room for the field beside the mark, the menu and the
-  // search button, so it carries a button that raises the same form in the site's
-  // own top sheet. The wide bar keeps the field it has room for, and neither width
-  // wears both.
+  // A phone's bar has no room for a field, so its button raises the site's own
+  // top sheet; the wide masthead's search button opens the very same sheet.
   assert.match(header, /className="search-toggle"/, 'the phone carries a search button');
-  assert.match(header, /<SheetTrigger asChild>/, 'and it is the popup trigger');
+  assert.match(header, /className="print-icon"[\s\S]{0,200}?setSearchOpen\(true\)/, 'the masthead button raises it too');
+  assert.match(header, /<SheetTrigger asChild>/, 'and the phone button is the popup trigger');
   assert.match(header, /<SheetContent\s+side="top"/, 'the popup drops in from the top');
   assert.match(header, /searchInput\.current\?\.focus\(\)/, 'the popup hands its field the caret');
   assert.match(header, /setSearchOpen\(false\)/, 'and a search dismisses it');
   const css = await readProjectFile('app/globals.css');
-  assert.match(css, /\.search-toggle \{\s*display: none;/, 'the button is desktop-invisible');
+  assert.match(css, /\.search-toggle \{\s*display: none;/, 'the button is wide-screen-invisible');
   const phoneCss = css.slice(
     css.indexOf('/* ============ RESPONSIVE'),
     css.indexOf('@media (max-width: 600px)'),
   );
-  assert.match(phoneCss, /\.search \{\s*display: none;/, 'the inline field leaves the phone bar');
   assert.match(phoneCss, /\.search-toggle \{\s*display: grid;/, 'exactly where the button arrives');
+  assert.doesNotMatch(css, /\.search \{/, 'the retired inline field has no styles left');
 
   const route = await readProjectFile('app/api/search/route.ts');
   assert.match(route, /search_public_articles/);
@@ -458,7 +477,7 @@ test('every accent is the brand purple, not the reference design\'s blue', async
   assert.doesNotMatch(css, /#4d7dc0|#8b7cf0|#b06ef2/i, 'none of the template blues survive');
   assert.match(css, /--chart-1: 292 47% 27%;/, 'and the chart ramp is drawn in the brand hue');
   const layout = await readProjectFile('app/layout.tsx');
-  assert.match(layout, /content="#ffffff"/, 'the browser chrome takes the shell colour too');
+  assert.match(layout, /content="#ffffff"/, 'the browser chrome takes the white shell');
 
   // Two components had grown their own accent: a selected topic in Tailwind's
   // emerald and the live-alert switch in the same green. Both are brand states,
@@ -554,54 +573,101 @@ test('every form renders through the shared field primitives', async () => {
   assert.match(writer, /data\.get\(["']is_anonymous["']\) === ["']on["']/);
 });
 
-test('the homepage is the reference design\'s home view over the real archive', async () => {
-  // The front page is the design's composition — the connected deck over the
-  // week's reports, the recommended band under it, the latest rows and the two
-  // carousels — and every slot is filled from the archive read. An approved
-  // story still has to appear at once: the route is cached and the desk
-  // invalidates it, rather than every reader's request paying for a render
-  // (Cloudflare 1102).
+test('the homepage carries the wide edition and the phone deck over the real archive', async () => {
+  // The front page ships two compositions from the same stories: the phone's
+  // lead deck, desk strip, feed and bands, and the wide edition's ticker,
+  // full-bleed lead, numbered rail, grid, headline rows and subscription strip.
+  // Both sit in the cached HTML and CSS picks one at the breakpoint. Every slot
+  // is filled from the archive read, and an approved story still appears at
+  // once: the desk invalidates the cache rather than every reader paying for a
+  // render (Cloudflare 1102).
   const page = await readProjectFile('app/page.tsx');
   assert.doesNotMatch(page, /force-dynamic/);
   assert.match(page, /export const revalidate = \d+/);
-  assert.match(page, /<DutimzShell bare>/);
-  assert.match(page, /aria-label="প্রধান প্রতিবেদন"/, 'the deck sits in the hero slot');
-  assert.match(page, /<CalendlyCarousel items=\{deck\} autoPlayInterval=\{7000\} pauseOnHover \/>/);
-  assert.match(page, /<Flag label="সপ্তাহের সেরা" \/>/, 'the hero keeps the design\'s flag');
-  assert.match(page, /className="recommended"/, 'the recommended band follows the deck');
+  assert.match(page, /<DutimzShell bare heroGlass=/);
+  assert.match(page, /<HeroDeck items=\{hero\} \/>/, 'the lead deck opens the view');
+  assert.match(page, /<CategoryStrip sections=\{sections\} \/>/, 'the desk strip sits over the feed');
+  assert.match(page, /className="home-sheet"/, 'the feed rides up over the deck on its own sheet');
+  assert.match(page, /className="feed-grid"/);
+  assert.match(page, /<FeedCard key=/, 'the feed rows are the mockup\'s story cards');
+  assert.match(page, /className="recommended"/, 'the recommended band follows the feed');
   assert.match(page, /aria-label="প্রস্তাবিত প্রতিবেদন"/);
   assert.match(page, /প্রস্তাবিত/);
   assert.match(page, /সর্বশেষ খবর/);
   assert.match(page, /পাঠকের পছন্দ/);
   assert.match(page, /মাসের সেরা/);
   assert.match(page, /<StoryCarousel/);
-  // The deck itself is the design's connected carousel, dressed by the site:
-  // the story's own art and the reader's way into the report on the card in
-  // focus, a stop for the reader who asked their system for less motion, and no
-  // frame loop repainting the deck sixty times a second.
-  const deck = await readProjectFile('components/ui/connected-carousel.tsx');
+  assert.match(page, /getFeedVoteSummary/, 'the real vote counts come from one batched read');
+  assert.match(page, /getFeedViewSummary/, 'and the reader counts from another batched read');
+  // The deck itself is the mockup's slide, dressed by the site: the story's own
+  // art under the brand's shade, its real byline and vote split, a way into the
+  // report and a dot row — all stopped for a reader who asked for less motion.
+  const deck = await readProjectFile('components/dashboard/hero-deck.tsx');
   assert.match(deck, /aria-roledescription="carousel"/);
-  assert.match(deck, /StoryArt/, "the cards wear the story's own picture");
-  assert.match(deck, /<Link[\s\S]{0,400}item\.stat/, 'the card in focus links its own report');
+  assert.match(deck, /StoryArt/, "the slides wear the story's own picture");
+  assert.match(deck, /storyUrl\(item\)/, 'the slide links its own report');
   assert.match(deck, /prefers-reduced-motion: reduce/, 'the deck stands still when motion is unwelcome');
-  assert.match(deck, /window\.setTimeout/, 'one wait per card, restarted per card');
+  assert.match(deck, /window\.setTimeout/, 'one wait per slide, restarted per slide');
   assert.doesNotMatch(deck, /requestAnimationFrame/, 'never a sixty-times-a-second re-render');
-  // The registry's progress fill is gone on purpose: the dot row says where the
-  // reader is and the timer turns the deck, with nothing painting the wait down.
-  assert.doesNotMatch(deck, /animation|keyframes|bg-blue/, 'no countdown is painted on the dots');
-  // This site's own stylesheet owns `.block` (the band's max-width and padding),
-  // so Tailwind's `block` utility is a landmine here: on the deck's dot and on
-  // its connecting notches it inflates the element to the band's 72px minimum and
-  // drags the shape out of place. The utility is banned inside the deck.
-  const classLines = deck.split('\n').filter((line) => line.includes('className'));
-  assert.ok(
-    classLines.every((line) => !usesBlockUtility(line)),
-    'the deck never uses the Tailwind block utility',
-  );
-  assert.doesNotMatch(deck, /21st\.dev/, "never the registry demo's fixture art");
+  assert.match(deck, /role="tablist"/, 'the dot row says which report is in focus');
+  assert.doesNotMatch(deck, /hero-meta|hero-byline|hero-vote/, 'the phone lead is its picture and headline, not a byline plate');
+  assert.doesNotMatch(deck, /valid-badge|যাচাইকৃত/, 'the desk\'s verified mark is retired from the deck');
+  // The feed card states the archive's facts: real counts, the desk's mark, the
+  // story's own canonical link. The mockup's invented percentage is not here.
+  const feedCard = await readProjectFile('components/dashboard/feed-card.tsx');
+  assert.match(feedCard, /bn\(item\.upvotes\)/);
+  assert.match(feedCard, /bn\(item\.downvotes\)/);
+  assert.match(feedCard, /<Eye[\s\S]*?bn\(item\.views\)/, 'the card prints the story\'s reader count behind an eye, not a second vote mark');
+  assert.doesNotMatch(feedCard, /ভিউ/, 'the icon carries the meaning; no label beside the figure');
+  assert.doesNotMatch(feedCard, /আপভোট/, 'the upvote total lives in the split, once');
+  assert.doesNotMatch(feedCard, /BadgeCheck|news-mark/, 'no verified mark rides the feed card either');
+  assert.match(feedCard, /storyUrl\(item\)/);
+  // The strip is navigation, not a client filter: each pill is a link to its desk.
+  const strip = await readProjectFile('components/dashboard/category-strip.tsx');
+  assert.match(strip, /`\/category\/\$\{section\.slug\}\/`/);
+  assert.match(strip, /aria-current=/);
   const css = await readProjectFile('app/globals.css');
-  assert.doesNotMatch(css, /@keyframes dutimz-carousel-progress/, 'and the fill is gone from the stylesheet too');
+  assert.match(css, /\.home-sheet \{/, 'the paper sheet is the stylesheet\'s');
+  assert.match(css, /\.hero-deck \{[\s\S]*?height: clamp/, 'the deck has the mockup\'s proportions');
+  assert.match(css, /\.news-card \{[\s\S]*?border-radius: 16px/, 'and the feed cards theirs');
+  // On a phone the lead runs under the bar: the view starts at the top of the
+  // viewport and the bar measures the lead's foot to stay clear only while the
+  // picture is beneath it, then returns to paper once the sheet has passed.
+  assert.match(deck, /data-hero-under-bar/, "the lead carries the edge the bar measures");
+  assert.match(css, /\.home-view \{\s*margin-top: calc\(-1 \* var\(--topbar\)\);/, 'the phone view starts under the bar');
+  assert.match(css, /\.topbar\[data-hero-glass\] \{[\s\S]*?background: transparent/, 'and the bar turns clear over the picture');
+  assert.match(css, /\.topbar\[data-hero-glass\] \.logo img \{[\s\S]*?invert\(1\)/, 'with the lockup turned white');
+  const bar = await readProjectFile('components/dashboard/dashboard-header.tsx');
+  assert.match(bar, /data-hero-glass=\{overHero \|\| undefined\}/, 'the bar wears its clear state from the header');
+  assert.match(
+    bar,
+    /getBoundingClientRect\(\)\.bottom > bar\.offsetHeight/,
+    'and only while the lead is still under it',
+  );
+  assert.doesNotMatch(css, /\.valid-badge|\.news-mark/, 'the verified pill and its picture corner are gone from the stylesheet');
   assert.match(css, /\.flag-icon/, 'and the desk marks are the stylesheet\'s');
+  // The wide edition is the attached newspaper, fed by the same items: the
+  // lead, the desk band with tab links, the briefs, the reader's vote split,
+  // the desk index and the sidebar all read real stories. The phone's deck
+  // hides above the breakpoint and this layout hides below it.
+  assert.match(page, /<WebHome items=\{items\} sections=\{sections\} \/>/, 'the wide edition renders beside the phone deck');
+  const webHome = await readProjectFile('components/dashboard/web-home.tsx');
+  assert.match(webHome, /className="np-main print-container"/, 'two columns on the paper\'s measure');
+  assert.match(webHome, /className="np-lead"/, 'the lead is split between text and picture');
+  assert.match(webHome, /className="np-tabs"/, 'the live desks are tab links, not a filter');
+  assert.match(webHome, /className="np-votes"/, 'the results blocks are the reader\'s real votes');
+  assert.match(webHome, /className="np-desk-grid"/, 'the desk index closes the column');
+  assert.match(webHome, /className="np-writers"/, 'the sidebar indexes the bylines');
+  assert.match(webHome, /<DeskJump sections=\{sections\}/, 'the full-results box jumps by desk');
+  assert.match(webHome, /<RelativeTime/, 'the times keep ticking in an open tab');
+  assert.match(css, /\.web-home \{[\s\S]*?display: none;/, 'the wide edition hides below its breakpoint');
+  assert.match(css, /\.np-main \{[\s\S]*?grid-template-columns: 2\.2fr 1fr;/, 'the front page is the reference\'s two-column grid');
+  assert.match(css, /\.np-left \{[\s\S]*?border-right: 1px solid #e2e2e2;/, 'a rule divides the columns');
+  assert.match(
+    css,
+    /@media \(min-width: 861px\) \{[\s\S]*?\.home-view \{[\s\S]*?display: none;/,
+    'and the phone deck hides above it',
+  );
   // Demo and empty states come from the preview fixture, never a blank page.
   assert.match(page, /previewStories/);
   assert.match(page, /<EmptyDesk/);
@@ -614,8 +680,7 @@ test('the homepage is the reference design\'s home view over the real archive', 
   assert.match(blocks, /storyCredit/);
   assert.match(blocks, /mediaUrlFor\(story\.hero_media_key\)/);
   // The image slider that briefly led this band is retired — component, styles
-  // and all — and the reel stays gone with it. The connected deck is not
-  // retired: it is the hero again, in the site's own dress.
+  // and all — and the reel stays gone with it. The hero is the new deck.
   assert.doesNotMatch(page, /HeroSlider/);
   await assert.rejects(
     () => exists('components/dashboard/hero-slider.tsx'),
@@ -759,18 +824,21 @@ test('the front page serves every slot from one archive read', async () => {
   assert.match(page, /getLatestStories\(25\)/);
   const reads = page.match(/getLatestStories\(/g) ?? [];
   assert.equal(reads.length, 1, 'the front page must take one read, not one per slot');
-  // The deck and the latest rows share the top of the list on purpose: a new
-  // story has to appear in সর্বশেষ too, not only in the hero. Every band below
-  // them reads its own slice from slot 5 on, so nothing is printed a third time.
+  // The deck and the feed share the top of the list on purpose: a new story has
+  // to appear in the deck and in the feed, not only in one of them. Every band
+  // below them reads its own slice from slot 5 on, so nothing is printed a third
+  // time.
   for (const slots of [
     '[0, 1, 2, 3, 4]',
+    '[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]',
     '[6, 7, 8, 9]',
     '[15, 16, 17, 18, 19]',
     '[20, 21, 22, 23, 24]',
   ]) {
     assert.ok(page.includes(slots), `the front page's slots must stay ordered (missing ${slots})`);
   }
-  assert.match(page, /const latest = \[0, 1, 2, 3, 4\]/, 'সর্বশেষ খবর mirrors the five newest, like the deck');
+  assert.match(page, /const hero = \[0, 1, 2, 3, 4\]/, 'the lead deck is the five newest');
+  assert.match(page, /const feed = \[0, 1, 2, 3, 4, 5, 6, 7, 8, 9\]/, 'the feed prints the newest ten under it');
   assert.match(page, /const feature = pick\(items, 5\)/, 'the recommended band takes the slot after the deck');
 });
 
@@ -859,18 +927,22 @@ test('the site paints without a blocking font and keeps motion on CSS', async ()
   const layout = await readProjectFile('app/layout.tsx');
   assert.match(layout, /next\/font\/google/, 'the type is self-hosted');
   assert.doesNotMatch(layout, /fonts\.googleapis\.com/, 'no render-blocking stylesheet remains');
-  // One face, everywhere: Noto Serif Bengali, whose Latin subset also sets the
-  // English copy, the numbers and the wordmark. The second Latin face that used to
-  // lead the stack is gone rather than left to download unreached.
-  assert.match(layout, /Noto_Serif_Bengali/, 'the site is set in Noto Serif Bengali');
+  // Two faces, each with a job: Noto Serif Bengali sets every headline (and the
+  // body, numbers and wordmark its Latin subset draws), while the wide edition's
+  // utility row, nav, meta and bylines take Noto Sans Bengali, the way the
+  // reference pairs Helvetica with its serif.
+  assert.match(layout, /Noto_Serif_Bengali/, 'headlines are set in Noto Serif Bengali');
   assert.match(layout, /--font-bengali/, 'its variable reaches the stylesheet');
+  assert.match(layout, /Noto_Sans_Bengali/, 'the wide labels are set in Noto Sans Bengali');
+  assert.match(layout, /--font-bengali-sans/, 'and its variable reaches the stylesheet too');
   assert.doesNotMatch(
     layout,
     /import \{[^}]*\bInter\b[^}]*\} from "next\/font\/google"/,
-    'and no second face is imported',
+    'and no third face is imported',
   );
   const css = await readProjectFile('app/globals.css');
-  assert.match(css, /--font-ui: var\(--font-bengali\)/, 'and it leads the default stack');
+  assert.match(css, /--font-ui: var\(--font-bengali\)/, 'the serif leads the default stack');
+  assert.match(css, /--font-ui-sans: var\(--font-bengali-sans\)/, 'the sans leads the label stack');
   assert.doesNotMatch(css, /--font-inter/, 'the retired face is gone from the stack too');
   assert.match(css, /prefers-reduced-motion: reduce/, 'a global reduced-motion reset');
   // Glass is a dose-capped accent: the sticky bars may blur — the top bar, the
@@ -883,7 +955,7 @@ test('the site paints without a blocking font and keeps motion on CSS', async ()
   assert.ok(blur.length <= 4, 'backdrop blur belongs to the sticky bars and the menu scrim');
   const panelRule = css.slice(css.indexOf('.menu-panel {'), css.indexOf('.menu-panel[data-state="closed"]'));
   assert.doesNotMatch(panelRule, /backdrop-filter/, 'the menu panel is solid paper, not glass');
-  assert.match(panelRule, /background: #ffffff;/, 'and it paints its own surface');
+  assert.match(panelRule, /background: #ffffff;/, 'and it paints its own paper surface');
   assert.match(css, /\.menu-backdrop \{[\s\S]{0,120}?backdrop-filter: blur/, 'with a blurred scrim behind it');
   const page = await readProjectFile('app/page.tsx');
   assert.doesNotMatch(page, /requestAnimationFrame/, 'no frame loop re-renders the page');
@@ -1052,6 +1124,30 @@ test('the article page keeps NewsArticle structured data with gallery images', a
   assert.match(article, /NewsArticle/);
   assert.match(article, /datePublished/);
   assert.match(article, /article_media|gallery/);
+  assert.match(
+    article,
+    /splitAfterFirstParagraph\(article\.body\)/,
+    'the body is cut after its opening paragraph',
+  );
+  const leadAt = article.indexOf('<RichTextContent markdown={lead} />');
+  const galleryAt = article.indexOf('aria-label="ছবির গ্যালারি"');
+  const restAt = article.indexOf('<RichTextContent markdown={rest} />');
+  assert.ok(
+    leadAt >= 0 && leadAt < galleryAt && galleryAt < restAt,
+    'the gallery sits between the first paragraph and the rest, not at the foot',
+  );
+  assert.doesNotMatch(
+    article,
+    /<h2>\s*ছবির গ্যালারি/,
+    'no gallery heading sits above the pictures',
+  );
+  const galleryStrip = await readProjectFile('components/article/article-gallery.tsx');
+  assert.match(galleryStrip, /image\.alt/, 'each picture carries its own title');
+  assert.match(
+    galleryStrip,
+    /bn\(index \+ 1\)[\s\S]*bn\(images\.length\)/,
+    'each picture carries its place in the set',
+  );
 });
 
 test('statistics expose only aggregate counts, never identities', async () => {
@@ -1307,6 +1403,26 @@ test('the phone dock carries the four destinations plus a create action, and onl
     "the reference's morph curve is a token, not a guess repeated per rule",
   );
   assert.match(phone, /var\(--dock-ease\)/, 'the tab, its pill and its label all move on it');
+  // The mockup's dark pill, the white chip for the current tab, the reference's
+  // icon squeeze and the card-morph panel are all one surface.
+  assert.match(phone, /\.dock-card \{[\s\S]*?background: #111111/, 'the card is the mockup\'s dark pill');
+  assert.match(phone, /\.dock-tab\.current \{[\s\S]*?background: #ffffff/, 'the current tab is the white chip');
+  assert.match(
+    phone,
+    /\.dock-tab:active \.dock-icon \{[\s\S]*?scaleX\(1\.08\) scaleY\(0\.76\)/,
+    'a press squeezes the icon the way expo-motion-tabs does',
+  );
+  assert.match(phone, /\.dock-panel \{/, 'the create menu has the morph panel\'s surface');
+  assert.match(
+    phone,
+    /@keyframes dock-panel-in[\s\S]*?translateY\(65px\) scale\(0\.97\)/,
+    'it grows from the dock\'s foot, sliding and scaling into place',
+  );
+  assert.match(
+    phone,
+    /animation: dock-panel-in 0\.6s cubic-bezier\(0\.22, 1, 0\.36, 1\) both/,
+    'on the reference\'s own curve and duration',
+  );
   // Phone-only: it reveals itself at the breakpoint where the top bar hands its
   // desks to the menu, and it reserves the room it floats over.
   assert.match(phone, /@media \(max-width: 860px\)/, 'the dock is a phone surface');
@@ -1331,7 +1447,7 @@ test('the phone dock carries the four destinations plus a create action, and onl
   const deckShell = await readProjectFile('components/dashboard/dutimz-shell.tsx');
   assert.match(
     deckShell,
-    /DashboardHeader sections=\{sections\} deckGlass=\{mobileDeck\}/,
+    /<DashboardHeader[\s\S]*?deckGlass=\{mobileDeck\}[\s\S]*?heroGlass=\{heroGlass\}/,
     'a deck page tells the bar the reels run beneath it',
   );
   assert.match(
@@ -1356,66 +1472,52 @@ test('the phone dock carries the four destinations plus a create action, and onl
   );
 });
 
-test('the phone dock marks the current tab with a liquid drop, not a sliding pill', async () => {
-  // The indicator is the reference deck's metaball, carried to the web: two blobs
-  // chasing the tab the reader chose, both inside one inline SVG goo filter, so
-  // the lagging pair stretches across the gap as a single drop and settles back
-  // into a pill. The words stay outside that filter — a blur over them would make
-  // the dock unreadable — which is why the row is a layer of its own.
+test('the phone dock morphs like expo-motion-tabs, not the retired liquid', async () => {
+  // The dock is the library's tab bar carried to the web: the current tab opens
+  // into a chip sized to its word, the label slides out of the icon, and the
+  // create menu grows from the dock's foot as a card. The goo-liquid indicator
+  // that briefly lived here is gone — component, filter and curves included.
   const dock = await readProjectFile('components/dashboard/mobile-dock.tsx');
-  // The physics are the stylesheet's, so the shell pulls no animation library for
-  // a surface every page draws.
+  // The mechanics are the stylesheet's, so the shell pulls no animation library
+  // for a surface every page draws.
   assert.doesNotMatch(dock, /framer-motion|motion\/react/, 'the shell pulls no animation library for the dock');
   assert.doesNotMatch(dock, /dock-tint/, 'the sliding accent tint is gone');
-
-  // Two blobs, and the goo that merges them: blur the shapes, then push the
-  // blurred alpha back to a hard edge, which is what bridges the gap between them.
-  assert.equal(
-    (dock.match(/className="dock-blob dock-(lead|trail)"/g) ?? []).length,
-    2,
-    'a drop and its tail, on their own curves',
-  );
-  assert.match(dock, /feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur" \/>/);
-  assert.match(dock, /feColorMatrix/);
-  assert.match(dock, /0 0 0 18 -7/, 'the alpha contrast that makes the merge hard-edged');
-  assert.ok(
-    dock.indexOf('className="dock-goo"') < dock.indexOf('className="dock-row"'),
-    'the filter layer comes first, so the words are never blurred with it',
-  );
-
-  // The geometry is read from the row: the tabs are content-sized flex children
-  // that redistribute as one of them opens, so which pixels the current one
-  // occupies is the browser's answer, and the liquid follows it frame by frame.
-  assert.match(dock, /ResizeObserver/, 'the drop follows the row while it settles');
-  assert.match(dock, /\.dock-tab\[aria-current="page"\]/, 'it is read from the tab the reader is on');
-  assert.match(dock, /getBoundingClientRect/, 'measured, not assumed');
-  assert.match(dock, /useLayoutEffect/, 'the first placement lands before the first paint');
-  assert.match(dock, /data-placed=\{placed \? "" : undefined\}/, 'and only then does the liquid start moving');
+  assert.doesNotMatch(dock, /dock-goo|dock-blob|feGaussianBlur|feColorMatrix/, 'the liquid layer is gone');
+  assert.doesNotMatch(dock, /ResizeObserver|useLayoutEffect/, 'and so is the geometry it was fed by');
+  assert.match(dock, /className="dock-panel"/, 'the create menu is a panel in the card');
+  assert.match(dock, /aria-expanded=\{createOpen\}/, 'the create button reports its panel');
+  assert.match(dock, /aria-modal="true"/, 'and still a dialog to a screen reader');
+  assert.match(dock, /selectNodeContents/, 'the open chip is sized from the label the dock measured');
+  assert.match(dock, /document\.fonts\?\.ready/, 'the measurement follows the Bengali face, not the mount');
 
   const css = await readProjectFile('app/globals.css');
-  // The physics are two curves on the stylesheet, fitted frame by frame to the
-  // spring pair the reference effect runs (400/30 leading, 200/20 trailing): a
-  // stiff snap and a looser tail. A curve is a token here, like the dock's morph
-  // curve, and the tail is the slower of the two — which is the stretch.
-  assert.match(css, /--dock-lead-ease: cubic-bezier\(0\.27, 0\.22, 0\.21, 1\.24\);/, 'the drop snaps');
-  assert.match(css, /--dock-trail-ease: cubic-bezier\(0\.47, 0\.25, 0\.35, 1\.27\);/, 'and the tail trails');
   assert.match(
     css,
     /transition-duration: 0\.01ms !important/,
     'and needs no opt-in: the site\'s one reduced-motion reset collapses its durations like every transition',
   );
   const phone = css.slice(css.indexOf('.dock {'), css.indexOf('/* ============ RESPONSIVE'));
-  assert.match(phone, /\.dock-goo \{/, 'the liquid layer has a surface of its own');
-  assert.match(phone, /filter: url\(#dock-goo\)/, 'and points it at the inline SVG');
-  assert.match(phone, /\.dock-goo\[data-hidden\]/, 'with nothing marked there is nothing drawn');
-  assert.match(phone, /\.dock-row \{[\s\S]*?z-index: 1;/, 'the words sit above it');
-  assert.match(phone, /\.dock-goo\[data-placed\] \.dock-lead \{[\s\S]*?transform 0\.32s var\(--dock-lead-ease\)/, 'the drop moves on its own curve');
-  assert.match(phone, /\.dock-goo\[data-placed\] \.dock-trail \{[\s\S]*?transform 0\.52s var\(--dock-trail-ease\)/, 'the tail on the slower one');
-  assert.match(phone, /width 0\.32s var\(--dock-lead-ease\)/, 'the width follows the position, on the drop');
-  assert.match(phone, /width 0\.52s var\(--dock-trail-ease\)/, 'and on its tail');
-  assert.match(phone, /\.dock-blob \{[\s\S]*?background: var\(--blue\)/, 'the drop is the brand colour');
-  assert.match(phone, /\.dock-tab\.current \{\r?\n  color: #fff;/, 'and the open tab reads on it in paper');
-  assert.doesNotMatch(phone, /\.dock-tint/, 'the sliding tint is gone from the surface too');
+  assert.match(phone, /\.dock-label \{[\s\S]*?width 0\.5s var\(--dock-ease\)/, 'the word sweeps open with the chip');
+  assert.match(phone, /\.dock-tab\.current \.dock-label \{[\s\S]*?width: var\(--dock-label, 0px\)/, 'to the measured width');
+  assert.match(phone, /\.dock-icon \{[\s\S]*?transition: transform 0\.35s var\(--dock-ease\)/, 'the icon settles with it');
+  assert.match(phone, /\.dock-tab:active \.dock-icon \{[\s\S]*?scaleX\(1\.08\) scaleY\(0\.76\)/, 'the reference squeeze');
+  assert.match(
+    phone,
+    /\.dock-panel \{[\s\S]*?transform-origin: 50% 100%/,
+    'the panel grows from the dock\'s foot',
+  );
+  assert.match(
+    phone,
+    /@keyframes dock-panel-in[\s\S]*?translateY\(65px\) scale\(0\.97\)/,
+    'sliding 65px and scaling up from 0.97',
+  );
+  assert.match(
+    phone,
+    /animation: dock-panel-in 0\.6s cubic-bezier\(0\.22, 1, 0\.36, 1\) both/,
+    'over the reference\'s 600ms curve',
+  );
+  assert.doesNotMatch(phone, /dock-goo|dock-blob|dock-lead-ease|dock-trail-ease/, 'no liquid rules survive');
+  assert.doesNotMatch(css, /--dock-lead-ease|--dock-trail-ease/, 'and neither do its tokens');
 });
 
 test('spotlight authors remove their own posts; the desk hides or removes any', async () => {
@@ -1571,7 +1673,7 @@ test('the desk decides without a written reason, and is told why a username was 
 });
 
 test('shadcn primitives required by the dashboard shell exist', async () => {
-  for (const primitive of ['animated-file-tree', 'avatar', 'badge', 'button', 'card', 'chart', 'command', 'connected-carousel', 'field', 'input', 'popover', 'radio-group', 'select', 'separator', 'skeleton', 'textarea', 'toast', 'tooltip', 'sheet', 'label', 'progress']) {
+  for (const primitive of ['animated-file-tree', 'avatar', 'badge', 'button', 'card', 'chart', 'command', 'field', 'input', 'popover', 'radio-group', 'select', 'separator', 'skeleton', 'textarea', 'toast', 'tooltip', 'sheet', 'label', 'progress']) {
     assert.ok(await exists(`components/ui/${primitive}.tsx`), `components/ui/${primitive}.tsx must exist`);
   }
 });
@@ -1876,15 +1978,17 @@ test('a profile link previews as the member\'s own card, not the site banner', a
   assert.match(card, /ogProfile\(handle\)/, 'the card asks who the handle is');
   assert.match(card, /ogFonts\(\)/, 'Satori only draws Bengali with the TTFs handed to it');
   const og = await readProjectFile('lib/og-card.ts');
-  assert.match(og, /export const BAND_GRADIENT/, 'the card reuses the page\'s band rather than inventing a picture');
-  // The card and the page must draw the same band, so the gradient the module holds is
-  // checked stop for stop against the one the stylesheet paints.
+  assert.match(og, /export const BAND_GRADIENT/, 'the card reuses the page\'s phone band rather than inventing a picture');
+  // The card and the phone band must draw the same gradient, so the one the module holds is
+  // checked stop for stop against the phone layer's own rule.
   const stylesheet = await readProjectFile('app/globals.css');
-  const band = stylesheet.slice(stylesheet.indexOf('.pf-band {'), stylesheet.indexOf('.pf-band::after'));
+  const wideBand = stylesheet.indexOf('.pf-band {');
+  const phoneBand = stylesheet.indexOf('.pf-band {', wideBand + 1);
+  const band = stylesheet.slice(phoneBand, stylesheet.indexOf('.pf-band-cover', phoneBand));
   const stops = [...og.match(/BAND_GRADIENT =[\s\S]*?"([^"]+)"/)[1].matchAll(/#[0-9a-f]{6}/g)].map(([hex]) => hex);
   assert.equal(stops.length, 4, 'the band still has its four stops');
   for (const stop of stops) {
-    assert.ok(band.includes(stop), `the stylesheet's band still uses ${stop}`);
+    assert.ok(band.includes(stop), `the phone band still uses ${stop}`);
   }
   // The eyebrow introduces the member by the desk's role, not as an anonymous
   // "member": the same word the page uses, from the same table.
@@ -2059,13 +2163,9 @@ test('the menu button wears the search button\'s own styling', async () => {
 test('the menu panel is solid paper, not glass', async () => {
   const css = await readProjectFile('app/globals.css');
   const panel = css.slice(css.indexOf('.menu-panel {'), css.indexOf('.menu-panel[data-state="closed"]'));
-  assert.match(panel, /background: #ffffff;/, 'the panel paints its own surface');
+  assert.match(panel, /background: #ffffff;/, 'the panel paints its own paper surface');
   assert.doesNotMatch(panel, /backdrop-filter/, 'and shows nothing through itself');
-  assert.doesNotMatch(
-    panel,
-    /background: rgba\(255, 255, 255, 0\.\d+\)/,
-    'nor is it white glass pretending to be solid',
-  );
+  assert.doesNotMatch(panel, /background: rgba\(/, 'nor is it translucent glass pretending to be solid');
   // The scrim behind it keeps its blur: that is the page dimming, not the panel.
   assert.match(css.slice(css.indexOf('.menu-backdrop {')), /backdrop-filter: blur/, 'the page behind is still dimmed');
 });
@@ -2195,11 +2295,36 @@ test('the crime desk, twenty-image gallery and view beacon are wired in', async 
   // The endpoint records through the RPC and always answers 204 without caching.
   const route = await readProjectFile('app/api/views/route.ts');
   assert.match(route, /rpc\("record_article_view"/, 'the endpoint reaches the recording RPC');
+  assert.match(route, /rpc\("record_article_pageview"/, 'and bumps the public pageview counter from the same beacon');
   assert.match(route, /status: 204/, 'every request is answered 204');
   assert.match(route, /"Cache-Control": "no-store"/, 'and is never cached');
   // The settlement runs on its own cron, not on the reader's request.
   const worker = await readProjectFile('worker/src/index.ts');
   assert.match(worker, /VIEWS_SETTLE_URL/, 'the worker knows the settlement address');
+});
+
+test('the printed view count takes every opening, the earning count stays deduplicated', async () => {
+  // Two counters behind one beacon. Earnings must keep the salted per-day row and the cap; the
+  // number a reader sees is a plain page view, so a refresh adds one and the same device can
+  // count twice. Keeping them in separate tables is what lets each rule stay true.
+  const migration = await readProjectFile('supabase/migrations/202611060002_feed_view_summary.sql');
+  assert.match(migration, /create table public\.article_pageviews/, 'the public counter has its own table');
+  assert.match(
+    migration,
+    /on conflict \(article_id, view_day\)[\s\S]*?views = article_pageviews\.views \+ 1/,
+    'each beacon adds one, and simultaneous beacons add up',
+  );
+  assert.doesNotMatch(
+    migration,
+    /viewer_hash|p_viewer_ip|md5\(/,
+    'the public counter keeps no reader identity, so there is nothing to deduplicate',
+  );
+  assert.match(migration, /sum\(p\.views\)::bigint/, 'the card total is every pageview, summed over days');
+  const route = await readProjectFile('app/api/views/route.ts');
+  assert.match(route, /Promise\.all\(/, 'one beacon writes both counters');
+  const earning = await readProjectFile('supabase/migrations/202611010003_formula_award_functions.sql');
+  assert.match(earning, /viewer_hash := md5/, 'the earning ledger still salts its reader identity');
+  assert.match(earning, /view_count >= 1000/, 'and still stops at the daily cap');
 });
 
 test('only addresses under du.ac.bd can join, and a refused sign-up hears why', async () => {
@@ -2424,4 +2549,34 @@ test('every news story and Spotlight post needs at least one photo', async () =>
     assert.match(migration, new RegExp(`revoke all on function public\\.${fn}`), `${fn} stays revoked past its guard`);
   }
   assert.ok(migration.trimEnd().endsWith('commit;'), 'the migration is atomic');
+});
+
+test('the whole archive lives at /news with its own filters and order', async () => {
+  // `/search/` used to double as "all reports" by accident: an empty query
+  // listed the newest page and nothing else. The archive is its own address
+  // now, prerendered with the newest page and filtered in the browser.
+  const page = await readProjectFile('app/news/page.tsx');
+  assert.match(page, /alternates: \{ canonical: "\/news\/" \}/, 'the archive declares its own canonical');
+  assert.match(page, /export const revalidate = 600/, 'it is cached like the other reading surfaces');
+  assert.ok(page.includes('getLatestStories(24)'), 'the newest page ships in the cached HTML');
+  assert.match(page, /<NewsArchive/, 'the filters and the older pages are the shared client archive');
+
+  const archive = await readProjectFile('components/news/news-archive.tsx');
+  assert.ok(archive.includes('count: "exact"'), 'the page prints a real total, not just the loaded rows');
+  assert.ok(archive.includes('.eq("status", "published")'), 'only published reports enter the archive');
+  assert.ok(archive.includes('.gte("published_at"'), 'a period filter is a server-side predicate');
+  assert.ok(archive.includes('"updated_at"'), 'the desk-edited order is available');
+  assert.ok(archive.includes('"oldest"'), 'and so is oldest-first');
+  assert.ok(archive.includes('window.history.replaceState'), 'the chosen filters live in the address');
+  assert.ok(archive.includes('previewStories'), 'demo builds show the fixtures');
+  assert.ok(archive.includes('reportError'), 'a failed read is logged, never rendered');
+
+  const menu = await readProjectFile('components/dashboard/site-menu.tsx');
+  assert.ok(menu.includes('label: "সব সংবাদ", href: "/news/"'), 'the menu lists the archive');
+  const footer = await readProjectFile('components/dashboard/site-footer.tsx');
+  assert.ok(footer.includes('href="/news/">সব প্রতিবেদন<'), 'the footer points "all reports" at it');
+  const home = await readProjectFile('app/page.tsx');
+  assert.ok(home.includes('href="/news/" className="more"'), "the front page's 'see all' points at it");
+  const sitemap = await readProjectFile('app/sitemap.ts');
+  assert.ok(sitemap.includes('path: "/news/"'), 'crawlers are told where the archive is');
 });

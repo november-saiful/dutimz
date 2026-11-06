@@ -74,6 +74,7 @@ const CANONICAL_PATHS = [
   '/',
   '/statistics/',
   '/search/',
+  '/news/',
   '/saved/',
   '/about/',
   '/guidelines/',

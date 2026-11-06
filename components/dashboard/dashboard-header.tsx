@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import * as React from "react";
+import { Bell, BellRing, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,7 +14,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { SiteMenu, isCurrentSection, sectionHref } from "@/components/dashboard/site-menu";
+import { PAGES, SiteMenu } from "@/components/dashboard/site-menu";
 import { DuSignupNotice } from "@/components/dashboard/du-signup-notice";
 import { useDuEmailPolicy } from "@/components/auth/du-email-policy";
 import { PushBell } from "@/components/push/PushBell";
@@ -57,30 +58,45 @@ function initialsFor(name: string): string {
 }
 
 /**
- * The site's top bar, in the reference design's shape: the mark on the left,
- * the section pills beside it, and the language chip, search field and the one
- * menu on the right. The section pills are the real desks from the database, so
- * a retired desk disappears from the bar on its own.
+ * The site's chrome. On a wide screen it is the attached newspaper masthead:
+ * a thin utility row (search, date, saved, notifications, account, write), the
+ * wordmark set large and centred, and a ruled row of the live desks followed by
+ * the site's own pages — navigation, not a client-side filter. The same desks
+ * live in the menu and the footer, so a retired section leaves all three at
+ * once.
  *
- * The menu is a single control — desks and account together (`SiteMenu`) — which
- * is why the bar has no burger and no bare avatar beside it any more: on a phone
- * the pills hand their desks to that panel, and the member's own surfaces are
- * the same panel's account rows.
+ * On a phone the masthead drops out and the bar keeps its search button, bell
+ * and menu; the four reader destinations live in the dock. The menus are one
+ * surface either way: the panel drops from its trigger and closes on any
+ * navigation.
  */
 export function DashboardHeader({
   sections,
+  today,
   deckGlass = false,
+  heroGlass = false,
 }: {
   sections: { slug: string; label: string }[];
+  /** The date the paper is dated: formatted on the server so hydration agrees. */
+  today: string;
   /**
    * An immersive phone deck (the flipps feeds) scrolls its picture under the bar:
    * the bar then draws as a translucent glass pane instead of solid paper. Below
    * the dock breakpoint only; the wide layout is unchanged.
    */
   deckGlass?: boolean;
+  /**
+   * The front page's lead runs under the bar, so the bar is clear while the
+   * hero's foot is still below it and returns to paper once it has passed.
+   */
+  heroGlass?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname() ?? "/";
+  const headerRef = React.useRef<HTMLElement>(null);
+  // Starts from the server's answer (`heroGlass`), so the first paint over the
+  // hero is already clear rather than flashing a white bar over the picture.
+  const [overHero, setOverHero] = React.useState(heroGlass);
   const [query, setQuery] = React.useState("");
   // The phone's search field lives in a popup this button raises; both fields
   // write the same `query`, so switching widths never strands a half-typed term.
@@ -200,6 +216,42 @@ export function DashboardHeader({
     setSearchOpen(false);
   }, [pathname]);
 
+  /*
+    The front page's lead picture starts under the bar. The bar is clear only
+    while that picture is beneath it: once the lead's foot rises past the bar's
+    own height, the paper sheet is the surface underneath and the bar wears its
+    usual white glass again. The measurement is taken on scroll rather than
+    against a fixed offset, so a phone's changing viewport cannot shift the line.
+  */
+  React.useEffect(() => {
+    if (!heroGlass) {
+      setOverHero(false);
+      return;
+    }
+    const bar = headerRef.current;
+    const hero = document.querySelector<HTMLElement>("[data-hero-under-bar]");
+    if (!bar || !hero) {
+      setOverHero(false);
+      return;
+    }
+    let frame = 0;
+    const measure = () => {
+      frame = 0;
+      setOverHero(hero.getBoundingClientRect().bottom > bar.offsetHeight);
+    };
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(measure);
+    };
+    measure();
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+    };
+  }, [heroGlass, pathname]);
+
   // Google is the only provider and there is no sign-in page, so both the menu's
   // sign-in button and its session-only rows start the OAuth flow directly. The
   // first attempt of a session is held behind the DU-email policy dialog.
@@ -256,7 +308,7 @@ export function DashboardHeader({
     }
 
     // Every remaining entry is a plain route from the shared table, so the menu
-    // and the handler cannot drift apart. The section bar owns the desks.
+    // and the handler cannot drift apart.
     const href = (ACCOUNT_ROUTES as Record<string, string>)[action];
 
     if (href) router.push(href);
@@ -275,7 +327,125 @@ export function DashboardHeader({
     <>
       <DuSignupNotice />
       {policyDialog}
-      <header className="topbar" data-deck-glass={deckGlass || undefined}>
+      {/*
+        The wide edition's masthead, in the attached design's shape: the
+        utility strip, the large centred wordmark, then the ruled desk row.
+        It scrolls with the page — a newspaper's masthead is not sticky — and
+        the phone bar below takes over under the wide breakpoint.
+      */}
+      <header className="print-header">
+        <div className="print-container">
+          <div className="print-utility">
+            <div className="print-utility-left">
+              <button
+                type="button"
+                className="print-icon"
+                aria-label="খুঁজুন"
+                onClick={() => setSearchOpen(true)}
+              >
+                <Search size={16} strokeWidth={2} aria-hidden />
+              </button>
+              <span className="print-date">{today}</span>
+              <Link href="/news/" className="print-toplink">
+                আজকের সংবাদ
+              </Link>
+            </div>
+            <div className="print-utility-right">
+              <Link href="/saved/" className="print-toplink">
+                সংরক্ষিত
+              </Link>
+              <span className="print-lang" title="বাংলা সংস্করণ">
+                বাংলা
+              </span>
+              <PushBell
+                renderTrigger={({ open, toggle, subscribed }) => {
+                  const Icon = subscribed ? BellRing : Bell;
+                  return (
+                    <button
+                      type="button"
+                      className="print-icon"
+                      aria-label="বিজ্ঞপ্তি"
+                      aria-expanded={open}
+                      onClick={toggle}
+                    >
+                      <Icon size={16} strokeWidth={2} aria-hidden />
+                      {subscribed && <i className="print-icon-dot" aria-hidden />}
+                    </button>
+                  );
+                }}
+              />
+              <SiteMenu
+                sections={sections}
+                user={menuUser}
+                onAction={handleMenuAction}
+                hiddenActions={HIDDEN_MENU_ACTIONS}
+                renderTrigger={({ open, toggle }) => (
+                  <button
+                    type="button"
+                    className="print-login"
+                    aria-expanded={open}
+                    aria-haspopup="dialog"
+                    onClick={toggle}
+                  >
+                    {menuUser ? menuUser.name : "লগ ইন"}
+                  </button>
+                )}
+              />
+              <Link href="/account/write/" className="print-write">
+                লিখুন
+              </Link>
+            </div>
+          </div>
+
+          <div className="print-masthead">
+            <Link href="/" aria-label="DUTIMZ মূলপাতা">
+              {/* The lockup the bar already uses, drawn as the masthead. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/dutimz-text-logo.svg" alt="DUTIMZ" width={1278} height={372} />
+            </Link>
+          </div>
+
+          <nav className="print-nav" aria-label="সংবাদ বিভাগ">
+            {sections
+              .filter((section) => section.slug !== "all")
+              .map((section) => {
+                const href = `/category/${section.slug}/`;
+                const current = pathname.startsWith(href);
+                return (
+                  <Link
+                    key={section.slug}
+                    href={href}
+                    className="print-nav-link"
+                    aria-current={current ? "page" : undefined}
+                  >
+                    {section.label}
+                  </Link>
+                );
+              })}
+            <span className="print-nav-rule" aria-hidden />
+            {PAGES.map((page) => {
+              const current = pathname === page.href || pathname.startsWith(page.href);
+              return (
+                <Link
+                  key={page.key}
+                  href={page.href}
+                  className="print-nav-link"
+                  aria-current={current ? "page" : undefined}
+                >
+                  {page.label}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      </header>
+
+      <header
+        ref={headerRef}
+        className="topbar"
+        data-deck-glass={deckGlass || undefined}
+        data-hero-glass={overHero || undefined}
+      >
       <div className="topbar-in">
         <Link href="/" className="logo" aria-label="DUTIMZ মূলপাতা">
           {/*
@@ -287,22 +457,6 @@ export function DashboardHeader({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/dutimz-text-logo.svg" alt="" width={1278} height={372} />
         </Link>
-
-        <nav className="nav" aria-label="বিভাগ">
-          {sections.map((section) => {
-            const active = isCurrentSection(section.slug, pathname);
-            return (
-              <Link
-                key={section.slug}
-                href={sectionHref(section.slug)}
-                className={`pill${active ? " active" : ""}`}
-                aria-current={active ? "page" : undefined}
-              >
-                {section.label}
-              </Link>
-            );
-          })}
-        </nav>
 
         <div className="top-actions">
           {/*
@@ -320,9 +474,9 @@ export function DashboardHeader({
 
           {/*
             The phone's search. A bar this narrow cannot hold a field beside the
-            mark, the menu and the search toggle, so the field is raised on
-            demand: the button opens the site's own sheet from the top with the
-            same form the wide bar shows inline.
+            mark, the bell and the menu, so the button raises the site's own
+            sheet from the top. The wide masthead's search button opens the
+            same sheet, so the two widths share one search surface.
           */}
           <Sheet open={searchOpen} onOpenChange={setSearchOpen}>
             <SheetTrigger asChild>
@@ -372,37 +526,21 @@ export function DashboardHeader({
             </SheetContent>
           </Sheet>
 
-          <form className="search" role="search" onSubmit={submitSearch}>
-            <input
-              type="text"
-              name="q"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="প্রতিবেদন, বিষয়, বিভাগ..."
-              aria-label="খুঁজুন"
-            />
-            <button type="submit" aria-label="খুঁজুন">
-              <svg viewBox="0 0 24 24" aria-hidden>
-                <circle cx="11" cy="11" r="7" />
-                <path d="M16.5 16.5L21 21" />
-              </svg>
-            </button>
-          </form>
-
           {/*
-            The one menu, and always present: it holds the desks and the account
-            together, and a signed-out visitor gets the sign-in call to action
-            inside it instead of a bare avatar that dropped them on a page they
-            could not use.
+            The phone's controls. The wide masthead carries its own search,
+            bell and account triggers, so this group belongs to the phone bar
+            alone.
           */}
-          {/* Push opt-in bell: topic picker + welcome sample, works signed-out. */}
-          <PushBell />
-          <SiteMenu
-            sections={sections}
-            user={menuUser}
-            onAction={handleMenuAction}
-            hiddenActions={HIDDEN_MENU_ACTIONS}
-          />
+          <div className="phone-actions">
+            {/* Push opt-in bell: topic picker + welcome sample, works signed-out. */}
+            <PushBell />
+            <SiteMenu
+              sections={sections}
+              user={menuUser}
+              onAction={handleMenuAction}
+              hiddenActions={HIDDEN_MENU_ACTIONS}
+            />
+          </div>
         </div>
       </div>
     </header>
