@@ -2033,7 +2033,7 @@ select ok(
   'A signed-out visitor cannot delete a story'
 );
 
--- The desk bonus. Whole taka between 10 and 20, published stories only, and the same
+-- The desk bonus. Whole taka between 1 and 20, published stories only, and the same
 -- held/available rule every other earning follows: held until a 100% profile.
 select ok(
   not has_function_privilege('anon', 'public.admin_award_bonus(uuid, integer)', 'execute'),
@@ -2050,9 +2050,9 @@ select throws_ok(
 reset role;
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select throws_ok(
-  $$select public.admin_award_bonus((select id from public.articles where slug = 'songbad'), 5)$$,
+  $$select public.admin_award_bonus((select id from public.articles where slug = 'songbad'), 0)$$,
   'P0001', null,
-  'A bonus below ৳10 is refused'
+  'A bonus below ৳1 is refused'
 );
 select throws_ok(
   $$select public.admin_award_bonus((select id from public.articles where slug = 'songbad'), 25)$$,
@@ -2137,7 +2137,7 @@ select results_eq(
   'The desk directory counts the bonus in the available figure'
 );
 
--- The desk penalty. Whole taka between 10 and 20, published stories only, docked from the
+-- The desk penalty. Whole taka between 1 and 20, published stories only, docked from the
 -- story's owner's available money at once — a punishment is not something a profile unlocks.
 select ok(
   not has_function_privilege('anon', 'public.admin_apply_penalty(uuid, integer)', 'execute'),
@@ -2154,9 +2154,9 @@ select throws_ok(
 reset role;
 select set_config('request.jwt.claim.sub', '44000000-0000-4000-8000-000000000004', true);
 select throws_ok(
-  $$select public.admin_apply_penalty((select id from public.articles where slug = 'songbad'), 5)$$,
+  $$select public.admin_apply_penalty((select id from public.articles where slug = 'songbad'), 0)$$,
   'P0001', null,
-  'A penalty below ৳10 is refused'
+  'A penalty below ৳1 is refused'
 );
 select throws_ok(
   $$select public.admin_apply_penalty((select id from public.articles where slug = 'songbad'), 25)$$,

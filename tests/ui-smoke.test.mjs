@@ -2471,54 +2471,62 @@ test('the desk changes sign-in emails and closes accounts through its own route'
   assert.match(rls, /'A closed account is still listed, with its flag raised'/, 'the closed flag is covered by pgTAP');
 });
 
-test('the desk awards a ৳10–20 bonus that rides the earning rails', async () => {
+test('the desk awards a ৳1–20 bonus that rides the earning rails', async () => {
   const enumMigration = await readProjectFile('supabase/migrations/202611010008_bonus_enum.sql');
   assert.match(enumMigration, /add value if not exists 'bonus_earning_held'/, 'the held bonus type joins the enum in its own migration');
   assert.match(enumMigration, /add value if not exists 'bonus_earning_available'/, 'the available bonus type joins the enum in its own migration');
   const migration = await readProjectFile('supabase/migrations/202611010009_admin_bonus.sql');
   assert.match(migration, /create or replace function public\.admin_award_bonus\(p_article_id uuid, p_amount_tk integer\)/, 'the award is an RPC');
-  assert.match(migration, /p_amount_tk < 10 or p_amount_tk > 20/, 'the award range is enforced in the database');
   assert.match(migration, /target\.status <> 'published'/, 'only published stories can be bonused');
   assert.match(migration, /'bonus_earning_held'/, 'the held bonus rides the release triggers');
   assert.match(migration, /'bonus_earning_available'/, 'the available bonus counts in every wallet sum');
   assert.match(migration, /if not public\.is_admin\(\)/, 'the award is gated on the database role check');
   assert.match(migration, /grant execute on function public\.admin_award_bonus\(uuid, integer\) to authenticated/, 'the grant pattern matches the other desk functions');
+  const rangeMigration = await readProjectFile('supabase/migrations/202611070001_desk_award_range.sql');
+  assert.match(rangeMigration, /create or replace function public\.admin_award_bonus\(p_article_id uuid, p_amount_tk integer\)/, 'the widened award keeps its signature');
+  assert.match(rangeMigration, /p_amount_tk < 1 or p_amount_tk > 20/, 'the award range is enforced in the database');
+  assert.match(rangeMigration, /security definer set search_path = ''/, 'the widened award keeps its guard');
+  assert.match(rangeMigration, /grant execute on function public\.admin_award_bonus\(uuid, integer\) to authenticated/, 'the widened award keeps its grant');
   const labels = await readProjectFile('lib/earning-details.ts');
   assert.match(labels, /bonus_earning_held: "বোনাস \(আটকে\)"/, 'a held bonus has a label');
   assert.match(labels, /bonus_earning_available: "বোনাস \(উত্তোলনযোগ্য\)"/, 'an available bonus has a label');
   const articles = await readProjectFile('components/account/admin-articles.tsx');
   assert.match(articles, /rpc\("admin_award_bonus"/, 'the desk calls the award RPC');
-  assert.match(articles, /Number\.isInteger\(amountTk\) \|\| amountTk < 10 \|\| amountTk > 20/, 'the dialog refuses anything outside whole taka 10–20');
+  assert.match(articles, /Number\.isInteger\(amountTk\) \|\| amountTk < 1 \|\| amountTk > 20/, 'the dialog refuses anything outside whole taka 1–20');
   assert.match(articles, /বোনাস দিন/, 'the award has its own dialog');
   assert.match(articles, /bonus_earning_available/, 'the preview reads bonus rows into the story income');
   assert.doesNotMatch(articles, /\.message/, 'no provider message leaks into the panel');
   const rls = await readProjectFile('supabase/tests/dutimiz_rls.test.sql');
-  assert.match(rls, /'A bonus below ৳10 is refused'/, 'the range refusals are covered by pgTAP');
+  assert.match(rls, /'A bonus below ৳1 is refused'/, 'the range refusals are covered by pgTAP');
   assert.match(rls, /'Completing the profile releases the held bonus against its own row'/, 'the held-bonus release is covered by pgTAP');
 });
 
-test('the desk docks a ৳10–20 penalty from a story owner', async () => {
+test('the desk docks a ৳1–20 penalty from a story owner', async () => {
   const enumMigration = await readProjectFile('supabase/migrations/202611010010_penalty_enum.sql');
   assert.match(enumMigration, /add value if not exists 'penalty'/, 'the penalty type joins the enum in its own migration');
   const migration = await readProjectFile('supabase/migrations/202611010011_apply_penalty.sql');
   assert.match(migration, /create or replace function public\.admin_apply_penalty\(p_article_id uuid, p_amount_tk integer\)/, 'the penalty is an RPC');
-  assert.match(migration, /p_amount_tk < 10 or p_amount_tk > 20/, 'the penalty range is enforced in the database');
   assert.match(migration, /target\.status <> 'published'/, 'only published stories can be penalised');
   assert.match(migration, /values \(owner_id, p_article_id, 'penalty', -p_amount_tk/, 'the penalty row is stored negative');
   assert.match(migration, /entry_type = 'penalty'[\s\S]*?amount_tk < 0/, 'the ledger rule reserves negative article rows for the penalty');
   assert.match(migration, /if not public\.is_admin\(\)/, 'the penalty is gated on the database role check');
   assert.match(migration, /grant execute on function public\.admin_apply_penalty\(uuid, integer\) to authenticated/, 'the grant pattern matches the other desk functions');
+  const rangeMigration = await readProjectFile('supabase/migrations/202611070001_desk_award_range.sql');
+  assert.match(rangeMigration, /create or replace function public\.admin_apply_penalty\(p_article_id uuid, p_amount_tk integer\)/, 'the widened penalty keeps its signature');
+  assert.match(rangeMigration, /p_amount_tk < 1 or p_amount_tk > 20/, 'the penalty range is enforced in the database');
+  assert.match(rangeMigration, /security definer set search_path = ''/, 'the widened penalty keeps its guard');
+  assert.match(rangeMigration, /grant execute on function public\.admin_apply_penalty\(uuid, integer\) to authenticated/, 'the widened penalty keeps its grant');
   const labels = await readProjectFile('lib/earning-details.ts');
   assert.match(labels, /penalty: "জরিমানা"/, 'a penalty has a label');
   const articles = await readProjectFile('components/account/admin-articles.tsx');
   assert.match(articles, /rpc\("admin_apply_penalty"/, 'the desk calls the penalty RPC');
-  assert.match(articles, /Number\.isInteger\(amountTk\) \|\| amountTk < 10 \|\| amountTk > 20/, 'the dialog refuses anything outside whole taka 10–20');
+  assert.match(articles, /Number\.isInteger\(amountTk\) \|\| amountTk < 1 \|\| amountTk > 20/, 'the dialog refuses anything outside whole taka 1–20');
   assert.match(articles, /জরিমানা দিন/, 'the penalty has its own dialog');
   assert.match(articles, /লেখকের মোট ব্যালেন্স থেকে সঙ্গে সঙ্গে কেটে নেওয়া হবে/, 'the dialog says the deduction is immediate');
   assert.match(articles, /row\.entry_type === "penalty"/, 'the preview reads penalty rows into the story income');
   assert.doesNotMatch(articles, /\.message/, 'no provider message leaks into the panel');
   const rls = await readProjectFile('supabase/tests/dutimiz_rls.test.sql');
-  assert.match(rls, /'A penalty below ৳10 is refused'/, 'the range refusals are covered by pgTAP');
+  assert.match(rls, /'A penalty below ৳1 is refused'/, 'the range refusals are covered by pgTAP');
   assert.match(rls, /'The wallet docks the penalty from the available money'/, 'the wallet deduction is covered by pgTAP');
 });
 

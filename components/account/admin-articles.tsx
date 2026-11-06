@@ -153,12 +153,12 @@ export function AdminArticles() {
   const [earningsLoaded, setEarningsLoaded] = React.useState(false);
   const [earningMessage, setEarningMessage] = React.useState("");
 
-  // The desk's bonus. Whole taka between 10 and 20, published stories only — the server
+  // The desk's bonus. Whole taka between 1 and 20, published stories only — the server
   // refuses anything else, so the dialog only has to collect the number.
   const [bonusing, setBonusing] = React.useState<Article | null>(null);
   const [bonusAmount, setBonusAmount] = React.useState("");
 
-  // The desk's penalty, the mirror image: whole taka 10–20 docked from the story's owner.
+  // The desk's penalty, the mirror image: whole taka 1–20 docked from the story's owner.
   const [penalizing, setPenalizing] = React.useState<Article | null>(null);
   const [penaltyAmount, setPenaltyAmount] = React.useState("");
 
@@ -382,8 +382,8 @@ export function AdminArticles() {
     setError("");
     setNotice("");
     const amountTk = Number(bonusAmount);
-    if (!Number.isInteger(amountTk) || amountTk < 10 || amountTk > 20) {
-      setError("বোনাস ১০ থেকে ২০ টাকার মধ্যে একটি পূর্ণসংখ্যা হতে হবে।");
+    if (!Number.isInteger(amountTk) || amountTk < 1 || amountTk > 20) {
+      setError("বোনাস ১ থেকে ২০ টাকার মধ্যে একটি পূর্ণসংখ্যা হতে হবে।");
       return;
     }
     setBusy(`bonus-${bonusing.id}`);
@@ -415,8 +415,8 @@ export function AdminArticles() {
     setError("");
     setNotice("");
     const amountTk = Number(penaltyAmount);
-    if (!Number.isInteger(amountTk) || amountTk < 10 || amountTk > 20) {
-      setError("জরিমানা ১০ থেকে ২০ টাকার মধ্যে একটি পূর্ণসংখ্যা হতে হবে।");
+    if (!Number.isInteger(amountTk) || amountTk < 1 || amountTk > 20) {
+      setError("জরিমানা ১ থেকে ২০ টাকার মধ্যে একটি পূর্ণসংখ্যা হতে হবে।");
       return;
     }
     setBusy(`penalty-${penalizing.id}`);
@@ -988,7 +988,7 @@ export function AdminArticles() {
         </DialogContent>
       </Dialog>
 
-      {/* The desk's discretionary bonus: ৳10–20 whole taka on a published story. The server
+      {/* The desk's discretionary bonus: ৳1–20 whole taka on a published story. The server
           holds it until the author's profile completes, exactly like automatic earnings. */}
       <Dialog open={bonusing !== null} onOpenChange={(open) => !open && setBonusing(null)}>
         <DialogContent>
@@ -1007,16 +1007,16 @@ export function AdminArticles() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-3">
-            <Field label="বোনাসের পরিমাণ (টাকা)" htmlFor="bonus-amount" hint="১০ থেকে ২০ টাকার মধ্যে একটি পূর্ণসংখ্যা।">
+            <Field label="বোনাসের পরিমাণ (টাকা)" htmlFor="bonus-amount" hint="১ থেকে ২০ টাকার মধ্যে একটি পূর্ণসংখ্যা।">
               <Input
                 id="bonus-amount"
                 type="number"
-                min={10}
+                min={1}
                 max={20}
                 step={1}
                 value={bonusAmount}
                 onChange={(event) => setBonusAmount(event.target.value)}
-                placeholder="১০–২০"
+                placeholder="১–২০"
               />
             </Field>
           </div>
@@ -1031,7 +1031,7 @@ export function AdminArticles() {
         </DialogContent>
       </Dialog>
 
-      {/* The desk's discretionary penalty: ৳10–20 whole taka docked from the story's owner when
+      {/* The desk's discretionary penalty: ৳1–20 whole taka docked from the story's owner when
           the story is judged to deserve less than it earned. The deduction is immediate. */}
       <Dialog open={penalizing !== null} onOpenChange={(open) => !open && setPenalizing(null)}>
         <DialogContent>
@@ -1053,16 +1053,16 @@ export function AdminArticles() {
             <p className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
               এই পরিমাণ লেখকের মোট ব্যালেন্স থেকে সঙ্গে সঙ্গে কেটে নেওয়া হবে।
             </p>
-            <Field label="জরিমানার পরিমাণ (টাকা)" htmlFor="penalty-amount" hint="১০ থেকে ২০ টাকার মধ্যে একটি পূর্ণসংখ্যা।">
+            <Field label="জরিমানার পরিমাণ (টাকা)" htmlFor="penalty-amount" hint="১ থেকে ২০ টাকার মধ্যে একটি পূর্ণসংখ্যা।">
               <Input
                 id="penalty-amount"
                 type="number"
-                min={10}
+                min={1}
                 max={20}
                 step={1}
                 value={penaltyAmount}
                 onChange={(event) => setPenaltyAmount(event.target.value)}
-                placeholder="১০–২০"
+                placeholder="১–২০"
               />
             </Field>
           </div>
